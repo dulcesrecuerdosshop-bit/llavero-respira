@@ -1,4 +1,4 @@
-// sw.js - Service Worker mejorado (usar rutas relativas)
+// sw.js - Service Worker mejorado (rutas relativas)
 const CACHE_VERSION = 'v2';
 const CACHE_NAME = `llavero-respira-${CACHE_VERSION}`;
 const ASSETS = [
