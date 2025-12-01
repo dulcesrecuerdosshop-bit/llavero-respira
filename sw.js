@@ -1,12 +1,12 @@
-// sw.js - Service Worker mejorado para Llavero Respira
+// sw.js - Service Worker mejorado (usar rutas relativas)
 const CACHE_VERSION = 'v2';
 const CACHE_NAME = `llavero-respira-${CACHE_VERSION}`;
 const ASSETS = [
-  '/',
-  '/index.html',
-  '/logo.png',
-  '/helpers.js',
-  '/manifest.json'
+  './',
+  'index.html',
+  'logo.png',
+  'helpers.js',
+  'manifest.json'
 ];
 
 self.addEventListener('install', event => {
@@ -41,7 +41,6 @@ self.addEventListener('fetch', event => {
   const req = event.request;
   const url = new URL(req.url);
 
-  // Ignorar peticiones a otros orígenes
   if (url.origin !== location.origin) {
     return;
   }
@@ -55,7 +54,7 @@ self.addEventListener('fetch', event => {
         return networkResponse;
       } catch (err) {
         console.warn('[SW] Network failed, trying cache for navigation', err);
-        const cached = await caches.match('/index.html');
+        const cached = await caches.match('index.html');
         return cached || Response.error();
       }
     })());
