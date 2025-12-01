@@ -1,132 +1,172 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Frase Motivacional — Llavero Respira</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Llavero Respira — Frases Motivacionales</title>
 
-  <!-- Manifest relativo -->
   <link rel="manifest" href="manifest.json">
-  <!-- html2canvas CDN (para descarga de imagen) -->
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js" defer></script>
 
   <style>
-    :root{
-      --text-color: #fff;
-      --muted: rgba(255,255,255,0.85);
-      --btn-bg: rgba(255,255,255,0.08);
-      --btn-radius: 10px;
+    :root {
+      --bg1: #6a11cb;
+      --bg2: #2575fc;
+      --panel: rgba(255,255,255,0.07);
+      --text: #ffffff;
+      --muted: rgba(255,255,255,0.8);
+      --accent: #ffd166;
+      --btn-radius: 12px;
     }
-    html,body { height:100%; }
+    html,body { height:100%; margin:0; font-family:Inter, Arial, sans-serif; color:var(--text); }
     body {
-      margin: 0;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      font-family: 'Arial', sans-serif;
-      text-align: center;
-      transition: background 0.5s ease;
-      padding: 20px;
-      background: linear-gradient(135deg, #6a11cb, #2575fc);
-      color: var(--text-color);
+      display:flex; align-items:center; justify-content:center; padding:20px;
+      background: linear-gradient(135deg, var(--bg1), var(--bg2));
+      min-height:100vh;
+    }
+    .card {
+      width:100%; max-width:940px; border-radius:18px; padding:28px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.02));
+      box-shadow: 0 10px 35px rgba(0,0,0,0.35);
+      display:flex; flex-direction:column; align-items:center;
+      gap:16px;
     }
 
-    img.logo {
-      max-width: 140px;
-      margin-bottom: 34px;
-      filter: drop-shadow(0 4px 10px rgba(0,0,0,0.25));
+    header {
+      display:flex; align-items:center; gap:14px; width:100%;
+      justify-content:flex-start;
     }
+    img.logo { width:64px; height:auto; border-radius:10px; box-shadow:0 6px 20px rgba(0,0,0,0.3); }
+    .title {
+      font-size:1.1rem; font-weight:700; letter-spacing:0.2px;
+    }
+    .subtitle { color:var(--muted); font-size:0.9rem; margin-top:-4px; }
 
     .frase {
-      font-size: 1.8em;
-      color: var(--text-color);
-      font-weight: 700;
-      max-width: 900px;
-      width: 90%;
-      line-height: 1.3;
-      cursor: pointer;
-      transition: transform 0.25s ease, opacity 0.25s ease;
-      user-select: none;
-      padding: 18px 22px;
-      border-radius: 14px;
+      margin-top:6px;
+      width:100%;
+      text-align:center;
+      font-weight:700;
+      font-size:1.9rem;
+      line-height:1.2;
+      padding:22px 28px;
+      border-radius:14px;
+      background:var(--panel);
       backdrop-filter: blur(6px);
-      background: rgba(255,255,255,0.06);
+      cursor:pointer;
+      user-select:none;
+      transition: transform .12s ease, opacity .18s ease;
     }
-
-    .frase:active { transform: scale(0.99); }
-
-    .hint {
-      margin-top: 14px;
-      color: var(--muted);
-      font-size: 0.92em;
-      opacity: 0.95;
-    }
+    .hint { color:var(--muted); font-size:0.9rem; }
 
     .controls {
-      margin-top: 18px;
-      display:flex;
-      gap:10px;
-      align-items:center;
-      flex-wrap:wrap;
-      justify-content:center;
+      width:100%; display:flex; gap:10px; flex-wrap:wrap; justify-content:center; align-items:center;
     }
-
+    .controls .left, .controls .right { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
     .controls button {
-      background: var(--btn-bg);
-      color: var(--text-color);
-      border: none;
-      padding: 8px 12px;
-      border-radius: var(--btn-radius);
-      font-size: 0.95em;
-      cursor: pointer;
-      transition: transform .12s ease, background .12s ease;
+      background: rgba(255,255,255,0.06); color:var(--text); border:none; padding:9px 12px;
+      border-radius:var(--btn-radius); cursor:pointer; font-size:0.95rem;
     }
-    .controls button:active { transform: translateY(1px); }
+    .controls .small { padding:6px 10px; font-size:0.9rem; }
+
+    .toggles {
+      display:flex; gap:8px; align-items:center;
+      background: rgba(255,255,255,0.03); padding:8px; border-radius:12px;
+    }
+    .toggle-btn { background:transparent; color:var(--muted); border:1px solid rgba(255,255,255,0.03); padding:6px 8px; border-radius:8px; cursor:pointer; }
+    .toggle-btn.active { background:var(--accent); color:#222; border-color:transparent; }
+
+    .status { color:var(--muted); font-size:0.85rem; margin-top:6px; }
 
     .historial {
-      margin-top: 16px;
-      color: rgba(255,255,255,0.9);
-      font-size: 0.9em;
-      max-width: 92%;
-      display:flex;
-      gap:8px;
-      flex-wrap:wrap;
-      justify-content:center;
+      width:100%;
+      display:flex; gap:8px; flex-wrap:wrap; justify-content:center; max-width:100%;
     }
+    .historial span { display:inline-block; padding:6px 10px; border-radius:12px; background:rgba(255,255,255,0.05); font-size:0.85rem; }
 
-    @media (max-width:480px){
-      .frase { font-size:1.2em; padding:14px; }
-      .controls button { padding:8px; font-size:0.9em; }
+    footer { width:100%; display:flex; justify-content:space-between; align-items:center; gap:12px; margin-top:8px; color:var(--muted); font-size:0.9rem; }
+
+    /* Welcome modal */
+    #welcomeOverlay {
+      position:fixed; inset:0; display:none; align-items:center; justify-content:center;
+      background: linear-gradient(180deg, rgba(0,0,0,0.6), rgba(0,0,0,0.6)); z-index:12000;
+    }
+    .welcome {
+      width:92%; max-width:520px; background: rgba(255,255,255,0.04); padding:22px; border-radius:14px; text-align:center; color:var(--text);
+      box-shadow:0 12px 40px rgba(0,0,0,0.6);
+    }
+    .welcome h2 { margin:0 0 6px 0; font-size:1.3rem; }
+    .welcome p { color:var(--muted); margin:10px 0 18px 0; }
+
+    .welcome .actions { display:flex; gap:8px; justify-content:center; }
+    .welcome button { padding:10px 14px; border-radius:12px; border:none; cursor:pointer; }
+    .btn-primary { background:var(--accent); color:#222; font-weight:700; }
+    .btn-ghost { background:transparent; color:var(--text); border:1px solid rgba(255,255,255,0.06); }
+
+    @media (max-width:520px) {
+      .frase { font-size:1.2rem; padding:16px; }
+      img.logo { width:54px; }
     }
   </style>
 </head>
 <body>
-  <!-- Logo -->
-  <img src="logo.png" alt="Logo Llavero Respira" class="logo">
+  <div class="card" role="main" aria-labelledby="appTitle">
+    <header>
+      <img src="logo.png" alt="Logo Llavero Respira" class="logo">
+      <div>
+        <div id="appTitle" class="title">Llavero Respira</div>
+        <div class="subtitle">Un recordatorio amable para tu día</div>
+      </div>
+    </header>
 
-  <!-- Frase -->
-  <div class="frase" id="frase" title="Toca para ver otra frase"></div>
-  <div class="hint">Toca la frase o presiona espacio para cambiar. Usa los botones abajo para acciones.</div>
+    <div id="frase" class="frase" role="button" aria-pressed="false" title="Toca para ver otra frase"></div>
+    <div class="hint">Toca la frase o presiona espacio para cambiar. Pulsa "🌬️ Respirar" para una pausa guiada.</div>
 
-  <!-- Controles -->
-  <div class="controls" aria-hidden="false">
-    <button id="favBtn" aria-label="Marcar como favorita">♡ Favorita</button>
-    <button id="shareBtn" aria-label="Compartir frase">🔗 Compartir</button>
-    <button id="copyBtn" aria-label="Copiar frase">📋 Copiar</button>
-    <button id="ttsBtn" aria-label="Escuchar frase">🔊 Escuchar</button>
-    <button id="breathBtn" aria-pressed="false">🌬️ Respirar</button>
-    <button id="downloadBtn" aria-label="Descargar imagen">⬇️ Descargar</button>
+    <div class="controls" role="toolbar" aria-label="Controles principales">
+      <div class="left">
+        <button id="favBtn" class="small">♡ Favorita</button>
+        <button id="shareBtn" class="small">🔗 Compartir</button>
+        <button id="copyBtn" class="small">📋 Copiar</button>
+        <button id="ttsBtn" class="small">🔊 Escuchar</button>
+      </div>
+
+      <div class="right">
+        <div class="toggles" role="group" aria-label="Opciones de audio">
+          <button id="toggleVoice" class="toggle-btn">Voz</button>
+          <button id="toggleSound" class="toggle-btn">Sonido</button>
+        </div>
+        <button id="breathBtn" class="small">🌬️ Respirar</button>
+        <button id="downloadBtn" class="small">⬇️ Descargar</button>
+      </div>
+    </div>
+
+    <div id="historial" class="historial" aria-live="polite"></div>
+    <div class="status" id="statusLine">Cargando...</div>
+
+    <footer>
+      <div>Gracias por apoyar Llavero Respira ❤️</div>
+      <div style="font-size:0.85rem; color:var(--muted)">Hecho con cariño</div>
+    </footer>
   </div>
 
-  <div id="historial" class="historial" aria-live="polite"></div>
+  <!-- Welcome modal (solo la primera vez) -->
+  <div id="welcomeOverlay" role="dialog" aria-modal="true" aria-labelledby="welcomeTitle">
+    <div class="welcome">
+      <h2 id="welcomeTitle">¡Gracias por tu compra!</h2>
+      <p>Este llavero te acompañará con frases y pausas para respirar. Acércalo a tu teléfono cuando necesites un recordatorio amable.</p>
+      <div class="actions">
+        <button id="welcomeStart" class="btn-primary">Comenzar</button>
+        <button id="welcomeDontShow" class="btn-ghost">No mostrar de nuevo</button>
+      </div>
+    </div>
+  </div>
 
-  <!-- helpers.js (ruta relativa) -->
+  <!-- helpers.js (debe ser la versión avanzada con WebAudio + TTS) -->
   <script src="helpers.js" defer></script>
 
-  <!-- JS principal (muestra frases) -->
+  <!-- main script: frases, interacciones y sincronización con helpers -->
   <script defer>
+    // LISTA DE FRASES (100) - mantenida tal cual
     const frases = [
       "Cree en ti y todo será posible.",
       "Un paso hoy vale más que cien promesas mañana.",
@@ -244,43 +284,132 @@
     ];
 
     const fraseEl = document.getElementById('frase');
+    const statusLine = document.getElementById('statusLine');
+    const toggleVoiceBtn = document.getElementById('toggleVoice');
+    const toggleSoundBtn = document.getElementById('toggleSound');
+    const welcomeOverlay = document.getElementById('welcomeOverlay');
+    const welcomeStart = document.getElementById('welcomeStart');
+    const welcomeDontShow = document.getElementById('welcomeDontShow');
 
+    // Mostrar frase aleatoria
     function mostrarFrase() {
-      const fraseIndex = Math.floor(Math.random() * frases.length);
-      const fondoIndex = Math.floor(Math.random() * fondos.length);
+      if (window.breathingActive) return; // no cambiar mientras respira
+      const i = Math.floor(Math.random() * frases.length);
+      const j = Math.floor(Math.random() * fondos.length);
       fraseEl.style.opacity = 0;
       setTimeout(() => {
-        const texto = frases[fraseIndex];
-        fraseEl.textContent = texto;
-        document.body.style.background = fondos[fondoIndex];
+        fraseEl.textContent = frases[i];
+        document.body.style.background = fondos[j];
         fraseEl.style.opacity = 1;
-        if (typeof window.onFraseMostrada === 'function') window.onFraseMostrada(texto);
-      }, 180);
+        if (typeof window.onFraseMostrada === 'function') window.onFraseMostrada(frases[i]);
+      }, 160);
     }
 
-    // Mostrar una al cargar
+    // Inicial
     mostrarFrase();
 
     // Interacciones
     fraseEl.addEventListener('click', mostrarFrase);
     document.addEventListener('keydown', (e) => {
-      if (e.code === 'Space') { e.preventDefault(); mostrarFrase(); }
+      if (e.code === 'Space') {
+        e.preventDefault();
+        if (window.breathingActive) return;
+        mostrarFrase();
+      }
     });
 
-    // Registrar service worker de forma segura (ruta relativa)
+    // Welcome modal (solo primera vez)
+    function showWelcomeIfNeeded() {
+      try {
+        const seen = localStorage.getItem('lr_seen_welcome');
+        if (!seen) {
+          welcomeOverlay.style.display = 'flex';
+        }
+      } catch(e){}
+    }
+    welcomeStart.addEventListener('click', () => {
+      welcomeOverlay.style.display = 'none';
+      localStorage.setItem('lr_seen_welcome', '1');
+    });
+    welcomeDontShow.addEventListener('click', () => {
+      welcomeOverlay.style.display = 'none';
+      localStorage.setItem('lr_seen_welcome', '1');
+    });
+    showWelcomeIfNeeded();
+
+    // Toggle UI: se comunicará con window.lr_helpers cuando esté disponible
+    function updateToggleUI() {
+      if (window.lr_helpers && typeof window.lr_helpers.dumpState === 'function') {
+        const st = window.lr_helpers.dumpState();
+        // st may contain buffers and flags
+        const v = !!st?.voiceBreathEnabled;
+        const s = !!st?.soundBreathEnabled;
+        toggleVoiceBtn.classList.toggle('active', v);
+        toggleVoiceBtn.textContent = v ? 'Voz ON' : 'Voz';
+        toggleSoundBtn.classList.toggle('active', s);
+        toggleSoundBtn.textContent = s ? 'Sonido ON' : 'Sonido';
+        statusLine.textContent = `Audio: inhale ${st?.buffers?.inhale ? 'ok' : '—'} · exhale ${st?.buffers?.exhale ? 'ok' : '—'} · ambient ${st?.buffers?.ambient ? 'ok' : '—'}`;
+        return true;
+      }
+      // fallback status
+      statusLine.textContent = 'Cargando audio / preparando…';
+      return false;
+    }
+
+    toggleVoiceBtn.addEventListener('click', () => {
+      if (window.lr_helpers && typeof window.lr_helpers.toggleVoiceBreath === 'function') {
+        const nv = window.lr_helpers.toggleVoiceBreath(undefined);
+        // Some impls expect explicit true/false; call toggle to flip
+        // If returned undefined, flip manually:
+        if (typeof nv === 'undefined') {
+          // try to flip using dumpState
+          const st = window.lr_helpers.dumpState();
+          window.lr_helpers.toggleVoiceBreath(!st.voiceBreathEnabled);
+        }
+        setTimeout(updateToggleUI, 120);
+      } else {
+        alert('Espera un momento mientras se inicializa el audio.');
+      }
+    });
+
+    toggleSoundBtn.addEventListener('click', () => {
+      if (window.lr_helpers && typeof window.lr_helpers.toggleSoundBreath === 'function') {
+        const nv = window.lr_helpers.toggleSoundBreath(undefined);
+        if (typeof nv === 'undefined') {
+          const st = window.lr_helpers.dumpState();
+          window.lr_helpers.toggleSoundBreath(!st.soundBreathEnabled);
+        }
+        setTimeout(updateToggleUI, 120);
+      } else {
+        alert('Espera un momento mientras se inicializa el audio.');
+      }
+    });
+
+    // Poll hasta que lr_helpers esté listo; luego actualiza UI
+    let pollCount = 0;
+    const pollInterval = setInterval(() => {
+      pollCount++;
+      const ready = updateToggleUI();
+      if (ready || pollCount > 30) {
+        clearInterval(pollInterval);
+        if (!ready) statusLine.textContent = 'Audio no disponible (fallback a TTS).';
+      }
+    }, 300);
+
+    // Exponer función para tests rápidos
+    window._lr_manual = { mostrarFrase, updateToggleUI };
+
+    // Service worker registration safe (relative path)
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         fetch('sw.js', { method: 'HEAD' })
           .then(resp => {
             if (resp.ok) {
-              navigator.serviceWorker.register('sw.js')
-                .then(reg => console.log('SW registrado:', reg))
-                .catch(err => console.warn('SW registro falló:', err));
+              navigator.serviceWorker.register('sw.js').then(reg => console.log('SW registrado:', reg)).catch(e => console.warn('SW registro falló:', e));
             } else {
               console.log('sw.js no disponible (HEAD):', resp.status);
             }
-          })
-          .catch(err => console.log('sw.js no encontrado o error de red:', err));
+          }).catch(e => console.log('sw.js HEAD fetch error', e));
       });
     }
   </script>
