@@ -1,29 +1,32 @@
-// helpers.js - manejo de audio mejorado (resume AudioContext, fallback HTMLAudio, logs)
-// Incluye funciones públicas para debug: window.lr_helpers.dumpState(), resumeAudio(), etc.
+// helpers.js - versión single-breath con segment playback, resume AudioContext y fallback HTMLAudio
 (function () {
-  console.log('[helpers] cargando helpers.js (audio+tts)');
+  console.log('[helpers] cargando helpers.js (breath single file)');
 
-  // Rutas (ajusta si pones audio en carpeta)
+  // Ruta del audio breath.unico y ambient (ajusta si usas otra carpeta)
   const AUDIO_PATHS = {
-    inhale: 'inhale.mp3',
-    exhale: 'exhale.mp3',
-    ambient: 'ambient.mp3'
+    breath: 'breath.mp3',
+    ambient: 'ambient.mp3' // opcional
   };
 
-  // Flags y volúmenes por defecto
+  // Ajustes por defecto (modifica si calibras tiempos)
+  const inhaleOffsetSeconds = 0.0;      // ajustar según tu archivo
+  const inhaleDurationSeconds = 2.6;    // ajustar según tu archivo
+  const exhaleOffsetSeconds = 2.6;      // ajustar según tu archivo
+  const exhaleDurationSeconds = 3.2;    // ajustar según tu archivo
+
   let voiceBreathEnabled = true;
   let soundBreathEnabled = true;
   let ambientVolume = 0.12;
   let soundVolume = 0.9;
 
-  // Web Audio
+  // WebAudio
   let audioCtx = null;
-  let audioBuffers = { inhale: null, exhale: null, ambient: null };
+  let audioBuffers = { breath: null, ambient: null };
   let ambientSource = null;
   let ambientGain = null;
 
-  // HTMLAudio fallback elements (por si WebAudio no está disponible)
-  let htmlAudio = { inhale: null, exhale: null, ambient: null };
+  // HTMLAudio fallback
+  let htmlAudio = { breath: null, ambient: null };
 
   async function ensureAudioContext() {
     if (audioCtx) return audioCtx;
@@ -54,25 +57,27 @@
     }
   }
 
-  function playBuffer(buffer, { when = 0, duration = null, gain = 1, fade = 0.05 } = {}) {
+  // Reproduce un segmento del buffer
+  function playBufferSegment(buffer, offsetSec, durationSec, { gain = 1, fade = 0.06 } = {}) {
     if (!audioCtx || !buffer) return Promise.resolve();
     const ctx = audioCtx;
     const src = ctx.createBufferSource();
     src.buffer = buffer;
     const g = ctx.createGain();
-    g.gain.setValueAtTime(0.0001, ctx.currentTime + when);
-    g.gain.linearRampToValueAtTime(gain, ctx.currentTime + when + fade);
-    if (duration) {
-      const endAt = ctx.currentTime + when + duration;
-      g.gain.setValueAtTime(gain, endAt - fade);
-      g.gain.linearRampToValueAtTime(0.0001, endAt);
-      src.connect(g).connect(ctx.destination);
-      try { src.start(ctx.currentTime + when); src.stop(endAt + 0.05); } catch(e){ console.warn('[helpers] start/stop buffer error', e); }
-    } else {
-      src.connect(g).connect(ctx.destination);
-      try { src.start(ctx.currentTime + when); } catch(e){ console.warn('[helpers] start buffer error', e); }
+    const now = ctx.currentTime;
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.linearRampToValueAtTime(gain, now + fade);
+    const endAt = now + durationSec;
+    g.gain.setValueAtTime(gain, endAt - fade);
+    g.gain.linearRampToValueAtTime(0.0001, endAt);
+    src.connect(g).connect(ctx.destination);
+    try {
+      src.start(now, offsetSec, durationSec + 0.05);
+      src.stop(endAt + 0.05);
+    } catch (e) {
+      console.warn('[helpers] start buffer segment error', e);
     }
-    console.log('[helpers] playBuffer scheduled', { when, duration, gain });
+    console.log('[helpers] playBufferSegment', { offsetSec, durationSec, gain });
     return Promise.resolve();
   }
 
@@ -86,30 +91,28 @@
     ambientGain.gain.value = 0;
     ambientSource.connect(ambientGain).connect(audioCtx.destination);
     ambientSource.start();
-    // Fade in
     try { ambientGain.gain.linearRampToValueAtTime(ambientVolume, audioCtx.currentTime + 1.5); } catch(e){}
     console.log('[helpers] ambient loop started');
   }
-
   function stopAmbientLoop() {
-    if (ambientGain) {
-      try { ambientGain.gain.linearRampToValueAtTime(0.0001, audioCtx.currentTime + 0.8); } catch(e){}
-    }
-    if (ambientSource) {
-      try { ambientSource.stop(audioCtx.currentTime + 1.0); } catch(e){}
-      ambientSource = null;
-      ambientGain = null;
-    }
+    if (ambientGain) { try { ambientGain.gain.linearRampToValueAtTime(0.0001, audioCtx.currentTime + 0.8); } catch(e){} }
+    if (ambientSource) { try { ambientSource.stop(audioCtx.currentTime + 1.0); } catch(e){} ambientSource = null; ambientGain = null; }
     console.log('[helpers] ambient loop stopped');
   }
 
-  function playAudioElement(url) {
+  // HTMLAudio fallback: play segment by setting currentTime and pausing after duration
+  function playHtmlAudioSegment(audioEl, offsetSec, durationSec) {
+    if (!audioEl) return;
     try {
-      const a = new Audio(url);
-      a.volume = soundVolume;
-      a.play().catch(e => console.warn('[helpers] audioElement play error', e));
-      return a;
-    } catch(e) { console.warn('[helpers] playAudioElement error', e); return null; }
+      audioEl.currentTime = offsetSec;
+      audioEl.volume = soundVolume;
+      audioEl.play().catch(e => console.warn('[helpers] htmlAudio play error', e));
+      setTimeout(() => {
+        try { audioEl.pause(); audioEl.currentTime = 0; } catch (e) {}
+      }, Math.max(400, Math.round(durationSec * 1000)));
+    } catch (e) {
+      console.warn('[helpers] playHtmlAudioSegment error', e);
+    }
   }
 
   function pickSpanishVoice() {
@@ -122,29 +125,24 @@
     return voices[0];
   }
 
-  // preload assets; safe: ignores failures
   async function preloadAudioAssets() {
     await ensureAudioContext();
     if (audioCtx) {
-      audioBuffers.inhale = await loadAudioBuffer(AUDIO_PATHS.inhale).catch(()=>null);
-      audioBuffers.exhale = await loadAudioBuffer(AUDIO_PATHS.exhale).catch(()=>null);
+      audioBuffers.breath = await loadAudioBuffer(AUDIO_PATHS.breath).catch(()=>null);
       audioBuffers.ambient = await loadAudioBuffer(AUDIO_PATHS.ambient).catch(()=>null);
     } else {
-      // fallback: prepare HTMLAudio objects (lighter)
-      htmlAudio.inhale = new Audio(AUDIO_PATHS.inhale);
-      htmlAudio.exhale = new Audio(AUDIO_PATHS.exhale);
+      htmlAudio.breath = new Audio(AUDIO_PATHS.breath);
       htmlAudio.ambient = new Audio(AUDIO_PATHS.ambient); htmlAudio.ambient.loop = true; htmlAudio.ambient.volume = ambientVolume;
     }
-    console.log('[helpers] preloadAudioAssets results', {
-      inhale: !!audioBuffers.inhale || !!htmlAudio.inhale,
-      exhale: !!audioBuffers.exhale || !!htmlAudio.exhale,
-      ambient: !!audioBuffers.ambient || !!htmlAudio.ambient
+    console.log('[helpers] preloadAudioAssets', {
+      breathBuf: !!audioBuffers.breath, ambientBuf: !!audioBuffers.ambient,
+      breathHtml: !!htmlAudio.breath, ambientHtml: !!htmlAudio.ambient
     });
   }
 
-  // ---------- UI / Breath logic ----------
+  // ---------- UI & breath ----------
   document.addEventListener('DOMContentLoaded', () => {
-    console.log('[helpers] DOMContentLoaded - init helpers');
+    console.log('[helpers] DOMContentLoaded - init helpers (single breath)');
 
     const fraseEl = document.getElementById('frase');
     const favBtn = document.getElementById('favBtn');
@@ -170,21 +168,12 @@
         renderHistorial();
       } catch(e){ console.warn(e); }
     }
-    function renderHistorial(){
-      try {
-        if (!historialEl) return;
-        const h = JSON.parse(localStorage.getItem(KEY_HISTORIAL) || '[]');
-        historialEl.innerHTML = h.length ? (h.map(i=> `<span>${escapeHtml(i.text)}</span>`).join('')) : '';
-      } catch(e){ console.warn(e); }
-    }
+    function renderHistorial(){ try { if (!historialEl) return; const h = JSON.parse(localStorage.getItem(KEY_HISTORIAL) || '[]'); historialEl.innerHTML = h.length ? (h.map(i=> `<span>${escapeHtml(i.text)}</span>`).join('')) : ''; } catch(e){ console.warn(e); } }
     function escapeHtml(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-    function attachSafe(el, event, fn){
-      if (!el) { console.warn('[helpers] elemento no encontrado para listener:', event); return; }
-      try { el.addEventListener(event, fn); console.log(`[helpers] listener ${event} agregado a`, el.id); } catch(e){ console.warn(e); }
-    }
+    function attachSafe(el, event, fn){ if (!el) { console.warn('[helpers] elemento no encontrado para listener:', event); return; } try { el.addEventListener(event, fn); console.log(`[helpers] listener ${event} agregado a`, el.id); } catch(e){ console.warn(e); } }
 
-    // botones básicos
+    // buttons
     attachSafe(favBtn, 'click', () => {
       const text = fraseEl.textContent.trim();
       let favs = getFavoritos();
@@ -213,26 +202,22 @@
       speechSynthesis.speak(u);
     });
 
-    // breath logic with audio fallback and resume
+    // breath flow
     const BREATH_STEPS = [
-      { label: 'Inhala', duration: 4000 },
-      { label: 'Sostén', duration: 4000 },
-      { label: 'Exhala', duration: 4000 },
-      { label: 'Sostén', duration: 1000 }
+      { label: 'Inhala', duration: inhaleDurationSeconds, offset: inhaleOffsetSeconds, type: 'inhale' },
+      { label: 'Sostén', duration: 4.0, offset: 0, type: 'hold' },
+      { label: 'Exhala', duration: exhaleDurationSeconds, offset: exhaleOffsetSeconds, type: 'exhale' },
+      { label: 'Sostén', duration: 1.0, offset: 0, type: 'hold' }
     ];
 
     let breathing = false;
     attachSafe(breathBtn, 'click', async () => {
       if (breathing) { stopBreath(); return; }
-      // On first user gesture, resume audio context and ensure assets loaded
       await ensureAudioContext();
       if (audioCtx && audioCtx.state === 'suspended') {
-        try { await audioCtx.resume(); console.log('[helpers] audioCtx resumed'); } catch(e){ console.warn('[helpers] audioCtx resume failed', e); }
+        try { await audioCtx.resume(); console.log('[helpers] audioCtx resumed'); } catch(e){ console.warn(e); }
       }
-      // If buffers not loaded yet, try preload now (user gesture allows decode)
-      if (!audioBuffers.inhale && !htmlAudio.inhale) {
-        await preloadAudioAssets();
-      }
+      if (!audioBuffers.breath && !htmlAudio.breath) await preloadAudioAssets();
       startBreath();
     });
 
@@ -249,8 +234,7 @@
       const u = new SpeechSynthesisUtterance(text);
       if (v) u.voice = v;
       u.lang = v ? v.lang : 'es-ES';
-      u.rate = 1;
-      u.pitch = 1;
+      u.rate = 1; u.pitch = 1;
       speechSynthesis.cancel();
       speechSynthesis.speak(u);
     }
@@ -274,7 +258,7 @@
 
       container.appendChild(circle); container.appendChild(smallText); overlay.appendChild(container); document.body.appendChild(overlay);
 
-      // start ambient
+      // ambient start
       if (soundBreathEnabled) {
         if (audioBuffers.ambient) startAmbientLoop(audioBuffers.ambient);
         else if (htmlAudio.ambient) { try { htmlAudio.ambient.volume = ambientVolume; htmlAudio.ambient.loop = true; htmlAudio.ambient.play().catch(()=>{}); } catch(e){} }
@@ -287,37 +271,33 @@
         if (!breathing) return;
         const step = BREATH_STEPS[phase];
         circle.textContent = step.label;
-        smallText.textContent = step.label + (step.duration >= 1000 ? ` · ${Math.round(step.duration/1000)}s` : '');
+        smallText.textContent = step.label + (step.duration >= 1 ? ` · ${Math.round(step.duration)}s` : '');
 
-        // Play inhale/exhale sounds or speak
-        if (soundBreathEnabled) {
-          if (phase === 0) {
-            if (audioBuffers.inhale) { await playBuffer(audioBuffers.inhale, { gain: soundVolume, duration: step.duration, fade: 0.06 }); }
-            else if (htmlAudio.inhale) { try { htmlAudio.inhale.currentTime = 0; htmlAudio.inhale.volume = soundVolume; htmlAudio.inhale.play().catch(()=>{}); } catch(e){} }
-            else speakIfEnabled(step.label);
-          } else if (phase === 2) {
-            if (audioBuffers.exhale) { await playBuffer(audioBuffers.exhale, { gain: soundVolume, duration: step.duration, fade: 0.06 }); }
-            else if (htmlAudio.exhale) { try { htmlAudio.exhale.currentTime = 0; htmlAudio.exhale.volume = soundVolume; htmlAudio.exhale.play().catch(()=>{}); } catch(e){} }
-            else speakIfEnabled(step.label);
-          } else {
-            // hold phases: optionally speak small cue
-            speakIfEnabled(step.label);
-          }
+        if (soundBreathEnabled && step.type === 'inhale') {
+          if (audioBuffers.breath) { await playBufferSegment(audioBuffers.breath, step.offset, step.duration, { gain: soundVolume, fade: 0.06 }); }
+          else if (htmlAudio.breath) { playHtmlAudioSegment(htmlAudio.breath, step.offset, step.duration); }
+          else speakIfEnabled(step.label);
+        } else if (soundBreathEnabled && step.type === 'exhale') {
+          if (audioBuffers.breath) { await playBufferSegment(audioBuffers.breath, step.offset, step.duration, { gain: soundVolume, fade: 0.06 }); }
+          else if (htmlAudio.breath) { playHtmlAudioSegment(htmlAudio.breath, step.offset, step.duration); }
+          else speakIfEnabled(step.label);
         } else {
           speakIfEnabled(step.label);
         }
 
-        // animate circle
         try {
-          const scaleFrom = phase === 2 ? 1.0 : 0.6;
-          const scaleTo = phase === 2 ? 0.6 : 1.0;
-          circle.animate([{ transform: `scale(${scaleFrom})`, opacity: 0.75 }, { transform: `scale(${scaleTo})`, opacity: 1.0 }], { duration: step.duration, easing: 'ease-in-out', fill:'forwards' });
-        } catch(e) { circle.style.transition = `transform ${step.duration}ms ease-in-out`; circle.style.transform = `scale(${scaleTo})`; }
+          const scaleFrom = step.type === 'exhale' ? 1.0 : 0.6;
+          const scaleTo = step.type === 'exhale' ? 0.6 : 1.0;
+          circle.animate([{ transform: `scale(${scaleFrom})`, opacity: 0.75 }, { transform: `scale(${scaleTo})`, opacity: 1.0 }], { duration: step.duration * 1000, easing: 'ease-in-out', fill:'forwards' });
+        } catch(e) {
+          circle.style.transition = `transform ${step.duration}s ease-in-out`;
+          circle.style.transform = `scale(${scaleTo})`;
+        }
 
         phaseTimeout = setTimeout(() => {
           phase = (phase + 1) % BREATH_STEPS.length;
           doPhase();
-        }, step.duration);
+        }, Math.round(step.duration * 1000));
       }
 
       doPhase();
@@ -342,21 +322,20 @@
       if (overlay && overlay._stop) overlay._stop();
     }
 
-    // preload now (non-blocking)
+    // preload assets
     preloadAudioAssets();
 
-    // exported helpers & debug
+    // API pública
     window.onFraseMostrada = function(text){ try { addHistorial(text); const favs = getFavoritos(); if (favBtn) favBtn.textContent = favs.includes(text) ? '♥ Favorita' : '♡ Favorita'; } catch(e){ console.warn(e); } };
 
     window.lr_helpers = {
-      dumpState: () => ({ voiceBreathEnabled, soundBreathEnabled, audioCtxState: audioCtx ? audioCtx.state : 'no-audioctx', buffers: { inhale: !!audioBuffers.inhale, exhale: !!audioBuffers.exhale, ambient: !!audioBuffers.ambient }, htmlAudio: { inhale: !!htmlAudio.inhale, exhale: !!htmlAudio.exhale, ambient: !!htmlAudio.ambient } }),
+      dumpState: () => ({ voiceBreathEnabled, soundBreathEnabled, audioCtxState: audioCtx ? audioCtx.state : 'no-audioctx', buffers: { breath: !!audioBuffers.breath, ambient: !!audioBuffers.ambient }, htmlAudio: { breath: !!htmlAudio.breath, ambient: !!htmlAudio.ambient } }),
       toggleVoiceBreath: (enable) => { if (typeof enable === 'boolean') voiceBreathEnabled = enable; else voiceBreathEnabled = !voiceBreathEnabled; return voiceBreathEnabled; },
       toggleSoundBreath: (enable) => { if (typeof enable === 'boolean') soundBreathEnabled = enable; else soundBreathEnabled = !soundBreathEnabled; return soundBreathEnabled; },
       resumeAudio: async () => { const ctx = await ensureAudioContext(); if (ctx && ctx.state === 'suspended') { try { await ctx.resume(); console.log('[helpers] audioCtx resumed by resumeAudio'); } catch(e){ console.warn(e);} } return ctx ? ctx.state : null; }
     };
 
-    // init UI hist
     renderHistorial();
-    console.log('[helpers] inicialización completa');
+    console.log('[helpers] inicialización completa (breath single file)');
   }); // DOMContentLoaded
 })();
