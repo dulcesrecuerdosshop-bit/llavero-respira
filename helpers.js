@@ -1,9 +1,7 @@
 // helpers.js - versión robusta y con logs para Llavero Respira
-// Inicializa en DOMContentLoaded y expone helpers de prueba en window.lr_helpers
 (function () {
   console.log('[helpers] cargando helpers.js');
 
-  // Inicializar cuando el DOM esté listo
   document.addEventListener('DOMContentLoaded', () => {
     console.log('[helpers] DOMContentLoaded - inicializando UI helpers');
 
