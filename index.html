@@ -1,23 +1,23 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Frase Motivacional</title>
   <style>
     body {
-  margin: 0;
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  font-family: 'Arial', sans-serif;
-  text-align: center;
-  transition: background 0.5s ease;
-  padding: 20px;
-  background: linear-gradient(135deg, #6a11cb, #2575fc); /* fondo azul-lila degradado */
-}
+      margin: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      font-family: 'Arial', sans-serif;
+      text-align: center;
+      transition: background 0.5s ease;
+      padding: 20px;
+      background: linear-gradient(135deg, #6a11cb, #2575fc);
+    }
 
     img.logo {
       max-width: 150px;
@@ -29,26 +29,141 @@
       color: #fff;
       font-weight: bold;
       max-width: 90%;
+      line-height: 1.3;
+      cursor: pointer;
+      transition: transform 0.25s ease, opacity 0.25s ease;
+      user-select: none;
+    }
+
+    .frase:active {
+      transform: scale(0.98);
+    }
+
+    .hint {
+      margin-top: 18px;
+      color: rgba(255,255,255,0.85);
+      font-size: 0.9em;
+      opacity: 0.9;
+    }
+
+    @media (max-width: 480px) {
+      .frase {
+        font-size: 1.2em;
+      }
     }
   </style>
 </head>
 <body>
-  <!-- Logo -->
+  <!-- Logo: asegúrate de que el archivo en el repo se llame logo.png -->
   <img src="logo.png" alt="Mi Logo" class="logo">
 
   <!-- Frase -->
-  <div class="frase" id="frase"></div>
+  <div class="frase" id="frase" title="Haz clic para ver otra frase"></div>
+  <div class="hint">Haz clic en la frase para ver otra</div>
 
   <script>
-    // Frases motivacionales
+    // 100 frases motivacionales (cada una no excede 4 líneas)
     const frases = [
-      "Cree en ti mismo y todo será posible.",
-      "Cada día es una nueva oportunidad.",
-      "No esperes por oportunidades, créalas.",
-      "Pequeños pasos llevan a grandes logros.",
-      "La actitud positiva cambia todo.",
-      "Lo mejor está por venir.",
-      "Sé la versión más feliz de ti mismo."
+      "Cree en ti y todo será posible.",
+      "Un paso hoy vale más que cien promesas mañana.",
+      "La constancia vence lo que la suerte no alcanza.",
+      "Lo único imposible es aquello que no intentas.",
+      "Si caes, levántate con más fuerza y sabiduría.",
+      "El éxito es la suma de pequeños esfuerzos repetidos.",
+      "Hazlo con pasión o no lo hagas.",
+      "Tu futuro lo construyes con las decisiones de hoy.",
+      "No temas al error: es el comienzo del aprendizaje.",
+      "Transforma los problemas en oportunidades.",
+      "Avanza aunque sea despacio; avanzar es avanzar.",
+      "Cada día es una nueva página: escribe algo valioso.",
+      "El miedo frena, la acción impulsa.",
+      "Aprende, adapta, mejora y repite.",
+      "No esperes el momento perfecto; créalo.",
+      "La disciplina supera al talento cuando el talento no se esfuerza.",
+      "Tu actitud determina tu dirección.",
+      "Enfócate en soluciones, no en excusas.",
+      "La perseverancia abre puertas que parecían cerradas.",
+      "Lo que hoy parece difícil será mañana rutina.",
+      "Si buscas resultados distintos, prueba acciones distintas.",
+      "Rodéate de quienes te inspiren a crecer.",
+      "No te compares; compite con tu yo del ayer.",
+      "La gratitud multiplica lo que ya tienes.",
+      "Si fallas, es porque te atreviste a intentar algo grande.",
+      "Cada logro comienza con la decisión de intentar.",
+      "Mantén la calma y sigue hacia adelante.",
+      "Tu esfuerzo es la inversión que paga en futuro.",
+      "Cambia el “no puedo” por “voy a intentarlo”.",
+      "Lo único que necesitas para empezar es empezar.",
+      "La paciencia es la compañera de los grandes éxitos.",
+      "No renuncies antes de ver los frutos de tu trabajo.",
+      "Vive con intención y actúa con propósito.",
+      "La creatividad nace cuando te permites equivocarte.",
+      "Agradece lo pequeño: es semilla de lo grande.",
+      "Si te caes siete veces, levántate ocho.",
+      "La mayor barrera está entre tus oídos; derríbala.",
+      "Trabaja en silencio; deja que el éxito haga ruido.",
+      "Hoy planta lo que mañana te dará sombra.",
+      "No dejes que la duda robe tus oportunidades.",
+      "Cada día es otra chance para mejorar.",
+      "El progreso es mejor que la perfección estancada.",
+      "Cree en tu proceso aunque no veas el mapa completo.",
+      "La acción es el puente entre tus sueños y la realidad.",
+      "Sé valiente: lo grande se gana fuera de la zona de confort.",
+      "Tu historia no termina con un tropiezo; continúa.",
+      "Lo que haces hoy determina cómo te sentirás mañana.",
+      "El esfuerzo silencioso construye el éxito visible.",
+      "Acepta el cambio; en él está la oportunidad.",
+      "No busques la aprobación; busca la mejora.",
+      "Haz de cada obstáculo una lección aprendida.",
+      "El éxito durable se forja con integridad y constancia.",
+      "Vive con intención, trabaja con disciplina, celebra con humildad.",
+      "El talento se pule con trabajo, no con excusas.",
+      "No te detengas hasta sentirte orgulloso.",
+      "Menos quejarse, más solucionar.",
+      "Siembra hábitos hoy para cosechar tu mejor versión.",
+      "Enfócate en el proceso; los resultados vendrán.",
+      "Tu potencial es mayor de lo que piensas; aflóralo.",
+      "Aprovecha el presente: es el único tiempo que controlas.",
+      "La confianza se gana acciones tras acción.",
+      "Lo difícil es temporal; el orgullo es permanente.",
+      "Persigue progreso, no perfección.",
+      "Cuando otros duden, muéstrate constante.",
+      "Un logro a la vez construye grandes metas.",
+      "Aprende a descansar sin renunciar a tus metas.",
+      "No temas a los comienzos; son oportunidades disfrazadas.",
+      "La mejor inversión es la que haces en ti mismo.",
+      "Siembra esfuerzo hoy, recoge libertad mañana.",
+      "Ve más allá de lo que te imaginaste posible.",
+      "Rodéate de acciones, no de promesas.",
+      "Cada pequeño avance suma un gran cambio.",
+      "La disciplina forja el carácter y el destino.",
+      "Mantén la visión cuando el camino sea oscuro.",
+      "Confía en tu capacidad de adaptarte y superar.",
+      "El éxito no es suerte; es trabajo bien orientado.",
+      "La pasión enciende, la perseverancia mantiene.",
+      "Celebra los pequeños triunfos; motivan los grandes.",
+      "Enfócate en lo que puedes controlar y suelta lo demás.",
+      "Las metas sin plan quedan en deseo; planifica y actúa.",
+      "Si quieres resultados distintos, cambia tus hábitos.",
+      "Lo que te limita hoy puede inspirarte mañana.",
+      "Habla menos; muestra más con tus actos.",
+      "El coraje no es ausencia de miedo, es actuar a pesar de él.",
+      "Mantén la mente abierta y el compromiso firme.",
+      "Sueña en grande, empieza en pequeño, crece constante.",
+      "No te rindas: las historias más grandes tienen capítulos difíciles.",
+      "Aprende a agradecer el proceso, no solo el resultado.",
+      "La resiliencia te hace más fuerte que las circunstancias.",
+      "Piensa en grande, actúa con persistencia y humildad.",
+      "Lo que hoy es esfuerzo, mañana será costumbre.",
+      "Construye hábitos que te acerquen a tus sueños.",
+      "Siembra disciplina y cosecharás libertad.",
+      "Pon intención en lo que haces y calidad en cómo lo haces.",
+      "Cada día es una nueva oportunidad para reinventarte.",
+      "No busques atajos; construye cimientos sólidos.",
+      "El cambio empieza cuando decides dejar de esperar.",
+      "Tu actitud hoy crea tus oportunidades de mañana.",
+      "Sé la razón por la que alguien más no se rinde.",
+      "Vive con propósito, trabaja con constancia y ama el camino."
     ];
 
     // Fondos bonitos (gradientes)
@@ -57,19 +172,42 @@
       "linear-gradient(135deg, #a1c4fd, #c2e9fb)",
       "linear-gradient(135deg, #84fab0, #8fd3f4)",
       "linear-gradient(135deg, #fccb90, #d57eeb)",
-      "linear-gradient(135deg, #f093fb, #f5576c)"
+      "linear-gradient(135deg, #f093fb, #f5576c)",
+      "linear-gradient(135deg, #6a11cb, #2575fc)",
+      "linear-gradient(135deg, #43cea2, #185a9d)",
+      "linear-gradient(135deg, #ff9a9e, #fecfef)",
+      "linear-gradient(135deg, #a18cd1, #fbc2eb)",
+      "linear-gradient(135deg, #30cfd0, #330867)"
     ];
 
     // Mostrar frase aleatoria
     function mostrarFrase() {
       const fraseIndex = Math.floor(Math.random() * frases.length);
       const fondoIndex = Math.floor(Math.random() * fondos.length);
-      document.getElementById('frase').textContent = frases[fraseIndex];
-      document.body.style.background = fondos[fondoIndex];
+      const fraseEl = document.getElementById('frase');
+
+      // animación simple de fade
+      fraseEl.style.opacity = 0;
+      setTimeout(() => {
+        fraseEl.textContent = frases[fraseIndex];
+        document.body.style.background = fondos[fondoIndex];
+        fraseEl.style.opacity = 1;
+      }, 200);
     }
 
+    // Mostrar una al cargar
     mostrarFrase();
+
+    // Permitir cambiar frase al hacer clic sobre el texto
+    document.getElementById('frase').addEventListener('click', mostrarFrase);
+
+    // También permitir cambiar frase con la tecla espacio (opcional)
+    document.addEventListener('keydown', (e) => {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        mostrarFrase();
+      }
+    });
   </script>
 </body>
 </html>
-
