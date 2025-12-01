@@ -1,417 +1,73 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Llavero Respira — Frases Motivacionales</title>
-
-  <link rel="manifest" href="manifest.json">
-  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js" defer></script>
-
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Llavero Respira</title>
   <style>
-    :root {
-      --bg1: #6a11cb;
-      --bg2: #2575fc;
-      --panel: rgba(255,255,255,0.07);
-      --text: #ffffff;
-      --muted: rgba(255,255,255,0.8);
-      --accent: #ffd166;
-      --btn-radius: 12px;
-    }
-    html,body { height:100%; margin:0; font-family:Inter, Arial, sans-serif; color:var(--text); }
-    body {
-      display:flex; align-items:center; justify-content:center; padding:20px;
-      background: linear-gradient(135deg, var(--bg1), var(--bg2));
-      min-height:100vh;
-    }
-    .card {
-      width:100%; max-width:940px; border-radius:18px; padding:28px;
-      background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.02));
-      box-shadow: 0 10px 35px rgba(0,0,0,0.35);
-      display:flex; flex-direction:column; align-items:center;
-      gap:16px;
-    }
-
-    header {
-      display:flex; align-items:center; gap:14px; width:100%;
-      justify-content:flex-start;
-    }
-    img.logo { width:64px; height:auto; border-radius:10px; box-shadow:0 6px 20px rgba(0,0,0,0.3); }
-    .title {
-      font-size:1.1rem; font-weight:700; letter-spacing:0.2px;
-    }
-    .subtitle { color:var(--muted); font-size:0.9rem; margin-top:-4px; }
-
-    .frase {
-      margin-top:6px;
-      width:100%;
-      text-align:center;
-      font-weight:700;
-      font-size:1.9rem;
-      line-height:1.2;
-      padding:22px 28px;
-      border-radius:14px;
-      background:var(--panel);
-      backdrop-filter: blur(6px);
-      cursor:pointer;
-      user-select:none;
-      transition: transform .12s ease, opacity .18s ease;
-    }
-    .hint { color:var(--muted); font-size:0.9rem; }
-
-    .controls {
-      width:100%; display:flex; gap:10px; flex-wrap:wrap; justify-content:center; align-items:center;
-    }
-    .controls .left, .controls .right { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-    .controls button {
-      background: rgba(255,255,255,0.06); color:var(--text); border:none; padding:9px 12px;
-      border-radius:var(--btn-radius); cursor:pointer; font-size:0.95rem;
-    }
-    .controls .small { padding:6px 10px; font-size:0.9rem; }
-
-    .toggles {
-      display:flex; gap:8px; align-items:center;
-      background: rgba(255,255,255,0.03); padding:8px; border-radius:12px;
-    }
-    .toggle-btn { background:transparent; color:var(--muted); border:1px solid rgba(255,255,255,0.03); padding:6px 8px; border-radius:8px; cursor:pointer; }
-    .toggle-btn.active { background:var(--accent); color:#222; border-color:transparent; }
-
-    .status { color:var(--muted); font-size:0.85rem; margin-top:6px; }
-
-    .historial {
-      width:100%;
-      display:flex; gap:8px; flex-wrap:wrap; justify-content:center; max-width:100%;
-    }
-    .historial span { display:inline-block; padding:6px 10px; border-radius:12px; background:rgba(255,255,255,0.05); font-size:0.85rem; }
-
-    footer { width:100%; display:flex; justify-content:space-between; align-items:center; gap:12px; margin-top:8px; color:var(--muted); font-size:0.9rem; }
-
-    /* Welcome modal */
-    #welcomeOverlay {
-      position:fixed; inset:0; display:none; align-items:center; justify-content:center;
-      background: linear-gradient(180deg, rgba(0,0,0,0.6), rgba(0,0,0,0.6)); z-index:12000;
-    }
-    .welcome {
-      width:92%; max-width:520px; background: rgba(255,255,255,0.04); padding:22px; border-radius:14px; text-align:center; color:var(--text);
-      box-shadow:0 12px 40px rgba(0,0,0,0.6);
-    }
-    .welcome h2 { margin:0 0 6px 0; font-size:1.3rem; }
-    .welcome p { color:var(--muted); margin:10px 0 18px 0; }
-
-    .welcome .actions { display:flex; gap:8px; justify-content:center; }
-    .welcome button { padding:10px 14px; border-radius:12px; border:none; cursor:pointer; }
-    .btn-primary { background:var(--accent); color:#222; font-weight:700; }
-    .btn-ghost { background:transparent; color:var(--text); border:1px solid rgba(255,255,255,0.06); }
-
-    @media (max-width:520px) {
-      .frase { font-size:1.2rem; padding:16px; }
-      img.logo { width:54px; }
-    }
+    :root{--bg1:#6a11cb;--bg2:#2575fc;--muted:rgba(255,255,255,0.9);--panel:rgba(255,255,255,0.06)}
+    body{margin:0;font-family:Inter,Arial,Helvetica,sans-serif;background:linear-gradient(135deg,var(--bg1),var(--bg2));color:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center}
+    .card{width:96%;max-width:920px;padding:20px;border-radius:16px;background:linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.02));box-shadow:0 12px 40px rgba(0,0,0,.35)}
+    header{display:flex;align-items:center;justify-content:space-between}
+    .brand{display:flex;align-items:center;gap:12px}
+    .logo{width:56px;border-radius:10px}
+    #frase{margin:20px auto;padding:24px;border-radius:12px;background:var(--panel);text-align:center;font-size:1.5rem;font-weight:700;cursor:pointer}
+    .menuBtn{background:transparent;border:1px solid rgba(255,255,255,0.06);padding:8px;border-radius:10px;color:#fff;cursor:pointer}
+    .menuPanel{position:fixed;right:18px;top:18px;background:rgba(0,0,0,0.55);padding:12px;border-radius:12px;backdrop-filter:blur(6px);display:none;flex-direction:column;gap:8px;z-index:12000}
+    .menuPanel button{background:transparent;border:1px solid rgba(255,255,255,0.06);color:#fff;padding:8px 12px;border-radius:10px;cursor:pointer}
+    .menuPanel .primary{background:#ffd166;color:#222;border:none}
+    footer{display:flex;justify-content:space-between;color:var(--muted);font-size:0.9rem;margin-top:12px}
+    @media(max-width:560px){#frase{font-size:1.2rem;padding:16px}}
   </style>
 </head>
 <body>
-  <div class="card" role="main" aria-labelledby="appTitle">
+  <div class="card">
     <header>
-      <img src="logo.png" alt="Logo Llavero Respira" class="logo">
+      <div class="brand"><img src="logo.png" class="logo" alt=""><div><div style="font-weight:700">Llavero Respira</div><div style="font-size:0.9rem;color:rgba(255,255,255,0.85)">Respira con calma</div></div></div>
       <div>
-        <div id="appTitle" class="title">Llavero Respira</div>
-        <div class="subtitle">Un recordatorio amable para tu día</div>
+        <button id="menuToggle" class="menuBtn" aria-expanded="false">☰</button>
       </div>
     </header>
 
-    <div id="frase" class="frase" role="button" aria-pressed="false" title="Toca para ver otra frase"></div>
-    <div class="hint">Toca la frase o presiona espacio para cambiar. Pulsa "🌬️ Respirar" para una pausa guiada.</div>
+    <div id="frase" title="Toca para ver otra frase">Tu frase aparecerá aquí</div>
 
-    <div class="controls" role="toolbar" aria-label="Controles principales">
-      <div class="left">
-        <button id="favBtn" class="small">♡ Favorita</button>
-        <button id="shareBtn" class="small">🔗 Compartir</button>
-        <button id="copyBtn" class="small">📋 Copiar</button>
-        <button id="ttsBtn" class="small">🔊 Escuchar</button>
-      </div>
-
-      <div class="right">
-        <div class="toggles" role="group" aria-label="Opciones de audio">
-          <button id="toggleVoice" class="toggle-btn">Voz</button>
-          <button id="toggleSound" class="toggle-btn">Sonido</button>
-        </div>
-        <button id="breathBtn" class="small">🌬️ Respirar</button>
-        <button id="downloadBtn" class="small">⬇️ Descargar</button>
-      </div>
+    <div id="menuPanel" class="menuPanel" role="menu" aria-hidden="true">
+      <button id="favBtn">♡ Favorita</button>
+      <button id="shareBtn">🔗 Compartir</button>
+      <button id="copyBtn">📋 Copiar</button>
+      <!-- botón TTS eliminado para evitar voces automáticas -->
+      <button id="startAmbientBtn">▶ Ambient</button>
+      <button id="stopAmbientBtn">⏸ Ambient</button>
+      <button id="breathBtn" class="primary">🌬️ Respirar</button>
+      <button id="downloadBtn">⬇️ Descargar</button>
+      <hr style="opacity:.08">
+      <button id="showFavoritesBtn">⭐ Favoritos</button>
     </div>
 
-    <div id="historial" class="historial" aria-live="polite"></div>
-    <div class="status" id="statusLine">Cargando...</div>
-
-    <footer>
-      <div>Gracias por apoyar Llavero Respira ❤️</div>
-      <div style="font-size:0.85rem; color:var(--muted)">Hecho con cariño</div>
-    </footer>
+    <footer><div>Gracias por tu apoyo ❤️</div><div style="color:rgba(255,255,255,0.85)">Hecho con cariño</div></footer>
   </div>
 
-  <!-- Welcome modal (solo la primera vez) -->
-  <div id="welcomeOverlay" role="dialog" aria-modal="true" aria-labelledby="welcomeTitle">
-    <div class="welcome">
-      <h2 id="welcomeTitle">¡Gracias por tu compra!</h2>
-      <p>Este llavero te acompañará con frases y pausas para respirar. Acércalo a tu teléfono cuando necesites un recordatorio amable.</p>
-      <div class="actions">
-        <button id="welcomeStart" class="btn-primary">Comenzar</button>
-        <button id="welcomeDontShow" class="btn-ghost">No mostrar de nuevo</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- helpers.js (debe ser la versión avanzada con WebAudio + TTS) -->
   <script src="helpers.js" defer></script>
-
-  <!-- main script: frases, interacciones y sincronización con helpers -->
-  <script defer>
-    // LISTA DE FRASES (100) - mantenida tal cual
-    const frases = [
-      "Cree en ti y todo será posible.",
-      "Un paso hoy vale más que cien promesas mañana.",
-      "La constancia vence lo que la suerte no alcanza.",
-      "Lo único imposible es aquello que no intentas.",
-      "Si caes, levántate con más fuerza y sabiduría.",
-      "El éxito es la suma de pequeños esfuerzos repetidos.",
-      "Hazlo con pasión o no lo hagas.",
-      "Tu futuro lo construyes con las decisiones de hoy.",
-      "No temas al error: es el comienzo del aprendizaje.",
-      "Transforma los problemas en oportunidades.",
-      "Avanza aunque sea despacio; avanzar es avanzar.",
-      "Cada día es una nueva página: escribe algo valioso.",
-      "El miedo frena, la acción impulsa.",
-      "Aprende, adapta, mejora y repite.",
-      "No esperes el momento perfecto; créalo.",
-      "La disciplina supera al talento cuando el talento no se esfuerza.",
-      "Tu actitud determina tu dirección.",
-      "Enfócate en soluciones, no en excusas.",
-      "La perseverancia abre puertas que parecían cerradas.",
-      "Lo que hoy parece difícil será mañana rutina.",
-      "Si buscas resultados distintos, prueba acciones distintas.",
-      "Rodéate de quienes te inspiren a crecer.",
-      "No te compares; compite con tu yo del ayer.",
-      "La gratitud multiplica lo que ya tienes.",
-      "Si fallas, es porque te atreviste a intentar algo grande.",
-      "Cada logro comienza con la decisión de intentar.",
-      "Mantén la calma y sigue hacia adelante.",
-      "Tu esfuerzo es la inversión que paga en futuro.",
-      "Cambia el “no puedo” por “voy a intentarlo”.",
-      "Lo único que necesitas para empezar es empezar.",
-      "La paciencia es la compañera de los grandes éxitos.",
-      "No renuncies antes de ver los frutos de tu trabajo.",
-      "Vive con intención y actúa con propósito.",
-      "La creatividad nace cuando te permites equivocarte.",
-      "Agradece lo pequeño: es semilla de lo grande.",
-      "Si te caes siete veces, levántate ocho.",
-      "La mayor barrera está entre tus oídos; derríbala.",
-      "Trabaja en silencio; deja que el éxito haga ruido.",
-      "Hoy planta lo que mañana te dará sombra.",
-      "No dejes que la duda robe tus oportunidades.",
-      "Cada día es otra chance para mejorar.",
-      "El progreso es mejor que la perfección estancada.",
-      "Cree en tu proceso aunque no veas el mapa completo.",
-      "La acción es el puente entre tus sueños y la realidad.",
-      "Sé valiente: lo grande se gana fuera de la zona de confort.",
-      "Tu historia no termina con un tropiezo; continúa.",
-      "Lo que haces hoy determina cómo te sentirás mañana.",
-      "El esfuerzo silencioso construye el éxito visible.",
-      "Acepta el cambio; en él está la oportunidad.",
-      "No busques la aprobación; busca la mejora.",
-      "Haz de cada obstáculo una lección aprendida.",
-      "El éxito durable se forja con integridad y constancia.",
-      "Vive con intención, trabaja con disciplina, celebra con humildad.",
-      "El talento se pule con trabajo, no con excusas.",
-      "No te detengas hasta sentirte orgulloso.",
-      "Menos quejarse, más solucionar.",
-      "Siembra hábitos hoy para cosechar tu mejor versión.",
-      "Enfócate en el proceso; los resultados vendrán.",
-      "Tu potencial es mayor de lo que piensas; aflóralo.",
-      "Aprovecha el presente: es el único tiempo que controlas.",
-      "La confianza se gana acciones tras acción.",
-      "Lo difícil es temporal; el orgullo es permanente.",
-      "Persigue progreso, no perfección.",
-      "Cuando otros duden, muéstrate constante.",
-      "Un logro a la vez construye grandes metas.",
-      "Aprende a descansar sin renunciar a tus metas.",
-      "No temas a los comienzos; son oportunidades disfrazadas.",
-      "La mejor inversión es la que haces en ti mismo.",
-      "Siembra esfuerzo hoy, recoge libertad mañana.",
-      "Ve más allá de lo que te imaginaste posible.",
-      "Rodéate de acciones, no de promesas.",
-      "Cada pequeño avance suma un gran cambio.",
-      "La disciplina forja el carácter y el destino.",
-      "Mantén la visión cuando el camino sea oscuro.",
-      "Confía en tu capacidad de adaptarte y superar.",
-      "El éxito no es suerte; es trabajo bien orientado.",
-      "La pasión enciende, la perseverancia mantiene.",
-      "Celebra los pequeños triunfos; motivan los grandes.",
-      "Enfócate en lo que puedes controlar y suelta lo demás.",
-      "Las metas sin plan quedan en deseo; planifica y actúa.",
-      "Si quieres resultados distintos, cambia tus hábitos.",
-      "Lo que te limita hoy puede inspirarte mañana.",
-      "Habla menos; muestra más con tus actos.",
-      "El coraje no es ausencia de miedo, es actuar a pesar de él.",
-      "Mantén la mente abierta y el compromiso firme.",
-      "Sueña en grande, empieza en pequeño, crece constante.",
-      "No te rindas: las historias más grandes tienen capítulos difíciles.",
-      "Aprende a agradecer el proceso, no solo el resultado.",
-      "La resiliencia te hace más fuerte que las circunstancias.",
-      "Piensa en grande, actúa con persistencia y humildad.",
-      "Lo que hoy es esfuerzo, mañana será costumbre.",
-      "Construye hábitos que te acerquen a tus sueños.",
-      "Siembra disciplina y cosecharás libertad.",
-      "Pon intención en lo que haces y calidad en cómo lo haces.",
-      "Cada día es una nueva oportunidad para reinventarte.",
-      "No busques atajos; construye cimientos sólidos.",
-      "El cambio empieza cuando decides dejar de esperar.",
-      "Tu actitud hoy crea tus oportunidades de mañana.",
-      "Sé la razón por la que alguien más no se rinde.",
-      "Vive con propósito, trabaja con constancia y ama el camino."
-    ];
-
-    const fondos = [
-      "linear-gradient(135deg, #f6d365, #fda085)",
-      "linear-gradient(135deg, #a1c4fd, #c2e9fb)",
-      "linear-gradient(135deg, #84fab0, #8fd3f4)",
-      "linear-gradient(135deg, #fccb90, #d57eeb)",
-      "linear-gradient(135deg, #f093fb, #f5576c)",
-      "linear-gradient(135deg, #6a11cb, #2575fc)",
-      "linear-gradient(135deg, #43cea2, #185a9d)",
-      "linear-gradient(135deg, #ff9a9e, #fecfef)",
-      "linear-gradient(135deg, #a18cd1, #fbc2eb)",
-      "linear-gradient(135deg, #30cfd0, #330867)"
-    ];
-
-    const fraseEl = document.getElementById('frase');
-    const statusLine = document.getElementById('statusLine');
-    const toggleVoiceBtn = document.getElementById('toggleVoice');
-    const toggleSoundBtn = document.getElementById('toggleSound');
-    const welcomeOverlay = document.getElementById('welcomeOverlay');
-    const welcomeStart = document.getElementById('welcomeStart');
-    const welcomeDontShow = document.getElementById('welcomeDontShow');
-
-    // Mostrar frase aleatoria
-    function mostrarFrase() {
-      if (window.breathingActive) return; // no cambiar mientras respira
-      const i = Math.floor(Math.random() * frases.length);
-      const j = Math.floor(Math.random() * fondos.length);
-      fraseEl.style.opacity = 0;
-      setTimeout(() => {
-        fraseEl.textContent = frases[i];
-        document.body.style.background = fondos[j];
-        fraseEl.style.opacity = 1;
-        if (typeof window.onFraseMostrada === 'function') window.onFraseMostrada(frases[i]);
-      }, 160);
-    }
-
-    // Inicial
-    mostrarFrase();
-
-    // Interacciones
-    fraseEl.addEventListener('click', mostrarFrase);
-    document.addEventListener('keydown', (e) => {
-      if (e.code === 'Space') {
-        e.preventDefault();
-        if (window.breathingActive) return;
-        mostrarFrase();
-      }
-    });
-
-    // Welcome modal (solo primera vez)
-    function showWelcomeIfNeeded() {
-      try {
-        const seen = localStorage.getItem('lr_seen_welcome');
-        if (!seen) {
-          welcomeOverlay.style.display = 'flex';
-        }
-      } catch(e){}
-    }
-    welcomeStart.addEventListener('click', () => {
-      welcomeOverlay.style.display = 'none';
-      localStorage.setItem('lr_seen_welcome', '1');
-    });
-    welcomeDontShow.addEventListener('click', () => {
-      welcomeOverlay.style.display = 'none';
-      localStorage.setItem('lr_seen_welcome', '1');
-    });
-    showWelcomeIfNeeded();
-
-    // Toggle UI: se comunicará con window.lr_helpers cuando esté disponible
-    function updateToggleUI() {
-      if (window.lr_helpers && typeof window.lr_helpers.dumpState === 'function') {
-        const st = window.lr_helpers.dumpState();
-        // st may contain buffers and flags
-        const v = !!st?.voiceBreathEnabled;
-        const s = !!st?.soundBreathEnabled;
-        toggleVoiceBtn.classList.toggle('active', v);
-        toggleVoiceBtn.textContent = v ? 'Voz ON' : 'Voz';
-        toggleSoundBtn.classList.toggle('active', s);
-        toggleSoundBtn.textContent = s ? 'Sonido ON' : 'Sonido';
-        statusLine.textContent = `Audio: inhale ${st?.buffers?.inhale ? 'ok' : '—'} · exhale ${st?.buffers?.exhale ? 'ok' : '—'} · ambient ${st?.buffers?.ambient ? 'ok' : '—'}`;
-        return true;
-      }
-      // fallback status
-      statusLine.textContent = 'Cargando audio / preparando…';
-      return false;
-    }
-
-    toggleVoiceBtn.addEventListener('click', () => {
-      if (window.lr_helpers && typeof window.lr_helpers.toggleVoiceBreath === 'function') {
-        const nv = window.lr_helpers.toggleVoiceBreath(undefined);
-        // Some impls expect explicit true/false; call toggle to flip
-        // If returned undefined, flip manually:
-        if (typeof nv === 'undefined') {
-          // try to flip using dumpState
-          const st = window.lr_helpers.dumpState();
-          window.lr_helpers.toggleVoiceBreath(!st.voiceBreathEnabled);
-        }
-        setTimeout(updateToggleUI, 120);
-      } else {
-        alert('Espera un momento mientras se inicializa el audio.');
-      }
-    });
-
-    toggleSoundBtn.addEventListener('click', () => {
-      if (window.lr_helpers && typeof window.lr_helpers.toggleSoundBreath === 'function') {
-        const nv = window.lr_helpers.toggleSoundBreath(undefined);
-        if (typeof nv === 'undefined') {
-          const st = window.lr_helpers.dumpState();
-          window.lr_helpers.toggleSoundBreath(!st.soundBreathEnabled);
-        }
-        setTimeout(updateToggleUI, 120);
-      } else {
-        alert('Espera un momento mientras se inicializa el audio.');
-      }
-    });
-
-    // Poll hasta que lr_helpers esté listo; luego actualiza UI
-    let pollCount = 0;
-    const pollInterval = setInterval(() => {
-      pollCount++;
-      const ready = updateToggleUI();
-      if (ready || pollCount > 30) {
-        clearInterval(pollInterval);
-        if (!ready) statusLine.textContent = 'Audio no disponible (fallback a TTS).';
-      }
-    }, 300);
-
-    // Exponer función para tests rápidos
-    window._lr_manual = { mostrarFrase, updateToggleUI };
-
-    // Service worker registration safe (relative path)
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        fetch('sw.js', { method: 'HEAD' })
-          .then(resp => {
-            if (resp.ok) {
-              navigator.serviceWorker.register('sw.js').then(reg => console.log('SW registrado:', reg)).catch(e => console.warn('SW registro falló:', e));
-            } else {
-              console.log('sw.js no disponible (HEAD):', resp.status);
-            }
-          }).catch(e => console.log('sw.js HEAD fetch error', e));
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const menuToggle = document.getElementById('menuToggle');
+      const menuPanel = document.getElementById('menuPanel');
+      menuToggle.addEventListener('click', () => {
+        const shown = menuPanel.style.display === 'flex';
+        menuPanel.style.display = shown ? 'none' : 'flex';
+        menuPanel.setAttribute('aria-hidden', shown ? 'true' : 'false');
+        menuToggle.setAttribute('aria-expanded', String(!shown));
       });
-    }
+
+      // Botones delegados: helpers.js añade listeners por id
+      // Mostrar frase (compatibilidad)
+      const fraseEl = document.getElementById('frase');
+      fraseEl.addEventListener('click', () => {
+        if (window._lr_manual && typeof window._lr_manual.mostrarFrase === 'function') return window._lr_manual.mostrarFrase();
+        // fallback visual simple
+        fraseEl.textContent = 'Respira con atención — tu frase nueva';
+      });
+    });
   </script>
 </body>
 </html>
