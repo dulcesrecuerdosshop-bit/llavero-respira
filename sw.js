@@ -1,4 +1,4 @@
-// sw.js - Service Worker mejorado (rutas relativas)
+// sw.js - Service Worker corregido (manejo seguro de cache.put, rutas relativas)
 const CACHE_VERSION = 'v2';
 const CACHE_NAME = `llavero-respira-${CACHE_VERSION}`;
 const ASSETS = [
@@ -41,16 +41,25 @@ self.addEventListener('fetch', event => {
   const req = event.request;
   const url = new URL(req.url);
 
+  // Ignore cross-origin requests
   if (url.origin !== location.origin) {
     return;
   }
 
+  // Navigation requests: network-first, fallback cache
   if (req.mode === 'navigate' || (req.method === 'GET' && req.headers.get('accept')?.includes('text/html'))) {
     event.respondWith((async () => {
       try {
         const networkResponse = await fetch(req);
-        const cache = await caches.open(CACHE_NAME);
-        cache.put(req, networkResponse.clone().catch(()=>{}));
+        // cache only successful responses
+        if (networkResponse && networkResponse.ok) {
+          try {
+            const cache = await caches.open(CACHE_NAME);
+            await cache.put(req, networkResponse.clone());
+          } catch (e) {
+            console.warn('[SW] cache put failed for navigation:', e);
+          }
+        }
         return networkResponse;
       } catch (err) {
         console.warn('[SW] Network failed, trying cache for navigation', err);
@@ -61,14 +70,23 @@ self.addEventListener('fetch', event => {
     return;
   }
 
+  // Other requests: cache-first, then network and cache if success
   event.respondWith(
     caches.match(req).then(cached => {
-      if (cached) return cached;
-      return fetch(req).then(networkResponse => {
-        return caches.open(CACHE_NAME).then(cache => {
-          cache.put(req, networkResponse.clone().catch(()=>{}));
-          return networkResponse;
-        });
+      if (cached) {
+        return cached;
+      }
+      return fetch(req).then(async networkResponse => {
+        try {
+          if (networkResponse && networkResponse.ok) {
+            const cache = await caches.open(CACHE_NAME);
+            // store a copy for next time
+            cache.put(req, networkResponse.clone()).catch(() => {});
+          }
+        } catch (e) {
+          console.warn('[SW] cache put failed for asset:', e);
+        }
+        return networkResponse;
       }).catch(err => {
         console.warn('[SW] Fetch failed for', req.url, err);
         return Response.error();
