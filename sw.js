@@ -41,17 +41,17 @@ self.addEventListener('fetch', event => {
   const req = event.request;
   const url = new URL(req.url);
 
-  // Ignore cross-origin requests
+  // Ignorar peticiones cross-origin
   if (url.origin !== location.origin) {
     return;
   }
 
-  // Navigation requests: network-first, fallback cache
+  // Navegaciones: network-first con fallback a cache
   if (req.mode === 'navigate' || (req.method === 'GET' && req.headers.get('accept')?.includes('text/html'))) {
     event.respondWith((async () => {
       try {
         const networkResponse = await fetch(req);
-        // cache only successful responses
+        // cachear solo respuestas exitosas
         if (networkResponse && networkResponse.ok) {
           try {
             const cache = await caches.open(CACHE_NAME);
@@ -70,7 +70,7 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Other requests: cache-first, then network and cache if success
+  // Otros assets: cache-first, luego network y cache si OK
   event.respondWith(
     caches.match(req).then(cached => {
       if (cached) {
@@ -80,7 +80,6 @@ self.addEventListener('fetch', event => {
         try {
           if (networkResponse && networkResponse.ok) {
             const cache = await caches.open(CACHE_NAME);
-            // store a copy for next time
             cache.put(req, networkResponse.clone()).catch(() => {});
           }
         } catch (e) {
