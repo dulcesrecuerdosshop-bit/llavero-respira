@@ -1,12 +1,10 @@
-// helpers.js - Fallback final: detecta Breath.mp3 / breath.mp3 y carga ambient; respiración solo-audio.
+// helpers.js - Auto-detect Breath filename (breath.mp3 / Breath.mp3 / BREATH.mp3) + ambient, solo-audio
 (function () {
-  console.log('[helpers] cargando helpers.js (auto-detect breath filename)');
+  console.log('[helpers] cargando helpers.js (detect Breath/Breath.mp3)');
 
-  // CANDIDATAS (intenta estas rutas en orden)
   const BREATH_CANDIDATES = ['breath.mp3', 'Breath.mp3', 'BREATH.mp3'];
   const AMBIENT_CANDIDATES = ['ambient.mp3', 'Ambient.mp3', 'AMBIENT.mp3'];
 
-  // Offsets por defecto (ajusta con setOffsets desde la consola)
   let inhaleOffsetSeconds = 0.0;
   let inhaleDurationSeconds = 2.8;
   let exhaleOffsetSeconds = 2.8;
@@ -37,17 +35,16 @@
     }
   }
 
-  // Comprueba existencia con HEAD (fallback cuando HEAD falla)
+  // Comprueba existencia con HEAD (fallback GET si HEAD falla)
   async function existsUrl(url) {
     try {
       const r = await fetch(url, { method: 'HEAD' });
       if (r && r.ok) return true;
-    } catch(e) { /* HEAD puede fallar en algunos hosts */ }
-    // fallback a GET limitado (no descargar body)
+    } catch (e) {}
     try {
       const r2 = await fetch(url, { method: 'GET' });
       return !!(r2 && r2.ok);
-    } catch(e) { return false; }
+    } catch (e) { return false; }
   }
 
   async function pickExisting(candidates) {
@@ -129,58 +126,39 @@
     console.log('[helpers] ambient loop stopped');
   }
 
-  // Intenta hallar y pre-cargar audios existentes (auto-detección)
   async function preloadAudio() {
     await ensureAudioContext();
-
     const chosenBreath = await pickExisting(BREATH_CANDIDATES);
     if (chosenBreath) {
-      // preferencia: cargar whole-breath file
       if (audioCtx) audioBuffers.breath = await loadAudioBuffer(chosenBreath).catch(()=>null);
       else htmlAudio.breath = new Audio(chosenBreath);
-    } else {
-      // intentar inhale/exhale por separado
-      const inh = await pickExisting([AUDIO_PATHS.inhale || 'inhale.mp3']);
-      const exh = await pickExisting([AUDIO_PATHS.exhale || 'exhale.mp3']);
-      if (inh && audioCtx) audioBuffers.inhale = await loadAudioBuffer(inh).catch(()=>null);
-      if (exh && audioCtx) audioBuffers.exhale = await loadAudioBuffer(exh).catch(()=>null);
-      if (inh && !audioCtx) htmlAudio.inhale = new Audio(inh);
-      if (exh && !audioCtx) htmlAudio.exhale = new Audio(exh);
     }
-
-    // ambient
     const chosenAmbient = await pickExisting(AMBIENT_CANDIDATES);
     if (chosenAmbient) {
       if (audioCtx) audioBuffers.ambient = await loadAudioBuffer(chosenAmbient).catch(()=>null);
       else { htmlAudio.ambient = new Audio(chosenAmbient); htmlAudio.ambient.loop = true; htmlAudio.ambient.volume = ambientVolume; }
     }
-
     console.log('[helpers] preloadAudio results', {
-      breathBuf: !!audioBuffers.breath, inhaleBuf: !!audioBuffers.inhale, exhaleBuf: !!audioBuffers.exhale, ambientBuf: !!audioBuffers.ambient,
-      breathHtml: !!htmlAudio.breath, inhaleHtml: !!htmlAudio.inhale, exhaleHtml: !!htmlAudio.exhale, ambientHtml: !!htmlAudio.ambient
+      breathBuf: !!audioBuffers.breath, ambientBuf: !!audioBuffers.ambient,
+      breathHtml: !!htmlAudio.breath, ambientHtml: !!htmlAudio.ambient
     });
   }
 
   async function playInhaleSegment() {
     if (audioBuffers.breath) return playBuffer(audioBuffers.breath, { offset: inhaleOffsetSeconds, duration: inhaleDurationSeconds, gain: soundVolume });
-    if (audioBuffers.inhale) return playBuffer(audioBuffers.inhale, { offset: 0, duration: Math.min(inhaleDurationSeconds, audioBuffers.inhale.duration), gain: soundVolume });
     if (htmlAudio.breath) return playHtmlSegment(htmlAudio.breath, inhaleOffsetSeconds, inhaleDurationSeconds);
-    if (htmlAudio.inhale) return playHtmlSegment(htmlAudio.inhale, 0, Math.min(inhaleDurationSeconds, 5000));
     console.log('[helpers] no inhale audio available');
   }
   async function playExhaleSegment() {
     if (audioBuffers.breath) return playBuffer(audioBuffers.breath, { offset: exhaleOffsetSeconds, duration: exhaleDurationSeconds, gain: soundVolume });
-    if (audioBuffers.exhale) return playBuffer(audioBuffers.exhale, { offset: 0, duration: Math.min(exhaleDurationSeconds, audioBuffers.exhale.duration), gain: soundVolume });
     if (htmlAudio.breath) return playHtmlSegment(htmlAudio.breath, exhaleOffsetSeconds, exhaleDurationSeconds);
-    if (htmlAudio.exhale) return playHtmlSegment(htmlAudio.exhale, 0, Math.min(exhaleDurationSeconds, 5000));
     console.log('[helpers] no exhale audio available');
   }
 
-  // Breath overlay flow (ambient persists until user stops)
   async function startBreathFlow() {
     await ensureAudioContext();
     if (audioCtx && audioCtx.state === 'suspended') { try { await audioCtx.resume(); console.log('[helpers] audioCtx resumed'); } catch(e){} }
-    if (!audioBuffers.breath && !audioBuffers.inhale && !htmlAudio.breath && !htmlAudio.inhale) await preloadAudio();
+    if (!audioBuffers.breath && !htmlAudio.breath) await preloadAudio();
 
     const overlay = document.createElement('div'); overlay.id='lr-breath-overlay';
     Object.assign(overlay.style, { position:'fixed', inset:0, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,0.6)', zIndex:10000 });
@@ -227,14 +205,14 @@
     window._lastBreathOverlay = overlay;
   }
 
-  // Public API
+  // API pública
   window.lr_helpers = {
     preload: preloadAudio,
     playInhale: playInhaleSegment,
     playExhale: playExhaleSegment,
     startAmbient: async () => { await ensureAudioContext(); if (!audioBuffers.ambient && !htmlAudio.ambient) await preloadAudio(); if (audioBuffers.ambient) startAmbientLoop(audioBuffers.ambient); else if (htmlAudio.ambient) try{ htmlAudio.ambient.volume=ambientVolume; htmlAudio.ambient.loop=true; htmlAudio.ambient.play().catch(()=>{});}catch(e){} },
     stopAmbient: () => { if (audioBuffers.ambient) stopAmbientLoop(); if (htmlAudio.ambient) try { htmlAudio.ambient.pause(); htmlAudio.ambient.currentTime=0;}catch(e){} },
-    dumpState: () => ({ audioCtxState: audioCtx ? audioCtx.state : 'no-audioctx', buffers: { breath: !!audioBuffers.breath, inhale: !!audioBuffers.inhale, exhale: !!audioBuffers.exhale, ambient: !!audioBuffers.ambient }, htmlAudio: { breath: !!htmlAudio.breath, inhale: !!htmlAudio.inhale, exhale: !!htmlAudio.exhale, ambient: !!htmlAudio.ambient }, offsets: { inhaleOffsetSeconds, inhaleDurationSeconds, exhaleOffsetSeconds, exhaleDurationSeconds } }),
+    dumpState: () => ({ audioCtxState: audioCtx ? audioCtx.state : 'no-audioctx', buffers: { breath: !!audioBuffers.breath, ambient: !!audioBuffers.ambient }, htmlAudio: { breath: !!htmlAudio.breath, ambient: !!htmlAudio.ambient }, offsets: { inhaleOffsetSeconds, inhaleDurationSeconds, exhaleOffsetSeconds, exhaleDurationSeconds } }),
     setOffsets: (a,b,c,d) => { inhaleOffsetSeconds = Number(a)||inhaleOffsetSeconds; inhaleDurationSeconds = Number(b)||inhaleDurationSeconds; exhaleOffsetSeconds = Number(c)||exhaleOffsetSeconds; exhaleDurationSeconds = Number(d)||exhaleDurationSeconds; console.log('[helpers] offsets set', { inhaleOffsetSeconds, inhaleDurationSeconds, exhaleOffsetSeconds, exhaleDurationSeconds }); },
     _startBreath: startBreathFlow
   };
