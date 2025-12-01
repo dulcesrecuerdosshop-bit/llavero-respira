@@ -1,8 +1,9 @@
-// helpers.js - Auto-detect Breath filename (breath.mp3 / Breath.mp3 / BREATH.mp3) + ambient, solo-audio
+// helpers.js - Detecta Breath filename (Breath/breath/BR EATH) + ambient. Respiración SOLO con audios.
+// Si quieres probar fallback HTMLAudio activa window.lr_helpers.useHtmlFallback = true desde la consola.
 (function () {
-  console.log('[helpers] cargando helpers.js (detect Breath/Breath.mp3)');
+  console.log('[helpers] cargando helpers.js (detect Breath filename - definitivo)');
 
-  const BREATH_CANDIDATES = ['breath.mp3', 'Breath.mp3', 'BREATH.mp3'];
+  const BREATH_CANDIDATES = ['Breath.mp3', 'breath.mp3', 'BREATH.mp3'];
   const AMBIENT_CANDIDATES = ['ambient.mp3', 'Ambient.mp3', 'AMBIENT.mp3'];
 
   let inhaleOffsetSeconds = 0.0;
@@ -10,16 +11,17 @@
   let exhaleOffsetSeconds = 2.8;
   let exhaleDurationSeconds = 3.5;
 
-  let soundBreathEnabled = true;
   let ambientVolume = 0.12;
-  let soundVolume = 0.9;
+  let soundVolume = 0.95;
 
   let audioCtx = null;
-  let audioBuffers = { breath: null, inhale: null, exhale: null, ambient: null };
+  let audioBuffers = { breath: null, ambient: null };
   let ambientSource = null;
   let ambientGain = null;
+  let htmlAudio = { breath: null, ambient: null };
 
-  let htmlAudio = { breath: null, inhale: null, exhale: null, ambient: null };
+  // Option to force HTMLAudio fallback when testing
+  let useHtmlFallback = false;
 
   async function ensureAudioContext() {
     if (audioCtx) return audioCtx;
@@ -35,12 +37,11 @@
     }
   }
 
-  // Comprueba existencia con HEAD (fallback GET si HEAD falla)
   async function existsUrl(url) {
     try {
       const r = await fetch(url, { method: 'HEAD' });
       if (r && r.ok) return true;
-    } catch (e) {}
+    } catch (e) { /* HEAD puede fallar */ }
     try {
       const r2 = await fetch(url, { method: 'GET' });
       return !!(r2 && r2.ok);
@@ -74,8 +75,9 @@
     }
   }
 
+  // play buffer with envelope
   function playBuffer(buffer, { offset = 0, duration = null, gain = 1, fade = 0.06 } = {}) {
-    if (!audioCtx || !buffer) return Promise.resolve();
+    if (!audioCtx || !buffer) return Promise.resolve(false);
     const ctx = audioCtx;
     const src = ctx.createBufferSource();
     src.buffer = buffer;
@@ -84,7 +86,7 @@
     try {
       g.gain.setValueAtTime(0.0001, now);
       g.gain.linearRampToValueAtTime(gain, now + fade);
-      const playDuration = duration ? Math.max(0.05, duration) : buffer.duration - offset;
+      const playDuration = duration ? Math.max(0.05, duration) : Math.max(0.05, buffer.duration - offset);
       const endAt = now + playDuration;
       g.gain.setValueAtTime(gain, endAt - fade);
       g.gain.linearRampToValueAtTime(0.0001, endAt);
@@ -92,74 +94,116 @@
       src.start(now, offset, playDuration);
       src.stop(endAt + 0.05);
       console.log('[helpers] scheduled buffer play', { offset, playDuration, gain });
-    } catch (e) { console.warn('[helpers] error scheduling buffer', e); }
-    return Promise.resolve();
+      return Promise.resolve(true);
+    } catch (e) {
+      console.warn('[helpers] error scheduling buffer', e);
+      return Promise.resolve(false);
+    }
   }
 
-  function playHtmlSegment(el, offset, duration) {
-    if (!el) return;
+  // html fallback play: create element or reuse
+  function playHtmlSegment(url, offset, duration) {
     try {
-      el.currentTime = offset;
-      el.volume = soundVolume;
-      el.play().catch(e => console.warn('[helpers] html play error', e));
-      setTimeout(() => { try { el.pause(); el.currentTime = 0; } catch(e){} }, Math.max(400, Math.round((duration||1000))));
-      console.log('[helpers] html segment played', { offset, duration });
-    } catch (e) { console.warn(e); }
+      let a = htmlAudio.breathEl;
+      if (!a) { a = new Audio(url); htmlAudio.breathEl = a; }
+      a.currentTime = offset || 0;
+      a.volume = soundVolume;
+      // if duration too short, still attempt
+      a.play().catch(e => console.warn('[helpers] htmlAudio play error', e));
+      setTimeout(() => { try { a.pause(); a.currentTime = 0; } catch (e) {} }, Math.max(400, Math.round((duration||1000))));
+      console.log('[helpers] html segment played', { url, offset, duration });
+      return Promise.resolve(true);
+    } catch (e) {
+      console.warn('[helpers] playHtmlSegment error', e);
+      return Promise.resolve(false);
+    }
   }
 
-  function startAmbientLoop(buffer) {
-    if (!audioCtx || !buffer) return;
-    stopAmbientLoop();
-    ambientSource = audioCtx.createBufferSource();
-    ambientSource.buffer = buffer;
-    ambientSource.loop = true;
-    ambientGain = audioCtx.createGain();
-    ambientGain.gain.value = 0;
-    ambientSource.connect(ambientGain).connect(audioCtx.destination);
-    ambientSource.start();
-    try { ambientGain.gain.linearRampToValueAtTime(ambientVolume, audioCtx.currentTime + 3.0); } catch(e){}
-    console.log('[helpers] ambient loop started (webaudio)');
+  function startAmbientLoop(buffer, url) {
+    if (audioCtx && buffer) {
+      stopAmbientLoop();
+      ambientSource = audioCtx.createBufferSource();
+      ambientSource.buffer = buffer;
+      ambientSource.loop = true;
+      ambientGain = audioCtx.createGain();
+      ambientGain.gain.value = 0;
+      ambientSource.connect(ambientGain).connect(audioCtx.destination);
+      ambientSource.start();
+      try { ambientGain.gain.linearRampToValueAtTime(ambientVolume, audioCtx.currentTime + 3.0); } catch(e){}
+      console.log('[helpers] ambient loop started (webaudio)');
+      return;
+    }
+    // html fallback
+    if (url) {
+      if (!htmlAudio.ambientEl) { htmlAudio.ambientEl = new Audio(url); htmlAudio.ambientEl.loop = true; htmlAudio.ambientEl.volume = ambientVolume; }
+      htmlAudio.ambientEl.play().catch(e => console.warn('[helpers] ambient html play error', e));
+      console.log('[helpers] ambient loop started (html)');
+    }
   }
   function stopAmbientLoop() {
     if (ambientGain) try { ambientGain.gain.linearRampToValueAtTime(0.0001, audioCtx.currentTime + 1.2); } catch(e){}
     if (ambientSource) { try { ambientSource.stop(audioCtx.currentTime + 1.0); } catch(e){} ambientSource = null; ambientGain = null; }
+    if (htmlAudio.ambientEl) try { htmlAudio.ambientEl.pause(); htmlAudio.ambientEl.currentTime = 0; } catch(e){}
     console.log('[helpers] ambient loop stopped');
   }
 
+  // preload: detect files and load buffers or prepare htmlAudio
   async function preloadAudio() {
     await ensureAudioContext();
+
     const chosenBreath = await pickExisting(BREATH_CANDIDATES);
     if (chosenBreath) {
       if (audioCtx) audioBuffers.breath = await loadAudioBuffer(chosenBreath).catch(()=>null);
-      else htmlAudio.breath = new Audio(chosenBreath);
+      else htmlAudio.breath = chosenBreath;
     }
+
     const chosenAmbient = await pickExisting(AMBIENT_CANDIDATES);
     if (chosenAmbient) {
       if (audioCtx) audioBuffers.ambient = await loadAudioBuffer(chosenAmbient).catch(()=>null);
-      else { htmlAudio.ambient = new Audio(chosenAmbient); htmlAudio.ambient.loop = true; htmlAudio.ambient.volume = ambientVolume; }
+      else htmlAudio.ambient = chosenAmbient;
     }
+
     console.log('[helpers] preloadAudio results', {
       breathBuf: !!audioBuffers.breath, ambientBuf: !!audioBuffers.ambient,
       breathHtml: !!htmlAudio.breath, ambientHtml: !!htmlAudio.ambient
     });
+
+    return { chosenBreath, chosenAmbient };
   }
 
-  async function playInhaleSegment() {
-    if (audioBuffers.breath) return playBuffer(audioBuffers.breath, { offset: inhaleOffsetSeconds, duration: inhaleDurationSeconds, gain: soundVolume });
-    if (htmlAudio.breath) return playHtmlSegment(htmlAudio.breath, inhaleOffsetSeconds, inhaleDurationSeconds);
+  // high-level inhale/exhale players (try webaudio first; if user set useHtmlFallback or webaudio not available -> html)
+  async function playInhale() {
+    const { chosenBreath } = await preloadAudio();
+    if (audioCtx && audioBuffers.breath && !useHtmlFallback) {
+      const ok = await playBuffer(audioBuffers.breath, { offset: inhaleOffsetSeconds, duration: inhaleDurationSeconds, gain: soundVolume });
+      if (ok) return;
+    }
+    if (htmlAudio.breath || chosenBreath) {
+      return playHtmlSegment(htmlAudio.breath || chosenBreath, inhaleOffsetSeconds, inhaleDurationSeconds);
+    }
     console.log('[helpers] no inhale audio available');
   }
-  async function playExhaleSegment() {
-    if (audioBuffers.breath) return playBuffer(audioBuffers.breath, { offset: exhaleOffsetSeconds, duration: exhaleDurationSeconds, gain: soundVolume });
-    if (htmlAudio.breath) return playHtmlSegment(htmlAudio.breath, exhaleOffsetSeconds, exhaleDurationSeconds);
+  async function playExhale() {
+    const { chosenBreath } = await preloadAudio();
+    if (audioCtx && audioBuffers.breath && !useHtmlFallback) {
+      const ok = await playBuffer(audioBuffers.breath, { offset: exhaleOffsetSeconds, duration: exhaleDurationSeconds, gain: soundVolume });
+      if (ok) return;
+    }
+    if (htmlAudio.breath || chosenBreath) {
+      return playHtmlSegment(htmlAudio.breath || chosenBreath, exhaleOffsetSeconds, exhaleDurationSeconds);
+    }
     console.log('[helpers] no exhale audio available');
   }
 
+  // breath overlay flow (ambient persists until user stops it)
   async function startBreathFlow() {
     await ensureAudioContext();
-    if (audioCtx && audioCtx.state === 'suspended') { try { await audioCtx.resume(); console.log('[helpers] audioCtx resumed'); } catch(e){} }
-    if (!audioBuffers.breath && !htmlAudio.breath) await preloadAudio();
+    if (audioCtx && audioCtx.state === 'suspended') {
+      try { await audioCtx.resume(); console.log('[helpers] audioCtx resumed'); } catch(e){ console.warn(e); }
+    }
+    const { chosenAmbient } = await preloadAudio();
 
+    // overlay UI
     const overlay = document.createElement('div'); overlay.id='lr-breath-overlay';
     Object.assign(overlay.style, { position:'fixed', inset:0, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,0.6)', zIndex:10000 });
     const container = document.createElement('div'); Object.assign(container.style,{display:'flex',flexDirection:'column',alignItems:'center',gap:'12px'});
@@ -168,12 +212,12 @@
     container.appendChild(circle); container.appendChild(smallText); overlay.appendChild(container); document.body.appendChild(overlay);
 
     if (audioBuffers.ambient) startAmbientLoop(audioBuffers.ambient);
-    else if (htmlAudio.ambient) try{ htmlAudio.ambient.volume = ambientVolume; htmlAudio.ambient.loop = true; htmlAudio.ambient.play().catch(()=>{});}catch(e){}
+    else if (chosenAmbient) startAmbientLoop(null, chosenAmbient);
 
     const steps = [
-      { label: 'Inhala', action: playInhaleSegment, duration: inhaleDurationSeconds },
+      { label: 'Inhala', action: playInhale, duration: inhaleDurationSeconds },
       { label: 'Sostén', action: null, duration: 4.0 },
-      { label: 'Exhala', action: playExhaleSegment, duration: exhaleDurationSeconds },
+      { label: 'Exhala', action: playExhale, duration: exhaleDurationSeconds },
       { label: 'Sostén', action: null, duration: 1.0 }
     ];
 
@@ -205,17 +249,21 @@
     window._lastBreathOverlay = overlay;
   }
 
-  // API pública
+  // public API
   window.lr_helpers = {
     preload: preloadAudio,
-    playInhale: playInhaleSegment,
-    playExhale: playExhaleSegment,
-    startAmbient: async () => { await ensureAudioContext(); if (!audioBuffers.ambient && !htmlAudio.ambient) await preloadAudio(); if (audioBuffers.ambient) startAmbientLoop(audioBuffers.ambient); else if (htmlAudio.ambient) try{ htmlAudio.ambient.volume=ambientVolume; htmlAudio.ambient.loop=true; htmlAudio.ambient.play().catch(()=>{});}catch(e){} },
-    stopAmbient: () => { if (audioBuffers.ambient) stopAmbientLoop(); if (htmlAudio.ambient) try { htmlAudio.ambient.pause(); htmlAudio.ambient.currentTime=0;}catch(e){} },
-    dumpState: () => ({ audioCtxState: audioCtx ? audioCtx.state : 'no-audioctx', buffers: { breath: !!audioBuffers.breath, ambient: !!audioBuffers.ambient }, htmlAudio: { breath: !!htmlAudio.breath, ambient: !!htmlAudio.ambient }, offsets: { inhaleOffsetSeconds, inhaleDurationSeconds, exhaleOffsetSeconds, exhaleDurationSeconds } }),
+    resumeAudio: async () => { const ctx = await ensureAudioContext(); if (ctx && ctx.state === 'suspended') { try { await ctx.resume(); console.log('[helpers] audioCtx resumed by resumeAudio'); } catch(e){ console.warn(e);} } return ctx ? ctx.state : null; },
+    playInhale: playInhale,
+    playExhale: playExhale,
+    startAmbient: async () => { const { chosenAmbient } = await preloadAudio(); if (audioBuffers.ambient) startAmbientLoop(audioBuffers.ambient); else if (chosenAmbient) startAmbientLoop(null, chosenAmbient); },
+    stopAmbient: stopAmbientLoop,
+    dumpState: () => ({ audioCtxState: audioCtx ? audioCtx.state : 'no-audioctx', buffers: { breath: !!audioBuffers.breath, ambient: !!audioBuffers.ambient }, htmlAudio: { breath: !!htmlAudio.breath, ambient: !!htmlAudio.ambient }, offsets: { inhaleOffsetSeconds, inhaleDurationSeconds, exhaleOffsetSeconds, exhaleDurationSeconds }, useHtmlFallback }),
     setOffsets: (a,b,c,d) => { inhaleOffsetSeconds = Number(a)||inhaleOffsetSeconds; inhaleDurationSeconds = Number(b)||inhaleDurationSeconds; exhaleOffsetSeconds = Number(c)||exhaleOffsetSeconds; exhaleDurationSeconds = Number(d)||exhaleDurationSeconds; console.log('[helpers] offsets set', { inhaleOffsetSeconds, inhaleDurationSeconds, exhaleOffsetSeconds, exhaleDurationSeconds }); },
-    _startBreath: startBreathFlow
+    // allow toggling HTML fallback from console
+    get useHtmlFallback() { return useHtmlFallback; },
+    set useHtmlFallback(v) { useHtmlFallback = !!v; console.log('[helpers] useHtmlFallback =', useHtmlFallback); }
   };
 
+  // try to preload once (non-blocking)
   preloadAudio().catch(e => console.warn('[helpers] preload error', e));
 })();
