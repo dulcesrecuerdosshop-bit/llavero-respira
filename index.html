@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Frase Motivacional — Llavero Respira</title>
 
-  <!-- manifest relativo -->
+  <!-- Manifest relativo -->
   <link rel="manifest" href="manifest.json">
-  <!-- html2canvas CDN (ok que sea absoluto) -->
+  <!-- html2canvas CDN (para descarga de imagen) -->
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js" defer></script>
 
   <style>
@@ -84,7 +84,6 @@
       transition: transform .12s ease, background .12s ease;
     }
     .controls button:active { transform: translateY(1px); }
-    .controls button.secondary { background: rgba(255,255,255,0.04); }
 
     .historial {
       margin-top: 16px;
@@ -123,13 +122,12 @@
 
   <div id="historial" class="historial" aria-live="polite"></div>
 
-  <!-- helpers.js debe cargarse con ruta relativa (sin /) -->
+  <!-- helpers.js (ruta relativa) -->
   <script src="helpers.js" defer></script>
 
   <!-- JS principal (muestra frases) -->
   <script defer>
-    // lista de frases y fondos (igual que antes)
-    const frases = [ /* ... 100 frases ... copialas exactamente desde tu versión ... */ 
+    const frases = [
       "Cree en ti y todo será posible.",
       "Un paso hoy vale más que cien promesas mañana.",
       "La constancia vence lo que la suerte no alcanza.",
@@ -256,7 +254,6 @@
         fraseEl.textContent = texto;
         document.body.style.background = fondos[fondoIndex];
         fraseEl.style.opacity = 1;
-        // Notificar a helpers (si existe) para historial/favoritos
         if (typeof window.onFraseMostrada === 'function') window.onFraseMostrada(texto);
       }, 180);
     }
@@ -270,7 +267,7 @@
       if (e.code === 'Space') { e.preventDefault(); mostrarFrase(); }
     });
 
-    // Registrar service worker de forma segura (HEAD check) con ruta relativa
+    // Registrar service worker de forma segura (ruta relativa)
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         fetch('sw.js', { method: 'HEAD' })
@@ -287,7 +284,5 @@
       });
     }
   </script>
-
-  <!-- helpers.js ya agregado arriba -->
 </body>
 </html>
