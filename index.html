@@ -5,8 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Frase Motivacional — Llavero Respira</title>
 
-  <link rel="manifest" href="/manifest.json">
-  <!-- html2canvas para descargar la pantalla como imagen -->
+  <!-- manifest relativo -->
+  <link rel="manifest" href="manifest.json">
+  <!-- html2canvas CDN (ok que sea absoluto) -->
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js" defer></script>
 
   <style>
@@ -122,13 +123,13 @@
 
   <div id="historial" class="historial" aria-live="polite"></div>
 
-  <!-- helpers.js MUST load before the main script so onFraseMostrada exists when the first phrase is shown -->
-  <script src="/helpers.js" defer></script>
+  <!-- helpers.js debe cargarse con ruta relativa (sin /) -->
+  <script src="helpers.js" defer></script>
 
   <!-- JS principal (muestra frases) -->
   <script defer>
-    // MAIN: muestra frases y notifica a helpers.js cuando una frase aparece
-    const frases = [
+    // lista de frases y fondos (igual que antes)
+    const frases = [ /* ... 100 frases ... copialas exactamente desde tu versión ... */ 
       "Cree en ti y todo será posible.",
       "Un paso hoy vale más que cien promesas mañana.",
       "La constancia vence lo que la suerte no alcanza.",
@@ -260,7 +261,7 @@
       }, 180);
     }
 
-    // Mostrar una al cargar (ejecuta después del parse; helpers.js ya estará definido porque lo cargamos primero)
+    // Mostrar una al cargar
     mostrarFrase();
 
     // Interacciones
@@ -269,13 +270,13 @@
       if (e.code === 'Space') { e.preventDefault(); mostrarFrase(); }
     });
 
-    // Registrar service worker de forma segura (HEAD check)
+    // Registrar service worker de forma segura (HEAD check) con ruta relativa
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        fetch('/sw.js', { method: 'HEAD' })
+        fetch('sw.js', { method: 'HEAD' })
           .then(resp => {
             if (resp.ok) {
-              navigator.serviceWorker.register('/sw.js')
+              navigator.serviceWorker.register('sw.js')
                 .then(reg => console.log('SW registrado:', reg))
                 .catch(err => console.warn('SW registro falló:', err));
             } else {
