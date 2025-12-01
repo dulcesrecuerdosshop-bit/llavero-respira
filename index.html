@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Frase Motivacional</title>
+  <style>
+    body {
+      margin: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      font-family: 'Arial', sans-serif;
+      text-align: center;
+      transition: background 0.5s ease;
+      padding: 20px;
+      background: linear-gradient(135deg, #f6d365, #fda085);
+    }
+
+    img.logo {
+      max-width: 150px;
+      margin-bottom: 40px;
+    }
+
+    .frase {
+      font-size: 1.8em;
+      color: #fff;
+      font-weight: bold;
+      max-width: 90%;
+    }
+  </style>
+</head>
+<body>
+  <!-- Logo -->
+  <img src="logo.png" alt="Mi Logo" class="logo">
+
+  <!-- Frase -->
+  <div class="frase" id="frase"></div>
+
+  <script>
+    // Frases motivacionales
+    const frases = [
+      "Cree en ti mismo y todo será posible.",
+      "Cada día es una nueva oportunidad.",
+      "No esperes por oportunidades, créalas.",
+      "Pequeños pasos llevan a grandes logros.",
+      "La actitud positiva cambia todo.",
+      "Lo mejor está por venir.",
+      "Sé la versión más feliz de ti mismo."
+    ];
+
+    // Fondos bonitos (gradientes)
+    const fondos = [
+      "linear-gradient(135deg, #f6d365, #fda085)",
+      "linear-gradient(135deg, #a1c4fd, #c2e9fb)",
+      "linear-gradient(135deg, #84fab0, #8fd3f4)",
+      "linear-gradient(135deg, #fccb90, #d57eeb)",
+      "linear-gradient(135deg, #f093fb, #f5576c)"
+    ];
+
+    // Mostrar frase aleatoria
+    function mostrarFrase() {
+      const fraseIndex = Math.floor(Math.random() * frases.length);
+      const fondoIndex = Math.floor(Math.random() * fondos.length);
+      document.getElementById('frase').textContent = frases[fraseIndex];
+      document.body.style.background = fondos[fondoIndex];
+    }
+
+    mostrarFrase();
+  </script>
+</body>
+</html>
