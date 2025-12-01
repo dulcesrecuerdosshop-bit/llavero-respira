@@ -35,9 +35,18 @@
       -webkit-font-smoothing:antialiased;
     }
 
+    .card {
+      width: 100%;
+      max-width: 980px;
+      padding: 18px;
+      border-radius: 14px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.02));
+      box-shadow: 0 12px 40px rgba(0,0,0,0.28);
+    }
+
     img.logo {
       max-width: 140px;
-      margin-bottom: 24px;
+      margin-bottom: 18px;
       filter: drop-shadow(0 4px 10px rgba(0,0,0,0.25));
     }
 
@@ -56,78 +65,53 @@
       backdrop-filter: blur(6px);
       background: var(--panel);
       box-shadow: 0 8px 30px rgba(0,0,0,0.18);
+      margin: 8px auto;
     }
 
     .frase:active { transform: scale(0.99); }
 
     .hint {
-      margin-top: 14px;
+      margin-top: 12px;
       color: var(--muted);
       font-size: 0.92em;
       opacity: 0.95;
     }
 
-    .controls {
-      margin-top: 18px;
-      display:flex;
-      gap:10px;
-      align-items:center;
-      flex-wrap:wrap;
-      justify-content:center;
-    }
-
-    .controls button {
-      background: var(--btn-bg);
-      color: var(--text-color);
-      border: none;
-      padding: 8px 12px;
-      border-radius: var(--btn-radius);
-      font-size: 0.95em;
-      cursor: pointer;
-      transition: transform .12s ease, background .12s ease;
-    }
-    .controls button:active { transform: translateY(1px); }
-    .controls button.secondary { background: rgba(255,255,255,0.04); }
-    .controls button.primary { background: var(--accent); color:#222; font-weight:700; border:none; }
-
-    /* Hamburguesa menu (hidden by default on desktop) */
-    .menuBtn{position:fixed; right:18px; top:18px; background:transparent; border:1px solid rgba(255,255,255,0.06); padding:8px; border-radius:10px; color:var(--text-color); z-index:12000}
-    .menuPanel{position:fixed; right:18px; top:60px; background:rgba(0,0,0,0.55); padding:12px; border-radius:12px; backdrop-filter:blur(8px); display:none; flex-direction:column; gap:8px; z-index:12001}
-    .menuPanel button{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--text-color);padding:8px 12px;border-radius:10px;cursor:pointer}
+    /* Menu / controls */
+    .menuBtn{position:fixed; right:16px; top:16px; background:transparent; border:1px solid rgba(255,255,255,0.06); padding:10px; border-radius:12px; color:var(--text-color); z-index:12000; font-size:18px}
+    .menuPanel{position:fixed; right:16px; top:58px; background:rgba(0,0,0,0.66); padding:12px; border-radius:12px; backdrop-filter:blur(8px); display:none; flex-direction:column; gap:8px; z-index:12001; min-width:220px; max-height:70vh; overflow:auto}
+    .menuPanel button{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--text-color);padding:8px 10px;border-radius:10px;cursor:pointer;text-align:left}
     .menuPanel .primary{background:var(--accent);color:#222;border:none;font-weight:700}
 
-    /* Hidden historial (we keep data but do not render by default) */
-    .historial { display:none; }
+    /* Modal for favorites */
+    ._lr_modal { position: fixed; inset: 0; display:flex; align-items:center; justify-content:center; background: rgba(0,0,0,0.6); z-index:13000; }
+    ._lr_modal .box { max-width:760px; width:92%; max-height:72vh; overflow:auto; background: rgba(255,255,255,0.03); color:#fff; padding:16px; border-radius:12px; }
 
     footer{position:fixed; left:18px; bottom:18px; color:var(--muted); font-size:0.85rem}
-    @media (max-width:480px){
+    @media (max-width:560px){
       .frase { font-size:1.2em; padding:14px; }
-      .controls button { padding:8px; font-size:0.9em; }
       .menuBtn{right:10px;top:10px}
       .menuPanel{right:10px;top:50px}
     }
   </style>
 </head>
 <body>
-  <!-- Logo -->
-  <img src="logo.png" alt="Logo Llavero Respira" class="logo">
+  <div class="card" role="main" aria-labelledby="appTitle">
+    <header style="display:flex;align-items:center;justify-content:space-between">
+      <div style="display:flex;align-items:center;gap:12px">
+        <img src="logo.png" alt="Logo Llavero Respira" class="logo" />
+        <div>
+          <div id="appTitle" style="font-weight:700">Llavero Respira</div>
+          <div style="color:var(--muted);font-size:0.9rem">Un recordatorio amable</div>
+        </div>
+      </div>
+    </header>
 
-  <!-- Frase -->
-  <div class="frase" id="frase" title="Toca para ver otra frase" role="button" aria-pressed="false"></div>
-  <div class="hint">Toca la frase o presiona espacio para cambiar. Usa el menú (☰) para opciones.</div>
+    <div id="frase" class="frase" role="button" aria-pressed="false" title="Toca para ver otra frase"></div>
+    <div class="hint">Toca la frase o presiona espacio para cambiar. Usa el menú (☰) para opciones.</div>
 
-  <!-- Visible controls kept for accessibility (main actions moved to menu) -->
-  <div class="controls" aria-hidden="true" style="display:none">
-    <button id="favBtn" aria-label="Marcar como favorita">♡ Favorita</button>
-    <button id="shareBtn" aria-label="Compartir frase">🔗 Compartir</button>
-    <button id="copyBtn" aria-label="Copiar frase">📋 Copiar</button>
-    <button id="ttsBtn" aria-label="Escuchar frase">🔊 Escuchar</button>
-    <button id="breathBtn" aria-pressed="false">🌬️ Respirar</button>
-    <button id="downloadBtn" aria-label="Descargar imagen">⬇️ Descargar</button>
+    <footer>Gracias por tu apoyo ❤️</footer>
   </div>
-
-  <!-- Hidden historial container (we keep storage but avoid showing it) -->
-  <div id="historial" class="historial" aria-live="polite" aria-hidden="true"></div>
 
   <!-- Menu hamburger -->
   <button id="menuToggle" class="menuBtn" aria-expanded="false" aria-controls="menuPanel">☰</button>
@@ -135,7 +119,6 @@
     <button id="favBtn_menu">♡ Favorita</button>
     <button id="shareBtn_menu">🔗 Compartir</button>
     <button id="copyBtn_menu">📋 Copiar</button>
-    <!-- TTS removed from automatic flows; kept optionally hidden in menu if needed -->
     <button id="ttsBtn_menu">🔊 Escuchar (TTS)</button>
     <button id="startAmbientBtn">▶ Ambient</button>
     <button id="stopAmbientBtn">⏸ Ambient</button>
@@ -146,12 +129,11 @@
     <button id="enableAudioBtn">🔈 Activar audio</button>
   </div>
 
-  <!-- helpers.js MUST load before the main script so onFraseMostrada exists when the first phrase is shown -->
+  <!-- helpers.js primero -->
   <script src="helpers.js" defer></script>
 
-  <!-- JS principal (muestra frases) -->
   <script defer>
-    // MAIN: muestra frases y notifica a helpers.js cuando una frase aparece
+    // --- PHRASES (mantenidas igual que tu versión) ---
     const frases = [
       "Cree en ti y todo será posible.",
       "Un paso hoy vale más que cien promesas mañana.",
@@ -298,70 +280,155 @@
       const menuToggle = document.getElementById('menuToggle');
       const menuPanel = document.getElementById('menuPanel');
 
-      menuToggle.addEventListener('click', () => {
+      // Toggle menu
+      menuToggle.addEventListener('click', (ev) => {
+        ev.stopPropagation();
         const shown = menuPanel.style.display === 'flex';
         menuPanel.style.display = shown ? 'none' : 'flex';
         menuPanel.setAttribute('aria-hidden', shown ? 'true' : 'false');
         menuToggle.setAttribute('aria-expanded', String(!shown));
       });
 
+      // Close menu on outside click
+      document.addEventListener('click', (ev) => {
+        const panel = document.getElementById('menuPanel');
+        if (!panel) return;
+        if (panel.style.display === 'flex' && !panel.contains(ev.target) && ev.target.id !== 'menuToggle') {
+          panel.style.display = 'none';
+          menuToggle.setAttribute('aria-expanded', 'false');
+          panel.setAttribute('aria-hidden', 'true');
+        }
+      });
+
+      // Close menu when user selects an option (but let the helper handler run first)
+      menuPanel.addEventListener('click', (ev) => {
+        const btn = ev.target.closest('button');
+        if (!btn) return;
+        setTimeout(() => {
+          menuPanel.style.display = 'none';
+          menuToggle.setAttribute('aria-expanded', 'false');
+          menuPanel.setAttribute('aria-hidden', 'true');
+        }, 80);
+      });
+
       // Delegate menu buttons to helpers.js where possible
       const bind = (id, fnName) => {
         const el = document.getElementById(id);
         if (!el) return;
-        el.addEventListener('click', async () => {
+        el.addEventListener('click', async (ev) => {
+          ev.stopPropagation();
+          const text = document.getElementById('frase')?.textContent || '';
           if (window.lr_helpers && typeof window.lr_helpers[fnName] === 'function') {
-            try { await window.lr_helpers[fnName](); } catch(e){ console.warn(e); }
+            try {
+              // pass current phrase where applicable
+              if (fnName === 'toggleFavorite') { window.lr_helpers.toggleFavorite(text); }
+              else if (fnName === 'playTTS') { window.lr_helpers.playTTS ? window.lr_helpers.playTTS(text) : (function(){ if ('speechSynthesis' in window) { const u=new SpeechSynthesisUtterance(text); speechSynthesis.speak(u); } })(); }
+              else { await window.lr_helpers[fnName](); }
+            } catch (e) { console.warn(e); }
           } else {
             // small fallbacks
-            if (fnName === 'playInhale' || fnName === 'startBreathFlow') {
-              // show the phrase as fallback
-              mostrarFrase();
-            }
-            if (fnName === 'startAmbient') {
-              // try to start ambient via helpers
-              window.lr_helpers && window.lr_helpers.startAmbient && window.lr_helpers.startAmbient();
-            }
+            if (fnName === 'startBreathFlow' || fnName === 'playInhale') { mostrarFrase(); }
+            if (fnName === 'startAmbient') { window.lr_helpers && window.lr_helpers.startAmbient && window.lr_helpers.startAmbient(); }
+            if (fnName === 'copyToClipboard') { copyToClipboard(text); }
+            if (fnName === 'showFavorites') { showFavoritesFallback(); }
           }
         });
       };
 
-      bind('favBtn_menu', 'toggleFavorite'); // helpers may implement toggleFavorite
-      bind('shareBtn_menu', 'share'); // fallback handled by helpers or alt
+      bind('favBtn_menu', 'toggleFavorite');
+      bind('shareBtn_menu', 'share'); // optional
       bind('copyBtn_menu', 'copyToClipboard');
-      bind('ttsBtn_menu', 'playTTS'); // optional; helpers may expose
+      bind('ttsBtn_menu', 'playTTS');
       bind('startAmbientBtn', 'startAmbient');
       bind('stopAmbientBtn', 'stopAmbient');
       bind('breathBtn_menu', 'startBreathFlow');
       bind('downloadBtn_menu', 'downloadImage');
       bind('showFavoritesBtn', 'showFavorites');
 
-      // Enable audio button: explicit user gesture to resume AudioContext on iOS/Chrome
+      // Enable audio explicit user gesture
       const enableAudioBtn = document.getElementById('enableAudioBtn');
-      enableAudioBtn && enableAudioBtn.addEventListener('click', async () => {
+      enableAudioBtn && enableAudioBtn.addEventListener('click', async (ev) => {
+        ev.stopPropagation();
         if (window.lr_helpers && typeof window.lr_helpers.resumeAudio === 'function') {
           const s = await window.lr_helpers.resumeAudio();
           console.log('resumeAudio ->', s);
-          alert('Audio activado (si el navegador lo permite)');
-        } else {
-          // create a short silent audio to unlock
-          const a = new Audio();
-          a.src = 'about:blank';
-          a.play().catch(()=>{});
-          alert('Intentado activar audio. Si no funciona, pulsa "Respirar"');
+          alert('Intentado activar audio (si el navegador lo permite).');
+          return;
         }
+        // fallback: small silent audio to unlock
+        try {
+          const a = new Audio();
+          a.src = 'data:audio/mp3;base64,//uQZAAAAAAAAAAAAAA...'; // tiny silent base64 (may be blocked); fallback just informs
+          await a.play().catch(()=>{});
+          alert('Intentado activar audio. Pulsa "Respirar" si no se oye.');
+        } catch (e) { alert('Intento de activar audio realizado.'); }
       });
 
-      // Buttons for keyboard accessibility
+      // Keyboard shortcut: ctrl/cmd + B -> breath
       document.addEventListener('keydown', (e) => {
-        if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
-          // ctrl/cmd + b -> start breath
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
           document.getElementById('breathBtn_menu')?.click();
         }
       });
     });
 
-    // Register service worker (safe check)
+    // --- Helpers used by this index (fallbacks if helpers.js lacks implementations) ---
+    function copyToClipboard(text) {
+      if (!text) return;
+      if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text).then(()=> alert('Frase copiada'));
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); alert('Frase copiada'); } catch (e) { console.warn(e); alert('No se pudo copiar'); }
+      ta.remove();
+    }
+
+    async function downloadImage() {
+      try {
+        const el = document.querySelector('.card') || document.body;
+        const canvas = await html2canvas(el, { scale: window.devicePixelRatio || 2 });
+        const url = canvas.toDataURL('image/png');
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'llavero-respira-frase.png';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      } catch (e) {
+        console.warn('downloadImage error', e);
+        alert('No se pudo descargar la imagen en este navegador.');
+      }
+    }
+
+    // Fallback show favorites if helpers not present
+    function showFavoritesFallback() {
+      try {
+        const raw = localStorage.getItem('lr_favoritos_v1') || '[]';
+        const favs = JSON.parse(raw);
+        const modal = document.createElement('div');
+        modal.className = '_lr_modal';
+        const box = document.createElement('div');
+        box.className = 'box';
+        box.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><strong>Favoritos</strong><button id="_lr_close_fav" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.06);padding:6px;border-radius:8px">Cerrar</button></div><hr style="opacity:.08;margin:8px 0">`;
+        if (!favs || !favs.length) box.innerHTML += '<div style="color:rgba(255,255,255,0.8)">No hay favoritos</div>';
+        else box.innerHTML += favs.map(f => `<div style="margin:10px 0;line-height:1.3">${escapeHtml(f)}</div>`).join('');
+        modal.appendChild(box);
+        document.body.appendChild(modal);
+        document.getElementById('_lr_close_fav').addEventListener('click', () => modal.remove());
+      } catch (e) { console.warn('showFavoritesFallback', e); alert('No hay favoritos'); }
+    }
+
+    function escapeHtml(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+    // Provide compatibility wrappers used earlier
+    window.lr_index_helpers = {
+      copyToClipboard,
+      downloadImage,
+      showFavoritesFallback
+    };
+
+    // Safe registration of service worker (unchanged)
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         fetch('sw.js', { method: 'HEAD' })
@@ -378,7 +445,5 @@
       });
     }
   </script>
-
-  <!-- helpers.js ya agregado arriba -->
 </body>
 </html>
