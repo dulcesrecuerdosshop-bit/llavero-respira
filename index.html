@@ -122,8 +122,12 @@
 
   <div id="historial" class="historial" aria-live="polite"></div>
 
+  <!-- helpers.js MUST load before the main script so onFraseMostrada exists when the first phrase is shown -->
+  <script src="/helpers.js" defer></script>
+
   <!-- JS principal (muestra frases) -->
-  <script>
+  <script defer>
+    // MAIN: muestra frases y notifica a helpers.js cuando una frase aparece
     const frases = [
       "Cree en ti y todo será posible.",
       "Un paso hoy vale más que cien promesas mañana.",
@@ -256,7 +260,7 @@
       }, 180);
     }
 
-    // Mostrar una al cargar
+    // Mostrar una al cargar (ejecuta después del parse; helpers.js ya estará definido porque lo cargamos primero)
     mostrarFrase();
 
     // Interacciones
@@ -265,15 +269,24 @@
       if (e.code === 'Space') { e.preventDefault(); mostrarFrase(); }
     });
 
-    // Registrar service worker
+    // Registrar service worker de forma segura (HEAD check)
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW error', err));
+        fetch('/sw.js', { method: 'HEAD' })
+          .then(resp => {
+            if (resp.ok) {
+              navigator.serviceWorker.register('/sw.js')
+                .then(reg => console.log('SW registrado:', reg))
+                .catch(err => console.warn('SW registro falló:', err));
+            } else {
+              console.log('sw.js no disponible (HEAD):', resp.status);
+            }
+          })
+          .catch(err => console.log('sw.js no encontrado o error de red:', err));
       });
     }
   </script>
 
-  <!-- Helpers: acciones (favoritos, compartir, TTS, respiración, descargar) -->
-  <script src="/helpers.js" defer></script>
+  <!-- helpers.js ya agregado arriba -->
 </body>
 </html>
