@@ -1,6 +1,5 @@
-// helpers.v2.js - Complete, validated helpers (audio, breath flow, favorites, TTS, share, download, delegation)
-// Replace the existing file with this one and then clear service worker/cache before testing.
-
+// helpers.v2.js - Final corrected helpers (audio, breath flow, favorites, TTS, share, download, delegation)
+// Cleaned of stray text that caused SyntaxError "Unexpected identifier 'continued'".
 (function () {
   'use strict';
 
@@ -10,6 +9,37 @@
   function lrwarn(...a) { if (window.LR_DEBUG) console.warn(...a); }
 
   lrlog('[helpers] start loading helpers.v2.js');
+
+  // --- Minimal toast helper (defined early so any function can call it safely) ---
+  function showToast(msg, timeout = 3500) {
+    try {
+      let t = document.getElementById('_lr_toast');
+      if (!t) {
+        t = document.createElement('div'); t.id = '_lr_toast';
+        Object.assign(t.style, {
+          position: 'fixed',
+          top: '18px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: 'rgba(8,12,20,0.9)',
+          color: '#fff',
+          padding: '8px 14px',
+          borderRadius: '8px',
+          zIndex: 16000,
+          fontSize: '0.95rem',
+          boxShadow: '0 6px 22px rgba(0,0,0,0.3)'
+        });
+        document.body.appendChild(t);
+      }
+      t.textContent = msg;
+      t.style.opacity = '1';
+      clearTimeout(t._t);
+      t._t = setTimeout(() => { t.style.opacity = '0'; }, timeout);
+    } catch (e) {
+      try { console.log('TOAST:', msg); } catch (_) {}
+    }
+  }
+  if (!window.showToast) window.showToast = showToast;
 
   // --- Config / defaults ---
   const AUDIO = {
@@ -219,11 +249,7 @@
     await resumeAudio();
     await preloadAssets();
 
-    // if overlay exists, don't create another
-    if (document.getElementById('lr-breath-overlay')) {
-      lrlog('[helpers] breath overlay already present');
-      return;
-    }
+    if (document.getElementById('lr-breath-overlay')) { lrlog('[helpers] breath overlay already present'); return; }
 
     const overlay = document.createElement('div');
     overlay.id = 'lr-breath-overlay';
@@ -243,7 +269,6 @@
     overlay.appendChild(container);
     document.body.appendChild(overlay);
 
-    // optional ambient
     if (window._lr_ambient_enabled !== false) {
       if (audioBuffers.ambient) startAmbientLoop(audioBuffers.ambient);
       else if (htmlAudio.ambientEl) startAmbientLoop(null, htmlAudio.ambientEl.src);
@@ -263,7 +288,7 @@
       try {
         circle.textContent = s.label;
         small.textContent = s.label + (s.duration ? ' · ' + Math.round(s.duration) + 's' : '');
-      } catch (e) { lrwarn(e); }
+      } catch (e) {}
       if (s.action) { try { await s.action(); } catch (e) { lrwarn('[helpers] breath action error', e); } }
       try {
         const scaleFrom = s.label === 'Exhala' ? 1 : 0.6;
@@ -323,7 +348,7 @@
     }
   }
 
-  // --- Resume audio "unlock" trick ---
+  // --- Resume audio unlock trick ---
   async function resumeAudio() {
     await ensureAudioContext();
     if (audioCtx && audioCtx.state === 'suspended') {
@@ -343,22 +368,7 @@
     return audioCtx ? audioCtx.state : 'no-audioctx';
   }
 
-  // --- UI small helpers (toast / audio prompt) ---
-  function showToast(msg, timeout = 3500) {
-    try {
-      let t = document.getElementById('_lr_toast');
-      if (!t) {
-        t = document.createElement('div'); t.id = '_lr_toast';
-        Object.assign(t.style, { position: 'fixed', top: '18px', left: '50%', transform: 'translateX(-50%)', background: 'rgba(8,12,20,0.9)', color: '#fff', padding: '8px 14px', borderRadius: '8px', zIndex: 16000, fontSize: '0.95rem', boxShadow: '0 6px 22px rgba(0,0,0,0.3)' });
-        document.body.appendChild(t);
-      }
-      t.textContent = msg;
-      t.style.opacity = '1';
-      clearTimeout(t._t);
-      t._t = setTimeout(() => { t.style.opacity = '0'; }, timeout);
-    } catch (e) { lrwarn(e); }
-  }
-
+  // --- Audio prompt (uses showToast) ---
   function showAudioEnablePrompt() {
     try {
       if (document.getElementById('_lr_enable_audio_modal')) return;
@@ -382,7 +392,7 @@
     } catch (e) { lrwarn(e); }
   }
 
-  // --- copy & download helpers (define before any possible calls) ---
+  // --- copy & download helpers (defined before any possible calls) ---
   function copyToClipboard(text) {
     if (!text) return;
     if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text).then(() => showToast('Frase copiada'));
@@ -419,7 +429,7 @@
     }
   }
 
-  // expose download helpers globally to avoid ReferenceError
+  // Expose download helpers globally
   window.downloadPhraseImage = downloadPhraseImage;
   window.downloadImageFallback = downloadImageFallback;
 
@@ -501,4 +511,209 @@
     document.body.appendChild(modal);
     document.getElementById('_lr_close_settings').addEventListener('click', () => modal.remove());
 
-  (file continued - full file saved in repo)
+    const ttsCheckbox = document.getElementById('_lr_toggle_tts');
+    const ambientCheckbox = document.getElementById('_lr_toggle_ambient');
+    ttsCheckbox.checked = (window._lr_tts_enabled !== false);
+    ambientCheckbox.checked = !!(htmlAudio.ambientEl || audioBuffers.ambient);
+
+    ttsCheckbox.addEventListener('change', () => {
+      showToast('TTS ' + (ttsCheckbox.checked ? 'activado' : 'desactivado'));
+      window._lr_tts_enabled = ttsCheckbox.checked;
+    });
+    ambientCheckbox.addEventListener('change', () => {
+      showToast('Ambient ' + (ambientCheckbox.checked ? 'activado' : 'desactivado'));
+      window._lr_ambient_enabled = ambientCheckbox.checked;
+    });
+
+    box.querySelectorAll('._lr_preset_btn').forEach(b => {
+      b.addEventListener('click', () => {
+        const p = b.getAttribute('data-preset');
+        if (p && window.lr_helpers && typeof window.lr_helpers.setBreathPattern === 'function') {
+          window.lr_helpers.setBreathPattern(p);
+          showToast('Preset aplicado: ' + p);
+        }
+      });
+    });
+  }
+
+  // --- Menu helpers (annotation + delegation) ---
+  function normalizeText(s) { return (s||'').trim().toLowerCase().replace(/\s+/g,' '); }
+  function detectActionFromButton(btn) {
+    if (!btn) return null;
+    if (btn.dataset && btn.dataset.action) return btn.dataset.action;
+    if (btn.id) {
+      const id = btn.id.toLowerCase();
+      if (id.indexOf('breath') !== -1 || id.indexOf('respira') !== -1) return 'breath';
+      if (id.indexOf('fav') !== -1) return 'favorite';
+      if (id.indexOf('tts') !== -1) return 'tts';
+      if (id.indexOf('copy') !== -1) return 'copy';
+      if (id.indexOf('download') !== -1) return 'download';
+      if (id.indexOf('ambient') !== -1) return id.indexOf('stop') !== -1 ? 'ambient-stop' : 'ambient-start';
+      if (id.indexOf('audio') !== -1) return 'enable-audio';
+    }
+    const txt = normalizeText(btn.textContent || btn.innerText || '');
+    if (!txt) return null;
+    if (txt.includes('respira') || txt.includes('respirar') || txt.includes('breath') || txt.includes('🌬')) return 'breath';
+    if (txt.includes('favorit') || txt.includes('favorito') || txt.includes('favorita') || txt.includes('⭐')) return 'favorite';
+    if (txt.includes('escuchar') || txt.includes('tts') || txt.includes('🔊')) return 'tts';
+    if (txt.includes('copiar') || txt.includes('copi') || txt.includes('📋')) return 'copy';
+    if (txt.includes('descargar') || txt.includes('download') || txt.includes('⬇')) return 'download';
+    if (txt.includes('ambient') || txt.includes('ambiental')) return txt.includes('parar')||txt.includes('stop') ? 'ambient-stop' : 'ambient-start';
+    if (txt.includes('activar audio') || txt.includes('activar sonido') || txt.includes('🔈')) return 'enable-audio';
+    if (txt.includes('favoritos') && txt.includes('mostrar')) return 'show-favorites';
+    if (txt.includes('compart') || txt.includes('share') || txt.includes('🔗')) return 'share';
+    if (txt.includes('ajust') || txt.includes('ajuste') || txt.includes('settings') || txt.includes('⚙')) return 'settings';
+    return null;
+  }
+
+  function annotateMenuButtonsOnce() {
+    try {
+      const panel = document.getElementById('menuPanel');
+      if (!panel) return 0;
+      const btns = Array.from(panel.querySelectorAll('button, [role="menuitem"], [data-action]'));
+      let changed = 0;
+      btns.forEach(b => {
+        if (b.dataset && b.dataset.action) return;
+        const txt = (b.textContent || b.innerText || '').trim().toLowerCase();
+        const id = (b.id || '').toLowerCase();
+        let action = null;
+        if (id.includes('breath') || txt.includes('respira') || txt.includes('respirar') || txt.includes('🌬')) action = 'breath';
+        else if (id.includes('fav') || txt.includes('favorit') || txt.includes('favorito') || txt.includes('favorita') || txt.includes('⭐')) action = 'favorite';
+        else if (txt.includes('escuchar') || txt.includes('tts') || txt.includes('🔊')) action = 'tts';
+        else if (txt.includes('copiar') || txt.includes('copi') || txt.includes('📋')) action = 'copy';
+        else if (txt.includes('descargar') || txt.includes('download') || txt.includes('⬇')) action = 'download';
+        else if (id.includes('ambient') || txt.includes('ambient')) action = txt.includes('parar')||txt.includes('stop') ? 'ambient-stop' : 'ambient-start';
+        else if (txt.includes('activar audio') || txt.includes('activar sonido') || txt.includes('🔈')) action = 'enable-audio';
+        else if (txt.includes('favoritos') && txt.includes('mostrar')) action = 'show-favorites';
+        else if (txt.includes('compart') || txt.includes('share') || txt.includes('🔗')) action = 'share';
+        else if (txt.includes('ajust') || txt.includes('ajuste') || txt.includes('settings') || txt.includes('⚙')) action = 'settings';
+        if (action) { b.dataset.action = action; changed++; }
+      });
+      if (changed) lrlog('[helpers] annotateMenuButtonsOnce -> data-action added:', changed);
+      return changed;
+    } catch (e) { lrwarn('[helpers] annotate error', e); return 0; }
+  }
+
+  function handleMenuAction(action, btn) {
+    const phraseEl = document.getElementById('frase-text') || document.getElementById('frase');
+    const phrase = phraseEl ? (phraseEl.textContent || '') : '';
+    switch (action) {
+      case 'breath': startBreathFlowInternal(); break;
+      case 'favorite': if (phrase) { const added = toggleFavorite(phrase); if (btn) btn.textContent = added ? '♥ Favorita' : '♡ Favorita'; } break;
+      case 'copy': if (phrase) copyToClipboard(phrase); break;
+      case 'share': if (navigator.share && phrase) navigator.share({ title: 'Frase', text: phrase }).catch(e => lrwarn(e)); else if (phrase) { copyToClipboard(phrase); showToast('Compartir no soportado, frase copiada'); } break;
+      case 'tts': if (phrase && window._lr_tts_enabled !== false) playTTS(phrase); break;
+      case 'ambient-start': preloadAssets().then(() => { if (audioBuffers.ambient) startAmbientLoop(audioBuffers.ambient); else if (htmlAudio.ambientEl) htmlAudio.ambientEl.play().catch(() => {}); }); break;
+      case 'ambient-stop': stopAmbientLoop(); break;
+      case 'download': downloadImageFallback(); break;
+      case 'enable-audio': resumeAudio().then(() => showToast('Intentado activar audio')); break;
+      case 'show-favorites': showFavoritesModal(); break;
+      case 'share-app': sharePhrase({ title:'Llavero Respira', text:'Echa un vistazo', url: location.href }); break;
+      case 'invite': inviteFriend(); break;
+      case 'settings': showSettingsModal(); break;
+      default: lrlog('[helpers] action not mapped:', action); break;
+    }
+  }
+
+  // Fallback attach helpers and delegation
+  function attachTouchClick(ids, fn) {
+    if (!Array.isArray(ids)) ids = [ids];
+    for (let i = 0; i < ids.length; i++) {
+      const el = document.getElementById(ids[i]);
+      if (!el) continue;
+      try {
+        el.addEventListener('click', fn);
+        el.addEventListener('touchend', function (e) { e.preventDefault(); e.stopPropagation(); fn.call(this, e); }, { passive: false });
+      } catch (e) { lrwarn('[helpers] attach error', ids[i], e); }
+    }
+  }
+
+  function initMenuDelegation() {
+    const panel = document.getElementById('menuPanel');
+    if (!panel) {
+      lrlog('[helpers] menuPanel not found — fallback attach');
+      return false;
+    }
+    function onPointer(e) {
+      try {
+        const target = (e.target && e.target.closest && e.target.closest('button, [role="menuitem"], [data-action]')) || e.target;
+        if (!target || !panel.contains(target)) return;
+        if (e.type === 'touchend') { e.preventDefault(); }
+        e.stopPropagation();
+        const action = detectActionFromButton(target);
+        if (action) handleMenuAction(action, target);
+        setTimeout(() => { panel.style.display = 'none'; const tgl = document.getElementById('menuToggle'); if (tgl) tgl.setAttribute('aria-expanded', 'false'); }, 80);
+      } catch (err) { lrwarn('[helpers] delegation onPointer error', err); }
+    }
+    panel.addEventListener('click', onPointer);
+    panel.addEventListener('touchend', onPointer, { passive: false });
+    lrlog('[helpers] menu delegation activated');
+    return true;
+  }
+
+  // Init bindings
+  document.addEventListener('DOMContentLoaded', function () {
+    annotateMenuButtonsOnce();
+    const delegated = initMenuDelegation();
+    if (!delegated) {
+      attachTouchClick(['breathBtn_menu','breathBtn'], function () { startBreathFlowInternal(); });
+      attachTouchClick(['enableAudioBtn','enableAudio'], function () { resumeAudio().then(function () { showToast('Intentado activar audio'); }); });
+      attachTouchClick(['ttsBtn_menu','ttsBtn'], function () { const t = (document.getElementById('frase-text') && document.getElementById('frase-text').textContent) || (document.getElementById('frase') && document.getElementById('frase').textContent) || ''; if (t) playTTS(t); });
+      attachTouchClick(['startAmbientBtn'], function () { preloadAssets().then(function () { if (audioBuffers.ambient) startAmbientLoop(audioBuffers.ambient); else if (htmlAudio.ambientEl) htmlAudio.ambientEl.play().catch(()=>{}); }); });
+      attachTouchClick(['stopAmbientBtn'], function () { stopAmbientLoop(); });
+      attachTouchClick(['favBtn_menu','favBtn'], function () { const t = (document.getElementById('frase-text') && document.getElementById('frase-text').textContent) || (document.getElementById('frase') && document.getElementById('frase').textContent) || ''; if (t) { const added = toggleFavorite(t); const el = document.getElementById('favBtn_menu') || document.getElementById('favBtn'); if (el) el.textContent = added ? '♥ Favorita' : '♡ Favorita'; } });
+      attachTouchClick(['downloadBtn','downloadBtn_menu'], function () { const el = document.querySelector('.frase-card') || document.querySelector('.card') || document.body; downloadPhraseImage(el); });
+      attachTouchClick(['shareBtn','shareBtn_menu'], function () { const t = (document.getElementById('frase-text') && document.getElementById('frase-text').textContent) || (document.getElementById('frase') && document.getElementById('frase').textContent) || ''; sharePhrase({ title: 'Frase', text: t, url: location.href }); });
+      attachTouchClick(['inviteBtn'], function () { inviteFriend(); });
+    }
+  });
+
+  // Public API
+  window.lr_helpers = window.lr_helpers || {};
+  Object.assign(window.lr_helpers, {
+    preload: preloadAssets,
+    resumeAudio: resumeAudio,
+    startBreathFlow: startBreathFlowInternal,
+    playTTS: playTTS,
+    getFavorites: getFavoritos,
+    toggleFavorite: toggleFavorite,
+    showFavorites: showFavoritesModal,
+    downloadPhraseImage: downloadPhraseImage,
+    downloadImageFallback: downloadImageFallback,
+    sharePhrase: sharePhrase,
+    inviteFriend: inviteFriend,
+    copyToClipboard: copyToClipboard,
+    startAmbient: async () => { await preloadAssets(); if (audioBuffers.ambient) startAmbientLoop(audioBuffers.ambient); else if (htmlAudio.ambientEl) htmlAudio.ambientEl.play().catch(()=>{}); },
+    stopAmbient: stopAmbientLoop,
+    setBreathPattern: (name) => {
+      const PRE = { box:{inh:4,h1:4,exh:4,h2:4}, calm:{inh:4,h1:4,exh:6,h2:1}, slow:{inh:5,h1:5,exh:7,h2:1}, '478':{inh:4,h1:7,exh:8,h2:1} };
+      const p = PRE[name];
+      if (!p) { lrwarn('preset not found', name); return; }
+      inhaleDurationSeconds = p.inh; hold1DurationSeconds = p.h1; exhaleDurationSeconds = p.exh; hold2DurationSeconds = p.h2;
+      lrlog('[helpers] preset applied', name);
+    },
+    setCustomBreath: (inh,h1,exh,h2) => {
+      inhaleDurationSeconds = Number(inh)||inhaleDurationSeconds;
+      hold1DurationSeconds = Number(h1)||hold1DurationSeconds;
+      exhaleDurationSeconds = Number(exh)||exhaleDurationSeconds;
+      hold2DurationSeconds = Number(h2)||hold2DurationSeconds;
+      lrlog('[helpers] custom breath set', { inhaleDurationSeconds, hold1DurationSeconds, exhaleDurationSeconds, hold2DurationSeconds });
+    },
+    dumpState: () => ({
+      audioCtxState: audioCtx ? audioCtx.state : 'no-audioctx',
+      buffers: { inhaleCue: !!audioBuffers.inhaleCue, exhaleCue: !!audioBuffers.exhaleCue, breath: !!audioBuffers.breath, ambient: !!audioBuffers.ambient },
+      htmlAudio: { inhale: !!htmlAudio.inhaleEl, exhale: !!htmlAudio.exhaleEl, ambient: !!htmlAudio.ambientEl },
+      offsets: { inhaleOffsetSeconds, inhaleDurationSeconds, exhaleOffsetSeconds, exhaleDurationSeconds, hold1DurationSeconds, hold2DurationSeconds }
+    })
+  });
+
+  // autopreload
+  preloadAssets().catch(e => lrwarn('[helpers] preload error', e));
+
+  // ensure global shortcuts exist
+  if (!window.downloadPhraseImage) window.downloadPhraseImage = downloadPhraseImage;
+  window.lr_helpers = window.lr_helpers || {};
+  window.lr_helpers.downloadPhraseImage = downloadPhraseImage;
+  window.lr_helpers.downloadImageFallback = downloadImageFallback;
+
+})();
