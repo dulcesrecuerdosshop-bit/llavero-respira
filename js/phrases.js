@@ -1,7 +1,7 @@
-// phrases.js - frases completas y selección de fondo (gradientes + imágenes locales)
-// Reemplaza js/phrases.js por este archivo para usar todas las frases existentes.
-
+// phrases.js - frases completas + selección de fondo (gradientes + imágenes locales)
+// Actualizado: mantiene todas las frases previas y añade interacciones robustas
 (function(){
+  // ---------- Datos (lista completa) ----------
   const frases = [
     "Cree en ti y todo será posible.",
     "Un paso hoy vale más que cien promesas mañana.",
@@ -105,9 +105,8 @@
     "Vive con propósito, trabaja con constancia y ama el camino."
   ];
 
-  // Fondos: mezcla de gradientes y rutas a imágenes locales (si subes imágenes a /assets/)
+  // ---------- Fondos (gradientes y rutas locales) ----------
   const fondos = [
-    // Gradientes (siempre seguros, ligeros)
     "linear-gradient(135deg, #f6d365, #fda085)",
     "linear-gradient(135deg, #a1c4fd, #c2e9fb)",
     "linear-gradient(135deg, #84fab0, #8fd3f4)",
@@ -118,8 +117,7 @@
     "linear-gradient(135deg, #ff9a9e, #fecfef)",
     "linear-gradient(135deg, #a18cd1, #fbc2eb)",
     "linear-gradient(135deg, #30cfd0, #330867)",
-
-    // Imágenes locales (sube images a /assets/ con estos nombres o cambia las rutas)
+    // imágenes locales (si decides subirlas)
     "assets/bg1.webp",
     "assets/bg2.webp",
     "assets/bg3.webp",
@@ -127,11 +125,15 @@
     "assets/bg5.webp"
   ];
 
-  // Helpers para DOM
-  const fraseEl = () => document.getElementById('frase-text');
+  // ---------- Helpers DOM ----------
+  const fraseEl = () => document.getElementById('frase-text') || document.getElementById('frase');
   const bgEl = () => document.getElementById('frase-bg');
 
-  // Preload image backgrounds (optional but nice)
+  // evitar repetición inmediata
+  let lastIndex = -1;
+  let lastChangeAt = 0;
+
+  // Preload images locales para evitar parpadeo
   function preloadImages(list){
     list.forEach(src=>{
       if (/\.(jpe?g|png|webp|avif)$/i.test(src)){
@@ -140,43 +142,231 @@
       }
     });
   }
-  // Preload local images only
   preloadImages(fondos.filter(f=>/\.(jpe?g|png|webp|avif)$/i.test(f)));
 
   function applyBackgroundToElement(el, bgValue){
     if (!el) return;
-    // if bgValue is an image path (ends with common extension), use backgroundImage
     if (/\.(jpe?g|png|webp|avif)$/i.test(bgValue)){
       el.style.backgroundImage = `url('${bgValue}')`;
       el.style.backgroundSize = 'cover';
       el.style.backgroundPosition = 'center';
       el.style.backgroundRepeat = 'no-repeat';
-      // ensure overlay darkness via filter or using a pseudo overlay in CSS
     } else {
-      // assume gradient or CSS background string
       el.style.background = bgValue;
     }
   }
 
+  // ---------- Mostrar frase (expuesta) ----------
   function mostrarFrase() {
+    const now = Date.now();
+    // simple debounce: no más de una cada 180ms
+    if (now - lastChangeAt < 180) return;
+    lastChangeAt = now;
+
     const fEl = fraseEl();
     const bEl = bgEl();
     if (!fEl) return;
-    const i = Math.floor(Math.random()*frases.length);
+    // elegir índice distinto al anterior cuando sea posible
+    let i = Math.floor(Math.random()*frases.length);
+    if (frases.length > 1) {
+      let attempts = 0;
+      while (i === lastIndex && attempts < 10) { i = Math.floor(Math.random()*frases.length); attempts++; }
+    }
+    lastIndex = i;
     const j = Math.floor(Math.random()*fondos.length);
+    fEl.style.transition = 'opacity 140ms ease';
     fEl.style.opacity = 0;
     setTimeout(()=>{
       fEl.textContent = frases[i];
+      // actualizar elemento legacy 'frase' para compatibilidad
+      const legacy = document.getElementById('frase');
+      if (legacy && legacy !== fEl) legacy.textContent = frases[i];
       const chosenBg = fondos[j];
       if (bEl) applyBackgroundToElement(bEl, chosenBg);
       fEl.style.opacity = 1;
-      if (typeof window.onFraseMostrada === 'function') window.onFraseMostrada(frases[i]);
+
+      // Actualizar estado del botón favorito si existe
+      try {
+        const fav = document.getElementById('favBtn');
+        if (fav) {
+          if (window.lr_helpers && typeof window.lr_helpers.getFavorites === 'function') {
+            const favs = window.lr_helpers.getFavorites() || [];
+            const cur = frases[i];
+            const isFav = favs.indexOf(cur) !== -1;
+            fav.textContent = isFav ? '♥' : '♡';
+            fav.setAttribute('aria-pressed', String(isFav));
+          } else {
+            // si no hay helpers, no hacemos más
+            fav.textContent = '♡';
+            fav.setAttribute('aria-pressed', 'false');
+          }
+        }
+      } catch(e) { /* ignore */ }
+
+      // notify optional hook
+      if (typeof window.onFraseMostrada === 'function') {
+        try { window.onFraseMostrada(frases[i]); } catch(e){ /* ignore */ }
+      }
     }, 160);
   }
 
-  // Exponer la función para que otros scripts la llamen
+  // ---------- Interacciones (click en tarjeta, tecla Space) ----------
+  function attachInteractions() {
+    const card = document.getElementById('frase-card');
+    if (card && !card.__phrases_listeners_attached) {
+      // usar both touchstart (mobile snappy) y click
+      const clickHandler = (ev) => {
+        // si el click fue en un control (botón dentro de .frase-controls), no cambiar frase
+        if (ev.target && ev.target.closest && ev.target.closest('.frase-controls')) return;
+        mostrarFrase();
+      };
+      card.addEventListener('click', clickHandler);
+      card.addEventListener('touchstart', clickHandler, { passive: true });
+      card.__phrases_listeners_attached = true;
+    }
+
+    // Space key: evitar conflicto si el usuario está en un input/textarea
+    if (!document.__phrases_space_attached) {
+      document.addEventListener('keydown', (e) => {
+        const tag = (document.activeElement && document.activeElement.tagName) || '';
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return;
+        if (e.code === 'Space' || e.key === ' ') {
+          e.preventDefault();
+          mostrarFrase();
+        }
+      });
+      document.__phrases_space_attached = true;
+    }
+  }
+
+  // ---------- Control wiring con lr_helpers (seguro) ----------
+  function wireControls() {
+    if (document.__phrases_controls_wired) return;
+    const getText = () => document.getElementById('frase-text')?.textContent || document.getElementById('frase')?.textContent || '';
+    const tts = document.getElementById('ttsBtn');
+    const fav = document.getElementById('favBtn');
+    const dl = document.getElementById('downloadBtn');
+    const share = document.getElementById('shareBtn');
+    const invite = document.getElementById('inviteBtn');
+
+    // helper to safely call lr_helpers methods when ready
+    function callWhenHelpers(fn){
+      if (window.lr_helpers) { try { fn(); } catch(e){ console.warn('[phrases] helper call failed', e); } return; }
+      // wait up to 3s for helpers to be available
+      let waited = 0;
+      const iv = setInterval(()=> {
+        waited += 100;
+        if (window.lr_helpers) {
+          clearInterval(iv);
+          try{ fn(); } catch(e){ console.warn('[phrases] helper call failed after wait', e); }
+        } else if (waited > 3000) clearInterval(iv);
+      }, 100);
+    }
+
+    // TTS
+    if (tts) {
+      tts.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const text = getText();
+        callWhenHelpers(()=> {
+          if (window.lr_helpers.playTTS) window.lr_helpers.playTTS(text);
+        });
+      });
+    }
+
+    // Favorito (toggle)
+    if (fav) {
+      fav.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const text = getText();
+        if (!text) return;
+        callWhenHelpers(()=> {
+          if (window.lr_helpers.toggleFavorite) {
+            const added = window.lr_helpers.toggleFavorite(text);
+            fav.textContent = added ? '♥' : '♡';
+            fav.setAttribute('aria-pressed', String(added));
+          } else {
+            // fallback localStorage minimal
+            try {
+              const key = 'lr_favoritos_v1';
+              const raw = localStorage.getItem(key) || '[]';
+              const arr = JSON.parse(raw);
+              const idx = arr.indexOf(text);
+              if (idx === -1) { arr.unshift(text); localStorage.setItem(key, JSON.stringify(arr.slice(0,200))); fav.textContent = '♥'; fav.setAttribute('aria-pressed', 'true'); }
+              else { arr.splice(idx,1); localStorage.setItem(key, JSON.stringify(arr)); fav.textContent = '♡'; fav.setAttribute('aria-pressed', 'false'); }
+            } catch(e){ console.warn(e); }
+          }
+        });
+      });
+    }
+
+    // Descargar
+    if (dl) {
+      dl.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const el = document.querySelector('.frase-card') || document.body;
+        callWhenHelpers(()=> {
+          if (window.lr_helpers.downloadPhraseImage) window.lr_helpers.downloadPhraseImage(el);
+        });
+      });
+    }
+
+    // Compartir
+    if (share) {
+      share.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const text = getText();
+        callWhenHelpers(()=> {
+          if (window.lr_helpers.sharePhrase) window.lr_helpers.sharePhrase({ title:'Frase', text, url: location.href });
+          else {
+            const wa = `https://api.whatsapp.com/send?text=${encodeURIComponent(text + '\n' + location.href)}`;
+            window.open(wa, '_blank');
+          }
+        });
+      });
+    }
+
+    // Invitar
+    if (invite) {
+      invite.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        callWhenHelpers(()=> {
+          if (window.lr_helpers.inviteFriend) window.lr_helpers.inviteFriend();
+          else {
+            const baseUrl = location.origin + location.pathname;
+            const msg = `¡Tengo mi Llavero Respira de Dulces Recuerdos! Me está encantando. Échale un vistazo: ${baseUrl}`;
+            window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`, '_blank');
+          }
+        });
+      });
+    }
+
+    // inicializar estado del botón favorito si helpers lo soporta
+    callWhenHelpers(()=> {
+      try {
+        if (fav && window.lr_helpers && typeof window.lr_helpers.getFavorites === 'function') {
+          const favs = window.lr_helpers.getFavorites() || [];
+          const cur = document.getElementById('frase-text')?.textContent || document.getElementById('frase')?.textContent || '';
+          if (cur && favs.indexOf(cur) !== -1) { fav.textContent = '♥'; fav.setAttribute('aria-pressed', 'true'); }
+          else { fav.textContent = '♡'; fav.setAttribute('aria-pressed', 'false'); }
+        }
+      } catch(e){ /* ignore */ }
+    });
+
+    document.__phrases_controls_wired = true;
+  }
+
+  // ---------- Inicialización y exposición ----------
   window.mostrarFrase = mostrarFrase;
 
-  // Mostrar una frase inicial cuando el DOM esté listo
-  document.addEventListener('DOMContentLoaded', () => { if (!document.hidden) mostrarFrase(); });
+  document.addEventListener('DOMContentLoaded', () => {
+    // mostrar frase inicial
+    mostrarFrase();
+    // interacciones y controles
+    attachInteractions();
+    wireControls();
+    // also try wiring again after short delay in case helpers load later
+    setTimeout(wireControls, 700);
+  });
+
 })();
