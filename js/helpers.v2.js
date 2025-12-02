@@ -1,7 +1,12 @@
-// helpers.js - Versión corregida (delegation + auto-annotation + resumeAudio + fixes)
+// helpers.v2.js - Merged and extended helpers (audio, breath flow, favorites, TTS, share, download, delegation)
+// This file unifies the production helpers you pasted with the lightweight helpers I proposed:
+// - Preserves full audio/WebAudio support, preload, ambient, inhale/exhale, breath overlay
+// - Keeps menu annotation + delegation and favorites modal
+// - Adds utilities: downloadPhraseImage (html2canvas), sharePhrase (Web Share / WhatsApp), inviteFriend
+// - Exposes a comprehensive window.lr_helpers API for UI to call
 (function () {
   'use strict';
-  console.log('[helpers] cargando helpers.js (delegation + auto-annotate v2)');
+  console.log('[helpers] loading helpers.v2.js (merged)');
 
   const AUDIO = {
     breathCandidates: ['Breath.mp3', 'breath.mp3', 'BREATH.mp3'],
@@ -10,7 +15,7 @@
     ambientCandidates: ['ambient.mp3', 'Ambient.mp3', 'AMBIENT.mp3']
   };
 
-  // Duraciones por defecto
+  // Durations por defecto (pueden ajustarse con setOffsets / setBreathPattern)
   let inhaleOffsetSeconds = 0.0;
   let inhaleDurationSeconds = 2.8;
   let exhaleOffsetSeconds = 2.8;
@@ -23,10 +28,12 @@
   let ambientSource = null, ambientGain = null;
   const htmlAudio = { inhaleEl: null, exhaleEl: null, ambientEl: null, breathUrl: null };
 
+  // Keep existing favorites key to preserve data
   const KEY_FAVORITOS = 'lr_favoritos_v1';
 
   /* ---------- Utilities ---------- */
   async function existsUrl(url) {
+    if (!url) return false;
     try { const r = await fetch(url, { method: 'HEAD' }); if (r && r.ok) return true; } catch (e) { /* ignore */ }
     try { const r2 = await fetch(url, { method: 'GET' }); return !!(r2 && r2.ok); } catch (e) { return false; }
   }
@@ -36,10 +43,10 @@
     try {
       const AC = window.AudioContext || window.webkitAudioContext;
       audioCtx = new AC();
-      console.log('[helpers] AudioContext creado', audioCtx.state);
+      console.log('[helpers] AudioContext created', audioCtx.state);
       return audioCtx;
     } catch (e) {
-      console.warn('[helpers] WebAudio no disponible', e);
+      console.warn('[helpers] WebAudio not available', e);
       audioCtx = null;
       return null;
     }
@@ -53,10 +60,10 @@
       if (!r.ok) throw new Error('fetch ' + r.status);
       const ab = await r.arrayBuffer();
       const buf = await ctx.decodeAudioData(ab);
-      console.log('[helpers] buffer decodificado ->', url);
+      console.log('[helpers] buffer decoded ->', url);
       return buf;
     } catch (e) {
-      console.warn('[helpers] error cargando audio', url, e);
+      console.warn('[helpers] error loading audio', url, e);
       return null;
     }
   }
@@ -80,6 +87,7 @@
       src.connect(g).connect(audioCtx.destination);
       src.start(now, offset, playDuration);
       src.stop(endAt + 0.05);
+      // console.log trimmed to avoid huge logs
       console.log('[helpers] scheduled play', { offset, playDuration });
       return true;
     } catch (e) { console.warn('[helpers] schedule error', e); return false; }
@@ -122,8 +130,8 @@
     }
   }
   function stopAmbientLoop() {
-    try { if (ambientGain) ambientGain.gain.linearRampToValueAtTime(0.0001, audioCtx.currentTime + 0.6); } catch (e) {}
-    try { if (ambientSource) ambientSource.stop(audioCtx.currentTime + 0.5); } catch (e) {}
+    try { if (ambientGain && audioCtx) ambientGain.gain.linearRampToValueAtTime(0.0001, audioCtx.currentTime + 0.6); } catch (e) {}
+    try { if (ambientSource && audioCtx) ambientSource.stop(audioCtx.currentTime + 0.5); } catch (e) {}
     ambientSource = null; ambientGain = null;
     try { if (htmlAudio.ambientEl) { htmlAudio.ambientEl.pause(); htmlAudio.ambientEl.currentTime = 0; } } catch (e) {}
     console.log('[helpers] ambient stopped');
@@ -227,7 +235,7 @@
     return audioCtx ? audioCtx.state : 'no-audioctx';
   }
 
-  /* ---------- Breath overlay ---------- */
+  /* ---------- Breath overlay (guided breathing UI) ---------- */
   async function startBreathFlowInternal() {
     await resumeAudio();
     await preloadAssets();
@@ -355,13 +363,15 @@
         else if (txt.includes('compart') || txt.includes('share') || txt.includes('🔗')) action = 'share';
         if (action) { b.dataset.action = action; changed++; }
       });
-      if (changed) console.log('[helpers] annotateMenuButtonsOnce -> data-action añadidos:', changed);
+      if (changed) console.log('[helpers] annotateMenuButtonsOnce -> data-action added:', changed);
       return changed;
     } catch (e) { console.warn('[helpers] annotate error', e); return 0; }
   }
 
   function handleMenuAction(action, btn) {
-    const phrase = (document.getElementById('frase') && document.getElementById('frase').textContent) || '';
+    // prefer frase-text element if present, else fallback to old 'frase'
+    const phraseEl = document.getElementById('frase-text') || document.getElementById('frase');
+    const phrase = phraseEl ? (phraseEl.textContent || '') : '';
     switch (action) {
       case 'breath': startBreathFlowInternal(); break;
       case 'favorite': if (phrase) { const added = toggleFavorite(phrase); if (btn) btn.textContent = added ? '♥ Favorita' : '♡ Favorita'; } break;
@@ -373,14 +383,14 @@
       case 'download': downloadImageFallback(); break;
       case 'enable-audio': resumeAudio().then(() => alert('Intentado activar audio')); break;
       case 'show-favorites': showFavoritesModal(); break;
-      default: console.log('[helpers] action no mapeada:', action); break;
+      default: console.log('[helpers] action not mapped:', action); break;
     }
   }
 
   function initMenuDelegation() {
     const panel = document.getElementById('menuPanel');
     if (!panel) {
-      console.log('[helpers] menuPanel no encontrado — fallback attach');
+      console.log('[helpers] menuPanel not found — fallback attach');
       return false;
     }
     function onPointer(e) {
@@ -396,11 +406,11 @@
     }
     panel.addEventListener('click', onPointer);
     panel.addEventListener('touchend', onPointer, { passive: false });
-    console.log('[helpers] delegación de menú activada');
+    console.log('[helpers] menu delegation activated');
     return true;
   }
 
-  // copy & download helpers
+  // copy & download helpers (extended)
   function copyToClipboard(text) {
     if (!text) return;
     if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text).then(() => alert('Frase copiada'));
@@ -410,11 +420,40 @@
   }
   async function downloadImageFallback() {
     try {
-      const el = document.querySelector('.card') || document.body;
+      const el = document.querySelector('.frase-card') || document.querySelector('.card') || document.body;
       const canvas = await html2canvas(el, { scale: window.devicePixelRatio || 2 });
       const url = canvas.toDataURL('image/png');
       const a = document.createElement('a'); a.href = url; a.download = 'llavero-respira-frase.png'; document.body.appendChild(a); a.click(); a.remove();
     } catch (e) { console.warn('download error', e); alert('No se pudo descargar la imagen.'); }
+  }
+
+  // New: download a specific element (exposed)
+  async function downloadPhraseImage(el, fileName = 'llavero-frase.png') {
+    if (!el) el = document.querySelector('.frase-card') || document.querySelector('.card') || document.body;
+    try {
+      const canvas = await html2canvas(el, { scale: window.devicePixelRatio || 2 });
+      const url = canvas.toDataURL('image/png');
+      const a = document.createElement('a'); a.href = url; a.download = fileName; document.body.appendChild(a); a.click(); a.remove();
+      return true;
+    } catch (e) { console.warn('[helpers] downloadPhraseImage error', e); return false; }
+  }
+
+  // New: smart share that prefers Web Share API, fallback WhatsApp
+  async function sharePhrase({ title, text, url }) {
+    const shareText = `${text || ''}\n${url || location.href}`;
+    if (navigator.share) {
+      try { await navigator.share({ title: title || 'Llavero Respira', text: shareText, url: url || location.href }); return true; } catch (e) { console.warn('[helpers] navigator.share failed', e); }
+    }
+    const wa = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
+    try { window.open(wa, '_blank'); return true; } catch (e) { copyToClipboard(shareText); return false; }
+  }
+
+  // New: invite friend via WhatsApp (prebuilt message)
+  function inviteFriend(custom) {
+    const baseUrl = location.origin + location.pathname;
+    const msg = custom || `¡Tengo mi Llavero Respira de Dulces Recuerdos! Me está encantando. Échale un vistazo: ${baseUrl}`;
+    const wa = `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+    window.open(wa, '_blank');
   }
 
   /* Fallback attach helpers (kept) */
@@ -436,19 +475,23 @@
     annotateMenuButtonsOnce();
     const delegated = initMenuDelegation();
     if (!delegated) {
-      // fallback: bind known ids (for backwards compatibility)
+      // fallback: bind known ids (backwards compatibility)
       attachTouchClick(['breathBtn_menu','breathBtn'], function () { startBreathFlowInternal(); });
       attachTouchClick(['enableAudioBtn','enableAudio'], function () { resumeAudio().then(function () { alert('Intentado activar audio'); }); });
-      attachTouchClick(['ttsBtn_menu','ttsBtn'], function () { const t = (document.getElementById('frase') && document.getElementById('frase').textContent) || ''; if (t) playTTS(t); });
+      attachTouchClick(['ttsBtn_menu','ttsBtn'], function () { const t = (document.getElementById('frase-text') && document.getElementById('frase-text').textContent) || (document.getElementById('frase') && document.getElementById('frase').textContent) || ''; if (t) playTTS(t); });
       attachTouchClick(['startAmbientBtn'], function () { preloadAssets().then(function () { if (audioBuffers.ambient) startAmbientLoop(audioBuffers.ambient); else if (htmlAudio.ambientEl) htmlAudio.ambientEl.play().catch(()=>{}); }); });
       attachTouchClick(['stopAmbientBtn'], function () { stopAmbientLoop(); });
-      attachTouchClick(['favBtn_menu','favBtn'], function () { const t = (document.getElementById('frase') && document.getElementById('frase').textContent) || ''; if (t) { const added = toggleFavorite(t); const el = document.getElementById('favBtn_menu') || document.getElementById('favBtn'); if (el) el.textContent = added ? '♥ Favorita' : '♡ Favorita'; } });
+      attachTouchClick(['favBtn_menu','favBtn'], function () { const t = (document.getElementById('frase-text') && document.getElementById('frase-text').textContent) || (document.getElementById('frase') && document.getElementById('frase').textContent) || ''; if (t) { const added = toggleFavorite(t); const el = document.getElementById('favBtn_menu') || document.getElementById('favBtn'); if (el) el.textContent = added ? '♥ Favorita' : '♡ Favorita'; } });
+      attachTouchClick(['downloadBtn','downloadBtn_menu'], function () { const el = document.querySelector('.frase-card') || document.querySelector('.card') || document.body; downloadPhraseImage(el); });
+      attachTouchClick(['shareBtn','shareBtn_menu'], function () { const t = (document.getElementById('frase-text') && document.getElementById('frase-text').textContent) || (document.getElementById('frase') && document.getElementById('frase').textContent) || ''; sharePhrase({ title: 'Frase', text: t, url: location.href }); });
+      attachTouchClick(['inviteBtn'], function () { inviteFriend(); });
     }
   });
 
   /* ---------- Public API ---------- */
   window.lr_helpers = window.lr_helpers || {};
   Object.assign(window.lr_helpers, {
+    // audio / preload / breath
     preload: preloadAssets,
     preloadAssets: preloadAssets,
     resumeAudio: resumeAudio,
@@ -458,10 +501,19 @@
     _startBreath: startBreathFlowInternal,
     startAmbient: async () => { await preloadAssets(); if (audioBuffers.ambient) startAmbientLoop(audioBuffers.ambient); else if (htmlAudio.ambientEl) htmlAudio.ambientEl.play().catch(()=>{}); },
     stopAmbient: stopAmbientLoop,
+    // tts / helpers
     playTTS: playTTS,
-    dumpState: () => ({ audioCtxState: audioCtx ? audioCtx.state : 'no-audioctx', buffers: { inhaleCue: !!audioBuffers.inhaleCue, exhaleCue: !!audioBuffers.exhaleCue, breath: !!audioBuffers.breath, ambient: !!audioBuffers.ambient }, htmlAudio: { inhale: !!htmlAudio.inhaleEl, exhale: !!htmlAudio.exhaleEl, ambient: !!htmlAudio.ambientEl }, offsets: { inhaleOffsetSeconds, inhaleDurationSeconds, exhaleOffsetSeconds, exhaleDurationSeconds, hold1DurationSeconds, hold2DurationSeconds } }),
+    // favorites
+    getFavorites: getFavoritos,
     toggleFavorite: toggleFavorite,
     showFavorites: showFavoritesModal,
+    // download / share / invite
+    downloadPhraseImage: downloadPhraseImage,
+    sharePhrase: sharePhrase,
+    inviteFriend: inviteFriend,
+    copyToClipboard: copyToClipboard,
+    // debug & config
+    dumpState: () => ({ audioCtxState: audioCtx ? audioCtx.state : 'no-audioctx', buffers: { inhaleCue: !!audioBuffers.inhaleCue, exhaleCue: !!audioBuffers.exhaleCue, breath: !!audioBuffers.breath, ambient: !!audioBuffers.ambient }, htmlAudio: { inhale: !!htmlAudio.inhaleEl, exhale: !!htmlAudio.exhaleEl, ambient: !!htmlAudio.ambientEl }, offsets: { inhaleOffsetSeconds, inhaleDurationSeconds, exhaleOffsetSeconds, exhaleDurationSeconds, hold1DurationSeconds, hold2DurationSeconds } }),
     setOffsets: (a,b,c,d) => { inhaleOffsetSeconds = Number(a)||inhaleOffsetSeconds; inhaleDurationSeconds = Number(b)||inhaleDurationSeconds; exhaleOffsetSeconds = Number(c)||exhaleOffsetSeconds; exhaleDurationSeconds = Number(d)||exhaleDurationSeconds; console.log('[helpers] offsets', { inhaleOffsetSeconds, inhaleDurationSeconds, exhaleOffsetSeconds, exhaleDurationSeconds }); },
     setBreathPattern: (name) => { const PRE = { box:{inh:4,h1:4,exh:4,h2:4}, calm:{inh:4,h1:4,exh:6,h2:1}, slow:{inh:5,h1:5,exh:7,h2:1}, '478':{inh:4,h1:7,exh:8,h2:1} }; const p = PRE[name]; if (!p) { console.warn('preset not found', name); return; } inhaleDurationSeconds = p.inh; hold1DurationSeconds = p.h1; exhaleDurationSeconds = p.exh; hold2DurationSeconds = p.h2; console.log('[helpers] preset applied', name); },
     setCustomBreath: (inh,h1,exh,h2) => { inhaleDurationSeconds = Number(inh)||inhaleDurationSeconds; hold1DurationSeconds = Number(h1)||hold1DurationSeconds; exhaleDurationSeconds = Number(exh)||exhaleDurationSeconds; hold2DurationSeconds = Number(h2)||hold2DurationSeconds; console.log('[helpers] custom breath set', { inhaleDurationSeconds, hold1DurationSeconds, exhaleDurationSeconds, hold2DurationSeconds }); }
