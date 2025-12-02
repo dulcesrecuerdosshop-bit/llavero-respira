@@ -35,8 +35,24 @@
           <div id="user-greeting" class="user-greeting">Un recordatorio amable</div>
         </div>
       </div>
-      <button id="menuToggle" class="menu-btn" aria-expanded="false">☰</button>
+      <button id="menuToggle" class="menu-btn" aria-expanded="false" aria-controls="menuPanel">☰</button>
     </header>
+
+    <!-- MENU PANEL (necessary for helpers.v2.js delegation) -->
+    <div id="menuPanel" class="menu-panel" role="menu" aria-hidden="true" style="display:none;">
+      <button id="favBtn_menu">♡ Favorita</button>
+      <button id="shareBtn_menu">🔗 Compartir</button>
+      <button id="copyBtn_menu">📋 Copiar</button>
+      <button id="ttsBtn_menu">🔊 Escuchar</button>
+      <button id="startAmbientBtn">▶ Ambient</button>
+      <button id="stopAmbientBtn">⏸ Ambient</button>
+      <hr>
+      <button id="breathBtn_menu" class="primary">🌬️ Respirar</button>
+      <button id="showFavs_menu">⭐ Ver favoritos</button>
+      <button id="enableAudioBtn">🔈 Activar audio</button>
+      <button id="downloadBtn_menu">⬇️ Descargar</button>
+      <button id="invite_menu">📩 Invitar</button>
+    </div>
 
     <section class="panel">
       <!-- Phrase card (big) -->
@@ -60,8 +76,37 @@
     <footer class="app-footer">Gracias por tu apoyo ❤️</footer>
   </main>
 
-  <!-- Modal for personalized welcome (created by load-user.js) -->
   <div id="lr-user-modal" class="lr-user-modal hidden" aria-hidden="true"></div>
+
+  <!-- Small UI wiring: menu toggle + accessible behavior -->
+  <script>
+    // keep a global debug flag (false to silence non-critical logs)
+    window.LR_DEBUG = window.LR_DEBUG === true;
+
+    // menu toggle wiring (simple, accessible)
+    document.addEventListener('DOMContentLoaded', () => {
+      const toggle = document.getElementById('menuToggle');
+      const panel = document.getElementById('menuPanel');
+      if (!toggle || !panel) return;
+      toggle.addEventListener('click', (e) => {
+        const shown = panel.style.display === 'flex' || panel.style.display === 'block';
+        panel.style.display = shown ? 'none' : 'flex';
+        panel.style.flexDirection = 'column';
+        panel.setAttribute('aria-hidden', shown ? 'true' : 'false');
+        toggle.setAttribute('aria-expanded', String(!shown));
+        if (window.LR_DEBUG) console.log('[ui] menuToggle ->', !shown);
+      });
+      // close panel on outside click
+      document.addEventListener('click', (ev) => {
+        if (!panel) return;
+        if (panel.style.display !== 'none' && !panel.contains(ev.target) && ev.target.id !== 'menuToggle') {
+          panel.style.display = 'none';
+          panel.setAttribute('aria-hidden', 'true');
+          toggle.setAttribute('aria-expanded', 'false');
+        }
+      });
+    });
+  </script>
 
   <!-- Load helpers and scripts in the correct order -->
   <script src="js/helpers.v2.js" defer></script>
