@@ -1,5 +1,5 @@
 // helpers.v2.js - Merged and extended helpers (audio, breath flow, favorites, TTS, share, download, delegation)
-// Incluye ahora el modal de Settings y la acción 'settings' en handleMenuAction.
+// Corregido: se expone downloadPhraseImage en window y en window.lr_helpers para evitar ReferenceError
 (function () {
   'use strict';
 
