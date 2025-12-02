@@ -1,6 +1,4 @@
-// phrases.js - robust background handling: solo usa imágenes que existan (evita 404s)
-// Mantiene tu lista completa de frases y gradientes; prueba imágenes locales y solo las usa si cargan OK.
-
+// phrases.js - robust background handling + diagnostics (candidateImages adaptado a bg1..bg4)
 (function(){
   const frases = [
     "Cree en ti y todo será posible.",
@@ -118,46 +116,40 @@
     "linear-gradient(135deg, #30cfd0, #330867)"
   ];
 
-  // posibles imágenes locales (checadas dinámicamente)
+  // Asegúrate que estos nombres coinciden exactamente con los archivos que subiste
   const candidateImages = [
     "assets/bg1.webp",
     "assets/bg2.webp",
     "assets/bg3.webp",
-    "assets/bg4.webp",
-    "assets/bg5.webp"
+    "assets/bg4.webp"
   ];
 
   const fraseEl = () => document.getElementById('frase-text') || document.getElementById('frase');
   const bgEl = () => document.getElementById('frase-bg');
 
-  // fondos disponibles (gradients + images that load OK)
   let fondosDisponibles = [...gradientFondos];
 
-  // comprobar imágenes candidatas y añadir sólo las que carguen OK
   function checkImages(list){
     return Promise.all(list.map(src => new Promise(resolve => {
       const img = new Image();
       img.onload = () => resolve({ src, ok: true });
       img.onerror = () => resolve({ src, ok: false });
-      // try relative to current path (no leading slash)
       img.src = src;
-      // also try with base path (llavero-respira) if it fails later (handled by error)
     })));
   }
 
   async function initFondos() {
     try {
       const results = await checkImages(candidateImages);
+      window._phrases_image_check = results;
       results.forEach(r => { if (r.ok) fondosDisponibles.push(r.src); });
-      // si no hay images, fondosDisponibles contendrá sólo gradientes (sin 404)
-      // log reducido (usa console only if debug)
-      if (window.LR_DEBUG) console.log('[phrases] fondos disponibles', fondosDisponibles);
+      window.fondosDisponibles = fondosDisponibles;
+      if (window.LR_DEBUG) console.table(results);
     } catch(e){
-      if (window.LR_DEBUG) console.warn('[phrases] checkImages error', e);
+      if (window.LR_DEBUG) console.warn('[phrases] initFondos error', e);
     }
   }
 
-  // evitar repetición inmediata
   let lastIndex = -1;
   let lastChangeAt = 0;
 
@@ -175,7 +167,7 @@
 
   function mostrarFrase() {
     const now = Date.now();
-    if (now - lastChangeAt < 160) return; // debounce
+    if (now - lastChangeAt < 160) return;
     lastChangeAt = now;
 
     const fEl = fraseEl();
@@ -203,7 +195,6 @@
     }, 140);
   }
 
-  // interactions & controls (igual que antes)
   function attachInteractions() {
     const card = document.getElementById('frase-card');
     if (card && !card.__phrases_listeners_attached) {
@@ -249,30 +240,18 @@
       }, 100);
     }
 
-    if (tts) {
-      tts.addEventListener('click', (ev) => { ev.stopPropagation(); const text = getText(); callWhenHelpers(()=> { if (window.lr_helpers.playTTS) window.lr_helpers.playTTS(text); }); });
-    }
-    if (fav) {
-      fav.addEventListener('click', (ev) => { ev.stopPropagation(); const text = getText(); if (!text) return; callWhenHelpers(()=> { if (window.lr_helpers.toggleFavorite) { const added = window.lr_helpers.toggleFavorite(text); fav.textContent = added ? '♥' : '♡'; fav.setAttribute('aria-pressed', String(added)); } }); });
-    }
-    if (dl) {
-      dl.addEventListener('click', (ev) => { ev.stopPropagation(); const el = document.querySelector('.frase-card') || document.body; callWhenHelpers(()=> { if (window.lr_helpers.downloadPhraseImage) window.lr_helpers.downloadPhraseImage(el); }); });
-    }
-    if (share) {
-      share.addEventListener('click', (ev) => { ev.stopPropagation(); const t = getText(); callWhenHelpers(()=> { if (window.lr_helpers.sharePhrase) window.lr_helpers.sharePhrase({ title:'Frase', text: t, url: location.href }); else { const wa = `https://api.whatsapp.com/send?text=${encodeURIComponent(t + '\n' + location.href)}`; window.open(wa, '_blank'); } }); });
-    }
-    if (invite) {
-      invite.addEventListener('click', (ev) => { ev.stopPropagation(); callWhenHelpers(()=> { if (window.lr_helpers.inviteFriend) window.lr_helpers.inviteFriend(); else { const baseUrl = location.origin + location.pathname; const msg = `¡Tengo mi Llavero Respira de Dulces Recuerdos! Me está encantando. Échale un vistazo: ${baseUrl}`; window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`, '_blank'); } }); });
-    }
+    if (tts) tts.addEventListener('click', (ev)=>{ ev.stopPropagation(); const text=getText(); callWhenHelpers(()=> { if (window.lr_helpers.playTTS) window.lr_helpers.playTTS(text); }); });
+    if (fav) fav.addEventListener('click', (ev)=>{ ev.stopPropagation(); const text=getText(); if (!text) return; callWhenHelpers(()=> { if (window.lr_helpers.toggleFavorite) { const added = window.lr_helpers.toggleFavorite(text); fav.textContent = added ? '♥' : '♡'; fav.setAttribute('aria-pressed', String(added)); } }); });
+    if (dl) dl.addEventListener('click', (ev)=>{ ev.stopPropagation(); const el = document.querySelector('.frase-card') || document.body; callWhenHelpers(()=> { if (window.lr_helpers.downloadPhraseImage) window.lr_helpers.downloadPhraseImage(el); }); });
+    if (share) share.addEventListener('click', (ev)=>{ ev.stopPropagation(); const t=getText(); callWhenHelpers(()=> { if (window.lr_helpers.sharePhrase) window.lr_helpers.sharePhrase({ title:'Frase', text: t, url: location.href }); else { const wa = `https://api.whatsapp.com/send?text=${encodeURIComponent(t + '\n' + location.href)}`; window.open(wa, '_blank'); } }); });
+    if (invite) invite.addEventListener('click', (ev)=>{ ev.stopPropagation(); callWhenHelpers(()=> { if (window.lr_helpers.inviteFriend) window.lr_helpers.inviteFriend(); else { const baseUrl = location.origin + location.pathname; const msg = `¡Tengo mi Llavero Respira de Dulces Recuerdos! Me está encantando. Échale un vistazo: ${baseUrl}`; window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`, '_blank'); } }); });
 
-    // inicializar estado favorito
     callWhenHelpers(()=> {
       try {
         if (fav && window.lr_helpers && typeof window.lr_helpers.getFavorites === 'function') {
           const favs = window.lr_helpers.getFavorites() || [];
           const cur = document.getElementById('frase-text')?.textContent || document.getElementById('frase')?.textContent || '';
-          if (cur && favs.indexOf(cur) !== -1) { fav.textContent = '♥'; fav.setAttribute('aria-pressed', 'true'); }
-          else { fav.textContent = '♡'; fav.setAttribute('aria-pressed', 'false'); }
+          if (cur && favs.indexOf(cur) !== -1) { fav.textContent = '♥'; fav.setAttribute('aria-pressed', 'true'); } else { fav.textContent = '♡'; fav.setAttribute('aria-pressed', 'false'); }
         }
       } catch(e){ if (window.LR_DEBUG) console.warn(e); }
     });
@@ -280,11 +259,10 @@
     document.__phrases_controls_wired = true;
   }
 
-  // inicialización
   window.mostrarFrase = mostrarFrase;
 
   document.addEventListener('DOMContentLoaded', async () => {
-    await initFondos();      // build fondosDisponibles evitando 404s
+    await initFondos();
     mostrarFrase();
     attachInteractions();
     wireControls();
