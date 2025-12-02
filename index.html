@@ -5,7 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Frase Motivacional — Llavero Respira</title>
 
-  <link rel="manifest" href="/manifest.json">
+  <!-- Manifest (ruta relativa para evitar 404 en GitHub Pages) -->
+  <link rel="manifest" href="manifest.json">
+
+  <!-- Favicon (ruta relativa: coloca favicon.ico en la raíz del repo /docs o en la raíz si publicas desde main) -->
+  <link rel="icon" href="favicon.ico" type="image/x-icon">
+
   <link rel="stylesheet" href="css/global.css">
   <link rel="stylesheet" href="css/frase-card.css">
   <link rel="stylesheet" href="css/modal-user.css">
@@ -39,16 +44,15 @@
     </header>
 
     <!-- MENU PANEL (clean: only global actions) -->
-<div id="menuPanel" class="menu-panel" role="menu" aria-hidden="true" style="display:none;">
-  <!-- Global actions only: breathing flow, favorites, app share/invite, settings -->
-  <button id="breathBtn_menu" class="primary" data-action="breath">🌬️ Respirar</button>
-  <button id="showFavs_menu" data-action="show-favorites">⭐ Favoritos</button>
-  <button id="shareApp_menu" data-action="share-app">🔗 Compartir app</button>
-  <button id="invite_menu" data-action="invite">📩 Invitar</button>
-  <hr>
-  <button id="enableAudioBtn" data-action="enable-audio">🔈 Activar audio</button>
-  <button id="settings_menu" data-action="settings">⚙️ Ajustes</button>
-</div>
+    <div id="menuPanel" class="menu-panel" role="menu" aria-hidden="true" style="display:none;">
+      <button id="breathBtn_menu" class="primary" data-action="breath">🌬️ Respirar</button>
+      <button id="showFavs_menu" data-action="show-favorites">⭐ Favoritos</button>
+      <button id="shareApp_menu" data-action="share-app">🔗 Compartir app</button>
+      <button id="invite_menu" data-action="invite">📩 Invitar</button>
+      <hr>
+      <button id="enableAudioBtn" data-action="enable-audio">🔈 Activar audio</button>
+      <button id="settings_menu" data-action="settings">⚙️ Ajustes</button>
+    </div>
 
     <section class="panel">
       <!-- Phrase card (big) -->
@@ -110,4 +114,3 @@
   <script src="js/load-user.js" defer></script>
 </body>
 </html>
-
