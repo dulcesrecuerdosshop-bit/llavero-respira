@@ -1,14 +1,16 @@
-// helpers.v2.js - Merged and extended helpers (audio, breath flow, favorites, TTS, share, download, delegation)
-// Corregido: se expone downloadPhraseImage en window y en window.lr_helpers para evitar ReferenceError
+// helpers.v2.js - Complete, corrected helpers (audio, breath flow, favorites, TTS, share, download, delegation)
+// - Ensures downloadPhraseImage is defined and exposed before any fallback callers
+// - Keeps lrlog/lrwarn wrappers (activate with window.LR_DEBUG = true)
+// - Safe calls to window.lr_helpers with retries when necessary
 (function () {
   'use strict';
 
   // logging control
   window.LR_DEBUG = window.LR_DEBUG === true;
-  function lrlog(...a){ if (window.LR_DEBUG) console.log(...a); }
-  function lrwarn(...a){ if (window.LR_DEBUG) console.warn(...a); }
+  function lrlog(...a) { if (window.LR_DEBUG) console.log(...a); }
+  function lrwarn(...a) { if (window.LR_DEBUG) console.warn(...a); }
 
-  lrlog('[helpers] loading helpers.v2.js (merged)');
+  lrlog('[helpers] loading helpers.v2.js');
 
   const AUDIO = {
     breathCandidates: ['Breath.mp3', 'breath.mp3', 'BREATH.mp3'],
@@ -17,6 +19,7 @@
     ambientCandidates: ['ambient.mp3', 'Ambient.mp3', 'AMBIENT.mp3']
   };
 
+  // breathing timing defaults (can be changed via API)
   let inhaleOffsetSeconds = 0.0;
   let inhaleDurationSeconds = 2.8;
   let exhaleOffsetSeconds = 2.8;
@@ -24,6 +27,7 @@
   let hold1DurationSeconds = 4.0;
   let hold2DurationSeconds = 1.0;
 
+  // audio contexts / buffers
   let audioCtx = null;
   const audioBuffers = { breath: null, inhaleCue: null, exhaleCue: null, ambient: null };
   let ambientSource = null, ambientGain = null;
@@ -34,8 +38,14 @@
   /* ---------- Utilities ---------- */
   async function existsUrl(url) {
     if (!url) return false;
-    try { const r = await fetch(url, { method: 'HEAD' }); if (r && r.ok) return true; } catch (e) { /* ignore */ }
-    try { const r2 = await fetch(url, { method: 'GET' }); return !!(r2 && r2.ok); } catch (e) { return false; }
+    try {
+      const r = await fetch(url, { method: 'HEAD' });
+      if (r && r.ok) return true;
+    } catch (e) { /* ignore HEAD fail */ }
+    try {
+      const r2 = await fetch(url, { method: 'GET' });
+      return !!(r2 && r2.ok);
+    } catch (e) { return false; }
   }
 
   async function ensureAudioContext() {
@@ -89,7 +99,10 @@
       src.stop(endAt + 0.05);
       lrlog('[helpers] scheduled play', { offset, playDuration });
       return true;
-    } catch (e) { lrwarn('[helpers] schedule error', e); return false; }
+    } catch (e) {
+      lrwarn('[helpers] schedule error', e);
+      return false;
+    }
   }
 
   function playHtml(url, offset = 0, duration = 2000) {
@@ -105,9 +118,13 @@
       setTimeout(() => { try { el.pause(); el.currentTime = 0; } catch (e) {} }, Math.max(400, Math.round(duration)));
       lrlog('[helpers] html played', url, { offset, duration });
       return true;
-    } catch (e) { lrwarn('[helpers] playHtml failed', e); return false; }
+    } catch (e) {
+      lrwarn('[helpers] playHtml failed', e);
+      return false;
+    }
   }
 
+  /* ---------- Ambient / Breath players ---------- */
   function startAmbientLoop(buffer, url) {
     if (audioCtx && buffer) {
       stopAmbientLoop();
@@ -136,34 +153,38 @@
     lrlog('[helpers] ambient stopped');
   }
 
-  /* ---------- Preload ---------- */
+  /* ---------- Preload assets (audio) ---------- */
   async function preloadAssets() {
     await ensureAudioContext();
-    if (await existsUrl(AUDIO.inhaleCue)) {
-      const b = await loadAudioBuffer(AUDIO.inhaleCue);
-      if (b) audioBuffers.inhaleCue = b; else htmlAudio.inhaleEl = new Audio(AUDIO.inhaleCue);
-    }
-    if (await existsUrl(AUDIO.exhaleCue)) {
-      const b2 = await loadAudioBuffer(AUDIO.exhaleCue);
-      if (b2) audioBuffers.exhaleCue = b2; else htmlAudio.exhaleEl = new Audio(AUDIO.exhaleCue);
-    }
-    let chosen = null;
-    for (let i = 0; i < AUDIO.breathCandidates.length; i++) {
-      const c = AUDIO.breathCandidates[i];
-      if (await existsUrl(c)) { chosen = c; break; }
-    }
-    if (chosen) {
-      const b3 = await loadAudioBuffer(chosen);
-      if (b3) audioBuffers.breath = b3; else htmlAudio.breathUrl = chosen;
-    }
-    let amb = null;
-    for (let j = 0; j < AUDIO.ambientCandidates.length; j++) {
-      const a = AUDIO.ambientCandidates[j];
-      if (await existsUrl(a)) { amb = a; break; }
-    }
-    if (amb) {
-      const b4 = await loadAudioBuffer(amb);
-      if (b4) audioBuffers.ambient = b4; else { htmlAudio.ambientEl = new Audio(amb); htmlAudio.ambientEl.loop = true; htmlAudio.ambientEl.volume = 0.12; }
+    try {
+      if (await existsUrl(AUDIO.inhaleCue)) {
+        const b = await loadAudioBuffer(AUDIO.inhaleCue);
+        if (b) audioBuffers.inhaleCue = b; else htmlAudio.inhaleEl = new Audio(AUDIO.inhaleCue);
+      }
+      if (await existsUrl(AUDIO.exhaleCue)) {
+        const b2 = await loadAudioBuffer(AUDIO.exhaleCue);
+        if (b2) audioBuffers.exhaleCue = b2; else htmlAudio.exhaleEl = new Audio(AUDIO.exhaleCue);
+      }
+      let chosen = null;
+      for (let i = 0; i < AUDIO.breathCandidates.length; i++) {
+        const c = AUDIO.breathCandidates[i];
+        if (await existsUrl(c)) { chosen = c; break; }
+      }
+      if (chosen) {
+        const b3 = await loadAudioBuffer(chosen);
+        if (b3) audioBuffers.breath = b3; else htmlAudio.breathUrl = chosen;
+      }
+      let amb = null;
+      for (let j = 0; j < AUDIO.ambientCandidates.length; j++) {
+        const a = AUDIO.ambientCandidates[j];
+        if (await existsUrl(a)) { amb = a; break; }
+      }
+      if (amb) {
+        const b4 = await loadAudioBuffer(amb);
+        if (b4) audioBuffers.ambient = b4; else { htmlAudio.ambientEl = new Audio(amb); htmlAudio.ambientEl.loop = true; htmlAudio.ambientEl.volume = 0.12; }
+      }
+    } catch (e) {
+      lrwarn('[helpers] preloadAssets error', e);
     }
 
     lrlog('[helpers] preload results', {
@@ -174,7 +195,7 @@
     });
   }
 
-  /* ---------- Players ---------- */
+  /* ---------- Breath flow (UI + scheduling) ---------- */
   async function playInhale() {
     await preloadAssets();
     if (audioBuffers.inhaleCue) { if (scheduleBufferPlay(audioBuffers.inhaleCue, 0, audioBuffers.inhaleCue.duration || inhaleDurationSeconds)) return; }
@@ -192,7 +213,93 @@
     lrlog('[helpers] no exhale audio available');
   }
 
-  /* ---------- TTS (mejorada) ---------- */
+  async function startBreathFlowInternal() {
+    await resumeAudio();
+    await preloadAssets();
+
+    // avoid creating multiple overlays
+    if (document.getElementById('lr-breath-overlay')) {
+      lrlog('[helpers] breath overlay already active');
+      return;
+    }
+
+    const overlay = document.createElement('div');
+    overlay.id = 'lr-breath-overlay';
+    Object.assign(overlay.style, {
+      position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: 'rgba(0,0,0,0.55)', zIndex: 17000
+    });
+
+    const container = document.createElement('div');
+    Object.assign(container.style, { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' });
+
+    const circle = document.createElement('div');
+    Object.assign(circle.style, {
+      width: '220px', height: '220px', borderRadius: '50%', background: 'rgba(255,255,255,0.06)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '28px', fontWeight: 700
+    });
+
+    const small = document.createElement('div');
+    Object.assign(small.style, { color: 'rgba(255,255,255,0.95)', fontSize: '18px', textAlign: 'center' });
+
+    container.appendChild(circle);
+    container.appendChild(small);
+    overlay.appendChild(container);
+    document.body.appendChild(overlay);
+
+    // start ambient if available and setting enabled
+    if (window._lr_ambient_enabled !== false) {
+      if (audioBuffers.ambient) startAmbientLoop(audioBuffers.ambient);
+      else if (htmlAudio.ambientEl) startAmbientLoop(null, htmlAudio.ambientEl.src);
+    }
+
+    const steps = [
+      { label: 'Inhala', action: playInhale, duration: inhaleDurationSeconds },
+      { label: 'Sostén', action: null, duration: hold1DurationSeconds },
+      { label: 'Exhala', action: playExhale, duration: exhaleDurationSeconds },
+      { label: 'Sostén', action: null, duration: hold2DurationSeconds }
+    ];
+
+    let idx = 0, timeoutId = null, running = true;
+    async function loopStep() {
+      if (!running) return;
+      const s = steps[idx];
+      try {
+        circle.textContent = s.label;
+        small.textContent = s.label + (s.duration ? ' · ' + Math.round(s.duration) + 's' : '');
+      } catch (e) {}
+      if (s.action) {
+        try { await s.action(); } catch (e) { lrwarn('[helpers] action error', e); }
+      }
+      try {
+        const scaleFrom = s.label === 'Exhala' ? 1 : 0.6;
+        const scaleTo = s.label === 'Exhala' ? 0.6 : 1.0;
+        if (circle.animate) {
+          circle.animate([{ transform: 'scale(' + scaleFrom + ')', opacity: 0.75 }, { transform: 'scale(' + scaleTo + ')', opacity: 1 }],
+            { duration: s.duration * 1000, easing: 'ease-in-out', fill: 'forwards' });
+        } else {
+          circle.style.transition = 'transform ' + s.duration + 's ease-in-out';
+          circle.style.transform = 'scale(' + scaleTo + ')';
+        }
+      } catch (e) {}
+      timeoutId = setTimeout(function () {
+        idx = (idx + 1) % steps.length;
+        loopStep();
+      }, Math.round(s.duration * 1000));
+    }
+    loopStep();
+
+    overlay._stop = function () {
+      running = false;
+      if (timeoutId) clearTimeout(timeoutId);
+      try { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); } catch (e) {}
+      lrlog('[helpers] overlay stopped');
+    };
+    overlay.addEventListener('click', function () { if (overlay._stop) overlay._stop(); });
+    window._lastBreathOverlay = overlay;
+  }
+
+  /* ---------- TTS ---------- */
   function loadVoicesOnce() {
     return new Promise((resolve) => {
       const vs = speechSynthesis.getVoices();
@@ -203,49 +310,15 @@
     });
   }
 
-  function showToast(msg, timeout = 3500) {
-    try {
-      let t = document.getElementById('_lr_toast');
-      if (!t) {
-        t = document.createElement('div'); t.id = '_lr_toast';
-        Object.assign(t.style, { position: 'fixed', top: '18px', left:'50%', transform:'translateX(-50%)', background:'rgba(8,12,20,0.9)', color:'#fff', padding:'8px 14px', borderRadius:'8px', zIndex:16000, fontSize:'0.95rem', boxShadow:'0 6px 22px rgba(0,0,0,0.3)'});
-        document.body.appendChild(t);
-      }
-      t.textContent = msg;
-      t.style.opacity = '1';
-      clearTimeout(t._t);
-      t._t = setTimeout(()=>{ t.style.opacity = '0'; }, timeout);
-    } catch(e){ lrwarn(e); }
-  }
-
-  function showAudioEnablePrompt() {
-    try {
-      if (document.getElementById('_lr_enable_audio_modal')) return;
-      const modal = document.createElement('div'); modal.id = '_lr_enable_audio_modal';
-      Object.assign(modal.style, { position:'fixed', inset:0, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,0.45)', zIndex:17000});
-      const box = document.createElement('div');
-      Object.assign(box.style, { background:'#fff', color:'#061226', padding:'18px', borderRadius:'12px', maxWidth:'380px', width:'92%', textAlign:'center', boxShadow:'0 20px 60px rgba(3,10,18,0.12)'});
-      box.innerHTML = `<div style="font-weight:700;margin-bottom:8px">Activar audio</div>
-                       <div style="color:#374151;margin-bottom:14px">Para usar la voz en tu dispositivo, pulsa el botón para activar el audio (esto es un permiso local por navegador).</div>
-                       <div style="display:flex;gap:8px;justify-content:center">
-                         <button id="_lr_enable_audio_btn" style="padding:10px 14px;border-radius:8px;border:none;background:linear-gradient(90deg,#7bd389,#5ec1ff);color:#04232a;font-weight:700">Activar audio</button>
-                         <button id="_lr_enable_audio_cancel" style="padding:10px 14px;border-radius:8px;border:1px solid #cbd5e1;background:transparent;color:#04232a">Cancelar</button>
-                       </div>`;
-      modal.appendChild(box); document.body.appendChild(modal);
-      document.getElementById('_lr_enable_audio_btn').addEventListener('click', async () => {
-        await resumeAudio();
-        modal.remove();
-        showToast('Intentando activar audio — prueba de nuevo el botón 🔊');
-      });
-      document.getElementById('_lr_enable_audio_cancel').addEventListener('click', () => modal.remove());
-    } catch(e){ lrwarn(e); }
-  }
-
   async function playTTS(text) {
     if (!text) return;
     if (!('speechSynthesis' in window)) {
       showToast('La síntesis de voz no está disponible en este navegador.');
-      return;
+      return false;
+    }
+    if (window._lr_tts_enabled === false) {
+      showToast('TTS desactivado en ajustes');
+      return false;
     }
     try {
       await resumeAudio();
@@ -266,7 +339,7 @@
     }
   }
 
-  /* ---------- Resume audio ---------- */
+  /* ---------- Resume audio (unlock tricks) ---------- */
   async function resumeAudio() {
     await ensureAudioContext();
     if (audioCtx && audioCtx.state === 'suspended') {
@@ -286,55 +359,82 @@
     return audioCtx ? audioCtx.state : 'no-audioctx';
   }
 
-  /* ---------- Breath overlay ---------- */
-  async function startBreathFlowInternal() {
-    await resumeAudio();
-    await preloadAssets();
-    const overlay = document.createElement('div');
-    overlay.id = 'lr-breath-overlay';
-    Object.assign(overlay.style, { position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.55)', zIndex: 17000 });
-    const container = document.createElement('div');
-    Object.assign(container.style, { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' });
-    const circle = document.createElement('div');
-    Object.assign(circle.style, { width: '220px', height: '220px', borderRadius: '50%', background: 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '28px', fontWeight: 700 });
-    const small = document.createElement('div');
-    Object.assign(small.style, { color: 'rgba(255,255,255,0.95)', fontSize: '18px', textAlign: 'center' });
-    container.appendChild(circle);
-    container.appendChild(small);
-    overlay.appendChild(container);
-    document.body.appendChild(overlay);
-    if (audioBuffers.ambient) startAmbientLoop(audioBuffers.ambient);
-    else if (htmlAudio.ambientEl) startAmbientLoop(null, htmlAudio.ambientEl.src);
-    const steps = [
-      { label: 'Inhala', action: playInhale, duration: inhaleDurationSeconds },
-      { label: 'Sostén', action: null, duration: hold1DurationSeconds },
-      { label: 'Exhala', action: playExhale, duration: exhaleDurationSeconds },
-      { label: 'Sostén', action: null, duration: hold2DurationSeconds }
-    ];
-    let idx = 0, timeoutId = null, running = true;
-    async function loopStep() { if (!running) return; const s = steps[idx]; try { circle.textContent = s.label; small.textContent = s.label + (s.duration ? ' · ' + Math.round(s.duration) + 's' : ''); } catch (e) {} if (s.action) { try { await s.action(); } catch (e) { lrwarn('[helpers] action error', e); } } try { const scaleFrom = s.label === 'Exhala' ? 1 : 0.6; const scaleTo = s.label === 'Exhala' ? 0.6 : 1.0; if (circle.animate) { circle.animate([{ transform: 'scale(' + scaleFrom + ')', opacity: 0.75 }, { transform: 'scale(' + scaleTo + ')', opacity: 1 }], { duration: s.duration * 1000, easing: 'ease-in-out', fill: 'forwards' }); } else { circle.style.transition = 'transform ' + s.duration + 's ease-in-out'; circle.style.transform = 'scale(' + scaleTo + ')'; } } catch (e) {} timeoutId = setTimeout(function () { idx = (idx + 1) % steps.length; loopStep(); }, Math.round(s.duration * 1000)); }
-    loopStep();
-    overlay._stop = function () { running = false; if (timeoutId) clearTimeout(timeoutId); if (overlay.parentNode) overlay.parentNode.removeChild(overlay); lrlog('[helpers] overlay stopped'); };
-    overlay.addEventListener('click', function () { if (overlay._stop) overlay._stop(); });
-    window._lastBreathOverlay = overlay;
+  /* ---------- copy & download helpers ---------- */
+  function copyToClipboard(text) {
+    if (!text) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text).then(() => showToast('Frase copiada'));
+    const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); showToast('Frase copiada'); } catch (e) { showToast('No se pudo copiar'); }
+    ta.remove();
   }
 
-  /* ---------- Favorites & helpers ---------- */
+  async function downloadImageFallback() {
+    try {
+      const el = document.querySelector('.frase-card') || document.body;
+      const canvas = await html2canvas(el, { scale: window.devicePixelRatio || 2 });
+      const url = canvas.toDataURL('image/png');
+      const a = document.createElement('a'); a.href = url; a.download = 'llavero-respira-frase.png'; document.body.appendChild(a); a.click(); a.remove();
+      showToast('Descarga iniciada');
+    } catch (e) {
+      lrwarn('download error', e);
+      showToast('No se pudo descargar la imagen.');
+    }
+  }
+
+  async function downloadPhraseImage(el, fileName = 'llavero-frase.png') {
+    if (!el) el = document.querySelector('.frase-card') || document.querySelector('.card') || document.body;
+    try {
+      const canvas = await html2canvas(el, { scale: window.devicePixelRatio || 2 });
+      const url = canvas.toDataURL('image/png');
+      const a = document.createElement('a'); a.href = url; a.download = fileName; document.body.appendChild(a); a.click(); a.remove();
+      showToast('Descarga iniciada');
+      return true;
+    } catch (e) {
+      lrwarn('[helpers] downloadPhraseImage error', e);
+      showToast('Error en descarga');
+      return false;
+    }
+  }
+
+  // expose globally (in case other scripts call it directly)
+  window.downloadPhraseImage = downloadPhraseImage;
+
+  async function sharePhrase({ title, text, url }) {
+    const shareText = `${text || ''}\n${url || location.href}`;
+    if (navigator.share) {
+      try { await navigator.share({ title: title || 'Llavero Respira', text: shareText, url: url || location.href }); showToast('Compartiendo...'); return true; } catch (e) { lrwarn('[helpers] navigator.share failed', e); }
+    }
+    const wa = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
+    try { window.open(wa, '_blank'); return true; } catch (e) { copyToClipboard(shareText); return false; }
+  }
+
+  function inviteFriend(custom) {
+    const baseUrl = location.origin + location.pathname;
+    const msg = custom || `¡Tengo mi Llavero Respira de Dulces Recuerdos! Me está encantando. Échale un vistazo: ${baseUrl}`;
+    const wa = `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+    window.open(wa, '_blank');
+  }
+
+  /* ---------- Favorites ---------- */
   function getFavoritos() { try { return JSON.parse(localStorage.getItem(KEY_FAVORITOS) || '[]'); } catch (e) { return []; } }
   function saveFavoritos(arr) { try { localStorage.setItem(KEY_FAVORITOS, JSON.stringify(arr)); } catch (e) {} }
   function toggleFavorite(text) { if (!text) return false; const favs = getFavoritos(); if (favs.indexOf(text) !== -1) { const next = favs.filter(x => x !== text); saveFavoritos(next); return false; } favs.unshift(text); saveFavoritos(favs.slice(0,200)); return true; }
+
   function showFavoritesModal() {
-    const favs = getFavoritos(); const modal = document.getElementById('_lr_fav_modal') || document.createElement('div'); modal.id = '_lr_fav_modal';
+    const favs = getFavoritos();
+    const modal = document.getElementById('_lr_fav_modal') || document.createElement('div'); modal.id = '_lr_fav_modal';
     Object.assign(modal.style, { position:'fixed', left:0, right:0, top:0, bottom:0, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,0.6)', zIndex:19000 });
     const box = document.createElement('div'); Object.assign(box.style, { maxWidth:'720px', width:'92%', maxHeight:'70vh', overflow:'auto', background:'rgba(255,255,255,0.98)', color:'#042231', padding:'18px', borderRadius:'12px' });
     let inner = '<div style="display:flex;justify-content:space-between;align-items:center"><strong>Favoritos</strong><button id="_lr_close_fav" style="background:transparent;color:#042231;border:1px solid rgba(0,0,0,0.06);padding:6px;border-radius:8px">Cerrar</button></div><hr style="opacity:.08;margin:8px 0">';
-    if (favs && favs.length) inner += favs.map(f => '<div style="margin:10px 0;line-height:1.3;color:#022">'+ escapeHtml(f) + '</div>').join(''); else inner += '<div style="color:rgba(7,16,28,0.8)">No hay favoritos</div>';
+    if (favs && favs.length) inner += favs.map(f => '<div style="margin:10px 0;line-height:1.3;color:#022">'+ escapeHtml(f) + '</div>').join('');
+    else inner += '<div style="color:rgba(7,16,28,0.8)">No hay favoritos</div>';
     box.innerHTML = inner; modal.innerHTML = ''; modal.appendChild(box); document.body.appendChild(modal);
     const closeBtn = document.getElementById('_lr_close_fav'); if (closeBtn) closeBtn.addEventListener('click', () => modal && modal.parentNode && modal.parentNode.removeChild(modal));
   }
+
   function escapeHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-  /* ---------- Settings modal (nuevo) ---------- */
+  /* ---------- Settings modal ---------- */
   function showSettingsModal() {
     if (document.getElementById('_lr_settings_modal')) return;
     const modal = document.createElement('div'); modal.id = '_lr_settings_modal';
@@ -367,13 +467,11 @@
 
     const ttsCheckbox = document.getElementById('_lr_toggle_tts');
     const ambientCheckbox = document.getElementById('_lr_toggle_ambient');
-    // default states
-    ttsCheckbox.checked = true;
+    ttsCheckbox.checked = (window._lr_tts_enabled !== false);
     ambientCheckbox.checked = !!(htmlAudio.ambientEl || audioBuffers.ambient);
 
     ttsCheckbox.addEventListener('change', () => {
       showToast('TTS ' + (ttsCheckbox.checked ? 'activado' : 'desactivado'));
-      // we don't disable API, UI will respect this flag
       window._lr_tts_enabled = ttsCheckbox.checked;
     });
     ambientCheckbox.addEventListener('change', () => {
@@ -384,15 +482,15 @@
     box.querySelectorAll('._lr_preset_btn').forEach(b => {
       b.addEventListener('click', () => {
         const p = b.getAttribute('data-preset');
-        if (p) {
-          window.lr_helpers && typeof window.lr_helpers.setBreathPattern === 'function' ? window.lr_helpers.setBreathPattern(p) : null;
+        if (p && window.lr_helpers && typeof window.lr_helpers.setBreathPattern === 'function') {
+          window.lr_helpers.setBreathPattern(p);
           showToast('Preset aplicado: ' + p);
         }
       });
     });
   }
 
-  /* ---------- Menu auto-annotation + delegation ---------- */
+  /* ---------- Menu helpers (annotation + delegation) ---------- */
   function normalizeText(s) { return (s||'').trim().toLowerCase().replace(/\s+/g,' '); }
   function detectActionFromButton(btn) {
     if (!btn) return null;
@@ -464,20 +562,27 @@
       case 'download': downloadImageFallback(); break;
       case 'enable-audio': resumeAudio().then(() => showToast('Intentado activar audio')); break;
       case 'show-favorites': showFavoritesModal(); break;
-      case 'share-app': shareAppFallback(); break;
+      case 'share-app': sharePhrase({ title:'Llavero Respira', text:'Echa un vistazo', url: location.href }); break;
       case 'invite': inviteFriend(); break;
       case 'settings': showSettingsModal(); break;
       default: lrlog('[helpers] action not mapped:', action); break;
     }
   }
 
-  function shareAppFallback() {
-    const text = 'Echa un vistazo a Llavero Respira — un recordatorio amable.' + '\n' + (location.origin + location.pathname);
-    if (navigator.share) { navigator.share({ title: 'Llavero Respira', text, url: location.href }).catch(e => lrwarn(e)); return; }
-    const wa = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
-    window.open(wa, '_blank');
+  /* ---------- Fallback attach helpers ---------- */
+  function attachTouchClick(ids, fn) {
+    if (!Array.isArray(ids)) ids = [ids];
+    for (let i = 0; i < ids.length; i++) {
+      const el = document.getElementById(ids[i]);
+      if (!el) continue;
+      try {
+        el.addEventListener('click', fn);
+        el.addEventListener('touchend', function (e) { e.preventDefault(); e.stopPropagation(); fn.call(this, e); }, { passive: false });
+      } catch (e) { lrwarn('[helpers] attach error', ids[i], e); }
+    }
   }
 
+  /* ---------- Menu delegation ---------- */
   function initMenuDelegation() {
     const panel = document.getElementById('menuPanel');
     if (!panel) {
@@ -501,18 +606,25 @@
     return true;
   }
 
-  // copy/download/share etc (kept as before)...
-  // (el resto del archivo mantiene las mismas funciones que tenías: copyToClipboard, downloadImageFallback,
-  // downloadPhraseImage, sharePhrase, inviteFriend, attachTouchClick, init, public API, etc.)
-  // Para no repetir demasiado, asumo que mantienes el resto tal cual — si quieres que te pegue el archivo entero con todo el contenido final, lo hago sin problema.
-  // Pero las funcionalidades nuevas (settings modal + settings action) ya están incluidas arriba.
-  // Asegúrate de mantener el resto del archivo que tenías (preloadAssets, players, TTS, favorites, delegation)
-  // y que no haya duplicados.
+  /* ---------- Init ---------- */
+  document.addEventListener('DOMContentLoaded', function () {
+    annotateMenuButtonsOnce();
+    const delegated = initMenuDelegation();
+    if (!delegated) {
+      // fallback bindings
+      attachTouchClick(['breathBtn_menu','breathBtn'], function () { startBreathFlowInternal(); });
+      attachTouchClick(['enableAudioBtn','enableAudio'], function () { resumeAudio().then(function () { showToast('Intentado activar audio'); }); });
+      attachTouchClick(['ttsBtn_menu','ttsBtn'], function () { const t = (document.getElementById('frase-text') && document.getElementById('frase-text').textContent) || (document.getElementById('frase') && document.getElementById('frase').textContent) || ''; if (t) playTTS(t); });
+      attachTouchClick(['startAmbientBtn'], function () { preloadAssets().then(function () { if (audioBuffers.ambient) startAmbientLoop(audioBuffers.ambient); else if (htmlAudio.ambientEl) htmlAudio.ambientEl.play().catch(()=>{}); }); });
+      attachTouchClick(['stopAmbientBtn'], function () { stopAmbientLoop(); });
+      attachTouchClick(['favBtn_menu','favBtn'], function () { const t = (document.getElementById('frase-text') && document.getElementById('frase-text').textContent) || (document.getElementById('frase') && document.getElementById('frase').textContent) || ''; if (t) { const added = toggleFavorite(t); const el = document.getElementById('favBtn_menu') || document.getElementById('favBtn'); if (el) el.textContent = added ? '♥ Favorita' : '♡ Favorita'; } });
+      attachTouchClick(['downloadBtn','downloadBtn_menu'], function () { const el = document.querySelector('.frase-card') || document.querySelector('.card') || document.body; downloadPhraseImage(el); });
+      attachTouchClick(['shareBtn','shareBtn_menu'], function () { const t = (document.getElementById('frase-text') && document.getElementById('frase-text').textContent) || (document.getElementById('frase') && document.getElementById('frase').textContent) || ''; sharePhrase({ title: 'Frase', text: t, url: location.href }); });
+      attachTouchClick(['inviteBtn'], function () { inviteFriend(); });
+    }
+  });
 
-  // autopreload
-  preloadAssets().catch(e => lrwarn('[helpers] preload error', e));
-
-  // Public API (igual que antes, por favor asegúrate que se mantiene en el archivo completo)
+  /* ---------- Public API ---------- */
   window.lr_helpers = window.lr_helpers || {};
   Object.assign(window.lr_helpers, {
     preload: preloadAssets,
@@ -523,14 +635,41 @@
     toggleFavorite: toggleFavorite,
     showFavorites: showFavoritesModal,
     downloadPhraseImage: downloadPhraseImage,
+    downloadImageFallback: downloadImageFallback,
     sharePhrase: sharePhrase,
     inviteFriend: inviteFriend,
+    copyToClipboard: copyToClipboard,
+    startAmbient: async () => { await preloadAssets(); if (audioBuffers.ambient) startAmbientLoop(audioBuffers.ambient); else if (htmlAudio.ambientEl) htmlAudio.ambientEl.play().catch(()=>{}); },
+    stopAmbient: stopAmbientLoop,
     setBreathPattern: (name) => {
       const PRE = { box:{inh:4,h1:4,exh:4,h2:4}, calm:{inh:4,h1:4,exh:6,h2:1}, slow:{inh:5,h1:5,exh:7,h2:1}, '478':{inh:4,h1:7,exh:8,h2:1} };
-      const p = PRE[name]; if (!p) { lrwarn('preset not found', name); return; }
+      const p = PRE[name];
+      if (!p) { lrwarn('preset not found', name); return; }
       inhaleDurationSeconds = p.inh; hold1DurationSeconds = p.h1; exhaleDurationSeconds = p.exh; hold2DurationSeconds = p.h2;
       lrlog('[helpers] preset applied', name);
-    }
+    },
+    setCustomBreath: (inh,h1,exh,h2) => {
+      inhaleDurationSeconds = Number(inh)||inhaleDurationSeconds;
+      hold1DurationSeconds = Number(h1)||hold1DurationSeconds;
+      exhaleDurationSeconds = Number(exh)||exhaleDurationSeconds;
+      hold2DurationSeconds = Number(h2)||hold2DurationSeconds;
+      lrlog('[helpers] custom breath set', { inhaleDurationSeconds, hold1DurationSeconds, exhaleDurationSeconds, hold2DurationSeconds });
+    },
+    dumpState: () => ({
+      audioCtxState: audioCtx ? audioCtx.state : 'no-audioctx',
+      buffers: { inhaleCue: !!audioBuffers.inhaleCue, exhaleCue: !!audioBuffers.exhaleCue, breath: !!audioBuffers.breath, ambient: !!audioBuffers.ambient },
+      htmlAudio: { inhale: !!htmlAudio.inhaleEl, exhale: !!htmlAudio.exhaleEl, ambient: !!htmlAudio.ambientEl },
+      offsets: { inhaleOffsetSeconds, inhaleDurationSeconds, exhaleOffsetSeconds, exhaleDurationSeconds, hold1DurationSeconds, hold2DurationSeconds }
+    })
   });
+
+  // autopreload
+  preloadAssets().catch(e => lrwarn('[helpers] preload error', e));
+
+  // ensure global shortcuts exist
+  if (!window.downloadPhraseImage) window.downloadPhraseImage = downloadPhraseImage;
+  window.lr_helpers = window.lr_helpers || {};
+  window.lr_helpers.downloadPhraseImage = downloadPhraseImage;
+  window.lr_helpers.downloadImageFallback = downloadImageFallback;
 
 })();
