@@ -1,0 +1,98 @@
+/* overlay-custom.css
+   Ajustes visuales para overlay respiración + limpieza de logo.
+   - Full-screen overlay en móvil
+   - Círculo responsive más grande
+   - Eliminar fondo/cuadro detrás del logo
+   - Pequeñas mejoras estéticas (contraste, padding)
+*/
+
+/* Asegura que overlay ocupe toda la pantalla */
+#lr-breath-overlay {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  min-height: 100vh !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 16px !important;
+  box-sizing: border-box !important;
+  background: rgba(0,0,0,0.75) !important;
+  z-index: 20000 !important;
+}
+
+/* Contenedor central */
+#lr-breath-overlay > div {
+  width: 100%;
+  max-width: 980px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  box-sizing: border-box;
+  padding: 8px 12px;
+}
+
+/* El "círculo" principal */
+#lr-breath-overlay > div > div:first-child {
+  width: min(66vw, 420px) !important;
+  height: min(66vw, 420px) !important;
+  max-width: 420px;
+  max-height: 420px;
+  border-radius: 50% !important;
+  background: rgba(255,255,255,0.06) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: #fff !important;
+  font-weight: 700 !important;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.45);
+}
+
+/* Texto pequeño */
+#lr-breath-overlay > div > div:nth-child(2) {
+  color: rgba(255,255,255,0.95);
+  font-size: 1.05rem;
+  text-align: center;
+  padding: 0 6px;
+}
+
+/* Responsive */
+@media (max-width: 520px) {
+  #lr-breath-overlay > div > div:first-child {
+    width: min(78vw, 360px) !important;
+    height: min(78vw, 360px) !important;
+    font-size: calc(5vw + 8px) !important;
+  }
+  #lr-breath-overlay > div > div:nth-child(2) {
+    font-size: calc(3.6vw + 6px);
+  }
+}
+
+/* Evita que el body se desplace */
+html, body { -webkit-text-size-adjust: 100%; }
+
+/* Quitar fondo/cuadro del logo (selectores amplios) */
+.logo, .site-logo, .brand, .logo img, header .logo, .logo-wrapper, .brand-logo {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: 0 !important;
+  padding: 0 !important;
+}
+.logo, .logo-wrapper, .brand { background-color: transparent !important; }
+.logo::before, .logo::after, .brand::before, .brand::after { background: transparent !important; content: none !important; }
+
+/* Botones dentro del overlay */
+#lr-breath-overlay button {
+  background: rgba(255,255,255,0.06) !important;
+  color: #fff !important;
+  border: 1px solid rgba(255,255,255,0.06) !important;
+  padding: 8px 12px !important;
+  border-radius: 8px !important;
+}
+
+/* Reducir animaciones en móviles */
+@media (max-width: 480px) {
+  #lr-breath-overlay > div > div:first-child { transition: none !important; }
+}
