@@ -1,5 +1,6 @@
 // sw.js - Service Worker corregido (manejo seguro de cache.put, rutas relativas)
-const CACHE_VERSION = 'v2';
+// + network-first para users/llavero*.json para asegurar que la personalización se actualice
+const CACHE_VERSION = 'v3';
 const CACHE_NAME = `llavero-respira-${CACHE_VERSION}`;
 const ASSETS = [
   './',
@@ -46,12 +47,37 @@ self.addEventListener('fetch', event => {
     return;
   }
 
+  // Detectar peticiones de usuarios personalizados (llavero files)
+  // matchea /users/llaveroXYZ.json tanto si site está en root o en subpath
+  const usersRegex = /\/users\/llavero[A-Za-z0-9_-]+\.json$/;
+  if (usersRegex.test(url.pathname)) {
+    // Network-first: intentar red y escribir cache si OK, fallback a cache
+    event.respondWith((async () => {
+      try {
+        const networkResponse = await fetch(req);
+        if (networkResponse && networkResponse.ok) {
+          try {
+            const cache = await caches.open(CACHE_NAME);
+            await cache.put(req, networkResponse.clone());
+          } catch (e) {
+            console.warn('[SW] cache put failed for user json:', e);
+          }
+        }
+        return networkResponse;
+      } catch (err) {
+        console.warn('[SW] network failed for user json, trying cache', err);
+        const cached = await caches.match(req);
+        return cached || Response.error();
+      }
+    })());
+    return;
+  }
+
   // Navegaciones: network-first con fallback a cache
   if (req.mode === 'navigate' || (req.method === 'GET' && req.headers.get('accept')?.includes('text/html'))) {
     event.respondWith((async () => {
       try {
         const networkResponse = await fetch(req);
-        // cachear solo respuestas exitosas
         if (networkResponse && networkResponse.ok) {
           try {
             const cache = await caches.open(CACHE_NAME);
