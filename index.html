@@ -38,21 +38,17 @@
       <button id="menuToggle" class="menu-btn" aria-expanded="false" aria-controls="menuPanel">☰</button>
     </header>
 
-    <!-- MENU PANEL (necessary for helpers.v2.js delegation) -->
-    <div id="menuPanel" class="menu-panel" role="menu" aria-hidden="true" style="display:none;">
-      <button id="favBtn_menu" data-action="favorite">♡ Favorita</button>
-      <button id="shareBtn_menu" data-action="share">🔗 Compartir</button>
-      <button id="copyBtn_menu" data-action="copy">📋 Copiar</button>
-      <button id="ttsBtn_menu" data-action="tts">🔊 Escuchar</button>
-      <button id="startAmbientBtn" data-action="ambient-start">▶ Ambient</button>
-      <button id="stopAmbientBtn" data-action="ambient-stop">⏸ Ambient</button>
-      <hr>
-      <button id="breathBtn_menu" class="primary" data-action="breath">🌬️ Respirar</button>
-      <button id="showFavs_menu" data-action="show-favorites">⭐ Ver favoritos</button>
-      <button id="enableAudioBtn" data-action="enable-audio">🔈 Activar audio</button>
-      <button id="downloadBtn_menu" data-action="download">⬇️ Descargar</button>
-      <button id="invite_menu" data-action="invite">📩 Invitar</button>
-    </div>
+    <!-- MENU PANEL (clean: only global actions) -->
+<div id="menuPanel" class="menu-panel" role="menu" aria-hidden="true" style="display:none;">
+  <!-- Global actions only: breathing flow, favorites, app share/invite, settings -->
+  <button id="breathBtn_menu" class="primary" data-action="breath">🌬️ Respirar</button>
+  <button id="showFavs_menu" data-action="show-favorites">⭐ Favoritos</button>
+  <button id="shareApp_menu" data-action="share-app">🔗 Compartir app</button>
+  <button id="invite_menu" data-action="invite">📩 Invitar</button>
+  <hr>
+  <button id="enableAudioBtn" data-action="enable-audio">🔈 Activar audio</button>
+  <button id="settings_menu" data-action="settings">⚙️ Ajustes</button>
+</div>
 
     <section class="panel">
       <!-- Phrase card (big) -->
@@ -114,3 +110,4 @@
   <script src="js/load-user.js" defer></script>
 </body>
 </html>
+
