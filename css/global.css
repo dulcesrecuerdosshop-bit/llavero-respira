@@ -1,5 +1,5 @@
 :root{
-  --bg-start: #eef2ff; /* muy suave */
+  --bg-start: #eef2ff;
   --bg-end: #f7f9fc;
   --card-bg: rgba(255,255,255,0.85);
   --muted: #546070;
@@ -10,23 +10,74 @@
   --font-sans: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
 }
 
+/* Reset / base */
 *{box-sizing:border-box}
 html,body{height:100%;margin:0;font-family:var(--font-sans);background:linear-gradient(180deg,var(--bg-start),var(--bg-end));color:#16324f;-webkit-font-smoothing:antialiased}
 .fullscreen{min-height:100vh;display:flex;align-items:center;justify-content:center}
-.app-header{position:fixed;top:0;left:0;right:0;height:72px;display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:transparent;z-index:1200}
-.logo{height:44px;border-radius:10px}
+
+/* Header */
+.app-header{
+  position:fixed;
+  top:0; left:0; right:0;
+  height:72px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:12px 20px;
+  background:transparent;
+  z-index:1200;
+}
+
+/* Logo sizing (fixed) */
 .header-left{display:flex;align-items:center;gap:12px}
+
+/* Header logo: keep compact and responsive */
+.logo{
+  display:block;
+  width:auto;
+  height:auto;
+  max-height:clamp(36px, 4.2vh, 48px); /* responsive cap */
+  max-width:180px;
+  border-radius:10px;
+  box-shadow:0 6px 20px rgba(0,0,0,0.06);
+  object-fit:contain;
+}
+
+/* Welcome logo: larger but bounded */
+.welcome-logo{
+  display:block;
+  width:auto;
+  height:auto;
+  max-width:clamp(110px, 18vw, 160px);
+  max-height:160px;
+  border-radius:12px;
+  margin-bottom:18px;
+  object-fit:contain;
+}
+
+/* Titles / greeting */
 .app-title{font-weight:800;font-size:1.05rem;color:#0f1724}
 .user-greeting{color:var(--muted);font-size:0.92rem}
 .menu-btn{background:transparent;border:1px solid rgba(15,19,36,0.06);padding:10px;border-radius:12px;color:#0f1724;cursor:pointer}
 
-/* Panel layout */
+/* Layout */
 .panel{padding-top:92px;padding-bottom:72px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;width:100%;max-width:1100px;margin:0 auto}
 .hint{margin-top:14px;color:var(--muted)}
 .app-footer{position:fixed;left:18px;bottom:18px;color:var(--muted);font-size:0.9rem}
 
-/* Frase card: light, calm and airy */
-.frase-card{width:100%;max-width:920px;border-radius:var(--radius);overflow:hidden;position:relative;box-shadow:0 12px 40px rgba(16,24,40,0.08);margin:18px;background:linear-gradient(180deg, var(--card-bg), rgba(255,255,255,0.92));backdrop-filter: blur(6px);padding:0}
+/* Card */
+.frase-card{
+  width:100%;
+  max-width:920px;
+  border-radius:var(--radius);
+  overflow:hidden;
+  position:relative;
+  box-shadow:0 12px 40px rgba(16,24,40,0.08);
+  margin:18px;
+  background:linear-gradient(180deg, var(--card-bg), rgba(255,255,255,0.92));
+  backdrop-filter: blur(6px);
+  padding:0;
+}
 .frase-bg{position:absolute;inset:0;background-size:cover;background-position:center;filter:brightness(0.7) saturate(0.95);transition:background 600ms ease}
 .frase-content{position:relative;padding:28px;display:flex;flex-direction:column;gap:12px;min-height:220px}
 .frase-text{font-size:1.6rem;font-weight:700;line-height:1.28;color:#072032}
@@ -34,7 +85,7 @@ html,body{height:100%;margin:0;font-family:var(--font-sans);background:linear-gr
 .control{background:transparent;border:1px solid rgba(7,20,34,0.06);color:#072032;padding:10px 12px;border-radius:10px;cursor:pointer;font-weight:700}
 .control.primary{background:linear-gradient(90deg,var(--accent-start),var(--accent-end));color:#012331;border:none}
 
-/* Menu panel: fixed on the right with good spacing */
+/* Menu panel: fixed right */
 .menu-panel{
   position:fixed;
   right:18px;
@@ -54,8 +105,21 @@ html,body{height:100%;margin:0;font-family:var(--font-sans);background:linear-gr
 .menu-panel button{background:transparent;border:1px solid rgba(7,20,34,0.04);padding:10px;border-radius:10px;color:#072032;cursor:pointer;text-align:left}
 .menu-panel button.primary{background:linear-gradient(90deg,var(--accent-start),var(--accent-end));color:#012331;border:none}
 
-/* Responsive */
-@media (max-width:760px){
-  .frase-text{font-size:1.15rem}
+/* Welcome card */
+.welcome{padding:20px}
+.welcome-inner{text-align:center;padding:36px;background:rgba(255,255,255,0.9);border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,0.05)}
+.welcome-title{font-size:2.2rem;margin:6px 0;color:#072032}
+.welcome-sub{color:var(--muted);margin-bottom:18px;font-size:1rem}
+
+/* small screens */
+@media (max-width:960px){
+  .welcome-title{font-size:1.6rem}
+  .frase-text{font-size:1.25rem}
   .menu-panel{right:10px;top:72px;min-width:160px}
+  .frase-content{padding:18px}
+  .logo{max-height:36px}
+  .welcome-logo{max-width:120px}
 }
+
+/* accessibility focus */
+button:focus{outline:3px solid rgba(94,193,255,0.25);outline-offset:3px}
