@@ -1,0 +1,32 @@
+:root{
+  --text-color: #fff;
+  --muted: rgba(255,255,255,0.85);
+  --accent: #ffd166;
+  --panel: rgba(255,255,255,0.04);
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;font-family:Arial,sans-serif;background:linear-gradient(135deg,#6a11cb,#2575fc);color:var(--text-color)}
+.fullscreen{min-height:100vh;display:flex;align-items:center;justify-content:center}
+.hidden{display:none}
+.app-header{position:fixed;top:0;left:0;right:0;height:72px;display:flex;align-items:center;justify-content:space-between;padding:12px 18px;background:transparent;z-index:1200}
+.header-left{display:flex;align-items:center;gap:12px}
+.logo{height:48px}
+.greeting{line-height:1}
+.app-title{font-weight:700}
+.user-greeting{color:var(--muted);font-size:0.92rem}
+.menu-btn{background:transparent;border:1px solid rgba(255,255,255,0.06);padding:10px;border-radius:10px;color:var(--text-color)}
+.panel{padding-top:92px;padding-bottom:60px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;width:100%}
+.hint{margin-top:14px;color:var(--muted)}
+.app-footer{position:fixed;left:18px;bottom:18px;color:var(--muted)}
+.btn{padding:12px 18px;border-radius:12px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:#fff;cursor:pointer}
+.btn.primary{background:linear-gradient(90deg,var(--accent),#ff9a9e);color:#111;font-weight:700;border:none}
+.welcome{padding:20px}
+.welcome-inner{text-align:center}
+.welcome-logo{max-width:160px;margin-bottom:18px}
+.welcome-title{font-size:2rem;margin:6px 0}
+.welcome-sub{color:var(--muted);margin-bottom:18px}
+@media(max-width:560px){
+  .logo{height:40px}
+  .app-header{height:64px}
+  .frase-text{font-size:1.25rem}
+}
