@@ -1,12 +1,14 @@
 // helpers.v2.js - Merged and extended helpers (audio, breath flow, favorites, TTS, share, download, delegation)
-// This file unifies the production helpers you pasted with the lightweight helpers I proposed:
-// - Preserves full audio/WebAudio support, preload, ambient, inhale/exhale, breath overlay
-// - Keeps menu annotation + delegation and favorites modal
-// - Adds utilities: downloadPhraseImage (html2canvas), sharePhrase (Web Share / WhatsApp), inviteFriend
-// - Exposes a comprehensive window.lr_helpers API for UI to call
+// Incluye control de logs (LR_DEBUG) y manejo mejorado de TTS / prompt de activación de audio.
 (function () {
   'use strict';
-  console.log('[helpers] loading helpers.v2.js (merged)');
+
+  // logging control
+  window.LR_DEBUG = window.LR_DEBUG === true;
+  function lrlog(...a){ if (window.LR_DEBUG) console.log(...a); }
+  function lrwarn(...a){ if (window.LR_DEBUG) console.warn(...a); }
+
+  lrlog('[helpers] loading helpers.v2.js (merged)');
 
   const AUDIO = {
     breathCandidates: ['Breath.mp3', 'breath.mp3', 'BREATH.mp3'],
@@ -43,10 +45,10 @@
     try {
       const AC = window.AudioContext || window.webkitAudioContext;
       audioCtx = new AC();
-      console.log('[helpers] AudioContext created', audioCtx.state);
+      lrlog('[helpers] AudioContext created', audioCtx.state);
       return audioCtx;
     } catch (e) {
-      console.warn('[helpers] WebAudio not available', e);
+      lrwarn('[helpers] WebAudio not available', e);
       audioCtx = null;
       return null;
     }
@@ -60,10 +62,10 @@
       if (!r.ok) throw new Error('fetch ' + r.status);
       const ab = await r.arrayBuffer();
       const buf = await ctx.decodeAudioData(ab);
-      console.log('[helpers] buffer decoded ->', url);
+      lrlog('[helpers] buffer decoded ->', url);
       return buf;
     } catch (e) {
-      console.warn('[helpers] error loading audio', url, e);
+      lrwarn('[helpers] error loading audio', url, e);
       return null;
     }
   }
@@ -87,10 +89,9 @@
       src.connect(g).connect(audioCtx.destination);
       src.start(now, offset, playDuration);
       src.stop(endAt + 0.05);
-      // console.log trimmed to avoid huge logs
-      console.log('[helpers] scheduled play', { offset, playDuration });
+      lrlog('[helpers] scheduled play', { offset, playDuration });
       return true;
-    } catch (e) { console.warn('[helpers] schedule error', e); return false; }
+    } catch (e) { lrwarn('[helpers] schedule error', e); return false; }
   }
 
   function playHtml(url, offset = 0, duration = 2000) {
@@ -102,11 +103,11 @@
       else el = new Audio(url);
       try { el.currentTime = offset; } catch (e) {}
       el.volume = 0.95;
-      el.play().catch(e => console.warn('[helpers] html play error', e));
+      el.play().catch(e => lrwarn('[helpers] html play error', e));
       setTimeout(() => { try { el.pause(); el.currentTime = 0; } catch (e) {} }, Math.max(400, Math.round(duration)));
-      console.log('[helpers] html played', url, { offset, duration });
+      lrlog('[helpers] html played', url, { offset, duration });
       return true;
-    } catch (e) { console.warn('[helpers] playHtml failed', e); return false; }
+    } catch (e) { lrwarn('[helpers] playHtml failed', e); return false; }
   }
 
   function startAmbientLoop(buffer, url) {
@@ -120,13 +121,13 @@
       ambientSource.connect(ambientGain).connect(audioCtx.destination);
       ambientSource.start();
       try { ambientGain.gain.linearRampToValueAtTime(0.12, audioCtx.currentTime + 2.0); } catch (e) {}
-      console.log('[helpers] ambient webaudio start');
+      lrlog('[helpers] ambient webaudio start');
       return;
     }
     if (url) {
       if (!htmlAudio.ambientEl) { htmlAudio.ambientEl = new Audio(url); htmlAudio.ambientEl.loop = true; htmlAudio.ambientEl.volume = 0.12; }
       htmlAudio.ambientEl.play().catch(()=>{});
-      console.log('[helpers] ambient html start');
+      lrlog('[helpers] ambient html start');
     }
   }
   function stopAmbientLoop() {
@@ -134,7 +135,7 @@
     try { if (ambientSource && audioCtx) ambientSource.stop(audioCtx.currentTime + 0.5); } catch (e) {}
     ambientSource = null; ambientGain = null;
     try { if (htmlAudio.ambientEl) { htmlAudio.ambientEl.pause(); htmlAudio.ambientEl.currentTime = 0; } } catch (e) {}
-    console.log('[helpers] ambient stopped');
+    lrlog('[helpers] ambient stopped');
   }
 
   /* ---------- Preload ---------- */
@@ -167,7 +168,7 @@
       if (b4) audioBuffers.ambient = b4; else { htmlAudio.ambientEl = new Audio(amb); htmlAudio.ambientEl.loop = true; htmlAudio.ambientEl.volume = 0.12; }
     }
 
-    console.log('[helpers] preload results', {
+    lrlog('[helpers] preload results', {
       inhaleCue: !!audioBuffers.inhaleCue || !!htmlAudio.inhaleEl,
       exhaleCue: !!audioBuffers.exhaleCue || !!htmlAudio.exhaleEl,
       breath: !!audioBuffers.breath || !!htmlAudio.breathUrl,
@@ -182,7 +183,7 @@
     if (htmlAudio.inhaleEl) { if (playHtml(htmlAudio.inhaleEl.src, 0, inhaleDurationSeconds)) return; }
     if (audioBuffers.breath) { if (scheduleBufferPlay(audioBuffers.breath, inhaleOffsetSeconds, inhaleDurationSeconds)) return; }
     if (htmlAudio.breathUrl) { if (playHtml(htmlAudio.breathUrl, inhaleOffsetSeconds, inhaleDurationSeconds)) return; }
-    console.log('[helpers] no inhale audio available');
+    lrlog('[helpers] no inhale audio available');
   }
   async function playExhale() {
     await preloadAssets();
@@ -190,10 +191,10 @@
     if (htmlAudio.exhaleEl) { if (playHtml(htmlAudio.exhaleEl.src, 0, exhaleDurationSeconds)) return; }
     if (audioBuffers.breath) { if (scheduleBufferPlay(audioBuffers.breath, exhaleOffsetSeconds, exhaleDurationSeconds)) return; }
     if (htmlAudio.breathUrl) { if (playHtml(htmlAudio.breathUrl, exhaleOffsetSeconds, exhaleDurationSeconds)) return; }
-    console.log('[helpers] no exhale audio available');
+    lrlog('[helpers] no exhale audio available');
   }
 
-  /* ---------- TTS ---------- */
+  /* ---------- TTS (mejorada) ---------- */
   function loadVoicesOnce() {
     return new Promise((resolve) => {
       const vs = speechSynthesis.getVoices();
@@ -203,23 +204,76 @@
       setTimeout(() => resolve(speechSynthesis.getVoices() || []), 900);
     });
   }
+
+  // showToast and showAudioEnablePrompt helpers (non-blocking UI)
+  function showToast(msg, timeout = 3500) {
+    try {
+      let t = document.getElementById('_lr_toast');
+      if (!t) {
+        t = document.createElement('div'); t.id = '_lr_toast';
+        Object.assign(t.style, { position: 'fixed', top: '18px', left:'50%', transform:'translateX(-50%)', background:'rgba(8,12,20,0.9)', color:'#fff', padding:'8px 14px', borderRadius:'8px', zIndex:16000, fontSize:'0.95rem', boxShadow:'0 6px 22px rgba(0,0,0,0.3)'});
+        document.body.appendChild(t);
+      }
+      t.textContent = msg;
+      t.style.opacity = '1';
+      clearTimeout(t._t);
+      t._t = setTimeout(()=>{ t.style.opacity = '0'; }, timeout);
+    } catch(e){ lrwarn(e); }
+  }
+
+  function showAudioEnablePrompt() {
+    try {
+      if (document.getElementById('_lr_enable_audio_modal')) return;
+      const modal = document.createElement('div'); modal.id = '_lr_enable_audio_modal';
+      Object.assign(modal.style, { position:'fixed', inset:0, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,0.45)', zIndex:17000});
+      const box = document.createElement('div');
+      Object.assign(box.style, { background:'#fff', color:'#061226', padding:'18px', borderRadius:'12px', maxWidth:'380px', width:'92%', textAlign:'center', boxShadow:'0 20px 60px rgba(3,10,18,0.12)'});
+      box.innerHTML = `<div style="font-weight:700;margin-bottom:8px">Activar audio</div>
+                       <div style="color:#374151;margin-bottom:14px">Para usar la voz en tu dispositivo, pulsa el botón para activar el audio (esto es un permiso local por navegador).</div>
+                       <div style="display:flex;gap:8px;justify-content:center">
+                         <button id="_lr_enable_audio_btn" style="padding:10px 14px;border-radius:8px;border:none;background:linear-gradient(90deg,#7bd389,#5ec1ff);color:#04232a;font-weight:700">Activar audio</button>
+                         <button id="_lr_enable_audio_cancel" style="padding:10px 14px;border-radius:8px;border:1px solid #cbd5e1;background:transparent;color:#04232a">Cancelar</button>
+                       </div>`;
+      modal.appendChild(box); document.body.appendChild(modal);
+      document.getElementById('_lr_enable_audio_btn').addEventListener('click', async () => {
+        await resumeAudio();
+        modal.remove();
+        showToast('Intentando activar audio — prueba de nuevo el botón 🔊');
+      });
+      document.getElementById('_lr_enable_audio_cancel').addEventListener('click', () => modal.remove());
+    } catch(e){ lrwarn(e); }
+  }
+
   async function playTTS(text) {
-    if (!('speechSynthesis' in window)) { alert('TTS no disponible'); return; }
-    const vs = await loadVoicesOnce();
-    const voice = (vs.find(v => /^es/i.test(v.lang)) || vs[0]) || null;
-    const u = new SpeechSynthesisUtterance(text);
-    if (voice) u.voice = voice;
-    u.lang = voice ? voice.lang : 'es-ES';
-    u.rate = 1; u.pitch = 1;
-    speechSynthesis.cancel(); speechSynthesis.speak(u);
-    console.log('[helpers] TTS speak', text);
+    if (!text) return;
+    if (!('speechSynthesis' in window)) {
+      showToast('La síntesis de voz no está disponible en este navegador.');
+      return;
+    }
+    try {
+      await resumeAudio();
+      const vs = await loadVoicesOnce();
+      const voice = (vs.find(v => /^es/i.test(v.lang)) || vs[0]) || null;
+      const u = new SpeechSynthesisUtterance(text);
+      if (voice) u.voice = voice;
+      u.lang = voice ? voice.lang : 'es-ES';
+      u.rate = 1; u.pitch = 1;
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(u);
+      lrlog('[helpers] TTS speak', text);
+      return true;
+    } catch (e) {
+      lrwarn('[helpers] playTTS failed', e);
+      showAudioEnablePrompt();
+      return false;
+    }
   }
 
   /* ---------- Resume audio (Android friendly) ---------- */
   async function resumeAudio() {
     await ensureAudioContext();
     if (audioCtx && audioCtx.state === 'suspended') {
-      try { await audioCtx.resume(); console.log('[helpers] audioCtx resumed'); } catch (e) { console.warn(e); }
+      try { await audioCtx.resume(); lrlog('[helpers] audioCtx resumed'); } catch (e) { lrwarn(e); }
     }
     try {
       if (audioCtx) {
@@ -229,9 +283,9 @@
         src.connect(audioCtx.destination);
         src.start(0);
         src.stop(0.05);
-        console.log('[helpers] silent buffer played to unlock audio');
+        lrlog('[helpers] silent buffer played to unlock audio');
       }
-    } catch (e) { console.warn('[helpers] resume fallback failed', e); }
+    } catch (e) { lrwarn('[helpers] resume fallback failed', e); }
     return audioCtx ? audioCtx.state : 'no-audioctx';
   }
 
@@ -242,7 +296,7 @@
 
     const overlay = document.createElement('div');
     overlay.id = 'lr-breath-overlay';
-    Object.assign(overlay.style, { position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', zIndex: 17000 });
+    Object.assign(overlay.style, { position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.55)', zIndex: 17000 });
 
     const container = document.createElement('div');
     Object.assign(container.style, { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' });
@@ -277,7 +331,7 @@
         small.textContent = s.label + (s.duration ? ' · ' + Math.round(s.duration) + 's' : '');
       } catch (e) {}
       if (s.action) {
-        try { await s.action(); } catch (e) { console.warn('[helpers] action error', e); }
+        try { await s.action(); } catch (e) { lrwarn('[helpers] action error', e); }
       }
       try {
         const scaleFrom = s.label === 'Exhala' ? 1 : 0.6;
@@ -292,7 +346,7 @@
       timeoutId = setTimeout(function () { idx = (idx + 1) % steps.length; loopStep(); }, Math.round(s.duration * 1000));
     }
     loopStep();
-    overlay._stop = function () { running = false; if (timeoutId) clearTimeout(timeoutId); if (overlay.parentNode) overlay.parentNode.removeChild(overlay); console.log('[helpers] overlay stopped'); };
+    overlay._stop = function () { running = false; if (timeoutId) clearTimeout(timeoutId); if (overlay.parentNode) overlay.parentNode.removeChild(overlay); lrlog('[helpers] overlay stopped'); };
     overlay.addEventListener('click', function () { if (overlay._stop) overlay._stop(); });
     window._lastBreathOverlay = overlay;
   }
@@ -304,9 +358,9 @@
   function showFavoritesModal() {
     const favs = getFavoritos(); const modal = document.getElementById('_lr_fav_modal') || document.createElement('div'); modal.id = '_lr_fav_modal';
     Object.assign(modal.style, { position:'fixed', left:0, right:0, top:0, bottom:0, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,0.6)', zIndex:19000 });
-    const box = document.createElement('div'); Object.assign(box.style, { maxWidth:'720px', width:'92%', maxHeight:'70vh', overflow:'auto', background:'rgba(255,255,255,0.03)', color:'#fff', padding:'18px', borderRadius:'12px' });
-    let inner = '<div style="display:flex;justify-content:space-between;align-items:center"><strong>Favoritos</strong><button id="_lr_close_fav" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.06);padding:6px;border-radius:8px">Cerrar</button></div><hr style="opacity:.08;margin:8px 0">';
-    if (favs && favs.length) inner += favs.map(f => '<div style="margin:10px 0;line-height:1.3">' + escapeHtml(f) + '</div>').join(''); else inner += '<div style="color:rgba(255,255,255,0.8)">No hay favoritos</div>';
+    const box = document.createElement('div'); Object.assign(box.style, { maxWidth:'720px', width:'92%', maxHeight:'70vh', overflow:'auto', background:'rgba(255,255,255,0.98)', color:'#042231', padding:'18px', borderRadius:'12px' });
+    let inner = '<div style="display:flex;justify-content:space-between;align-items:center"><strong>Favoritos</strong><button id="_lr_close_fav" style="background:transparent;color:#042231;border:1px solid rgba(0,0,0,0.06);padding:6px;border-radius:8px">Cerrar</button></div><hr style="opacity:.08;margin:8px 0">';
+    if (favs && favs.length) inner += favs.map(f => '<div style="margin:10px 0;line-height:1.3;color:#022">'+ escapeHtml(f) + '</div>').join(''); else inner += '<div style="color:rgba(7,16,28,0.8)">No hay favoritos</div>';
     box.innerHTML = inner; modal.innerHTML = ''; modal.appendChild(box); document.body.appendChild(modal);
     const closeBtn = document.getElementById('_lr_close_fav'); if (closeBtn) closeBtn.addEventListener('click', () => modal && modal.parentNode && modal.parentNode.removeChild(modal));
   }
@@ -363,9 +417,9 @@
         else if (txt.includes('compart') || txt.includes('share') || txt.includes('🔗')) action = 'share';
         if (action) { b.dataset.action = action; changed++; }
       });
-      if (changed) console.log('[helpers] annotateMenuButtonsOnce -> data-action added:', changed);
+      if (changed) lrlog('[helpers] annotateMenuButtonsOnce -> data-action added:', changed);
       return changed;
-    } catch (e) { console.warn('[helpers] annotate error', e); return 0; }
+    } catch (e) { lrwarn('[helpers] annotate error', e); return 0; }
   }
 
   function handleMenuAction(action, btn) {
@@ -376,21 +430,30 @@
       case 'breath': startBreathFlowInternal(); break;
       case 'favorite': if (phrase) { const added = toggleFavorite(phrase); if (btn) btn.textContent = added ? '♥ Favorita' : '♡ Favorita'; } break;
       case 'copy': if (phrase) copyToClipboard(phrase); break;
-      case 'share': if (navigator.share && phrase) navigator.share({ title: 'Frase', text: phrase }).catch(e => console.warn(e)); else if (phrase) { copyToClipboard(phrase); alert('Compartir no soportado, frase copiada'); } break;
+      case 'share': if (navigator.share && phrase) navigator.share({ title: 'Frase', text: phrase }).catch(e => lrwarn(e)); else if (phrase) { copyToClipboard(phrase); showToast('Compartir no soportado, frase copiada'); } break;
       case 'tts': if (phrase) playTTS(phrase); break;
       case 'ambient-start': preloadAssets().then(() => { if (audioBuffers.ambient) startAmbientLoop(audioBuffers.ambient); else if (htmlAudio.ambientEl) htmlAudio.ambientEl.play().catch(() => {}); }); break;
       case 'ambient-stop': stopAmbientLoop(); break;
       case 'download': downloadImageFallback(); break;
-      case 'enable-audio': resumeAudio().then(() => alert('Intentado activar audio')); break;
+      case 'enable-audio': resumeAudio().then(() => showToast('Intentado activar audio')); break;
       case 'show-favorites': showFavoritesModal(); break;
-      default: console.log('[helpers] action not mapped:', action); break;
+      case 'share-app': shareAppFallback(); break;
+      case 'invite': inviteFriend(); break;
+      default: lrlog('[helpers] action not mapped:', action); break;
     }
+  }
+
+  function shareAppFallback() {
+    const text = 'Echa un vistazo a Llavero Respira — un recordatorio amable.' + '\n' + (location.origin + location.pathname);
+    if (navigator.share) { navigator.share({ title: 'Llavero Respira', text, url: location.href }).catch(e => lrwarn(e)); return; }
+    const wa = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+    window.open(wa, '_blank');
   }
 
   function initMenuDelegation() {
     const panel = document.getElementById('menuPanel');
     if (!panel) {
-      console.log('[helpers] menuPanel not found — fallback attach');
+      lrlog('[helpers] menuPanel not found — fallback attach');
       return false;
     }
     function onPointer(e) {
@@ -402,20 +465,20 @@
         const action = detectActionFromButton(target);
         if (action) handleMenuAction(action, target);
         setTimeout(() => { panel.style.display = 'none'; const tgl = document.getElementById('menuToggle'); if (tgl) tgl.setAttribute('aria-expanded', 'false'); }, 80);
-      } catch (err) { console.warn('[helpers] delegation onPointer error', err); }
+      } catch (err) { lrwarn('[helpers] delegation onPointer error', err); }
     }
     panel.addEventListener('click', onPointer);
     panel.addEventListener('touchend', onPointer, { passive: false });
-    console.log('[helpers] menu delegation activated');
+    lrlog('[helpers] menu delegation activated');
     return true;
   }
 
   // copy & download helpers (extended)
   function copyToClipboard(text) {
     if (!text) return;
-    if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text).then(() => alert('Frase copiada'));
+    if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text).then(() => showToast('Frase copiada'));
     const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select();
-    try { document.execCommand('copy'); alert('Frase copiada'); } catch (e) { alert('No se pudo copiar'); }
+    try { document.execCommand('copy'); showToast('Frase copiada'); } catch (e) { showToast('No se pudo copiar'); }
     ta.remove();
   }
   async function downloadImageFallback() {
@@ -424,7 +487,8 @@
       const canvas = await html2canvas(el, { scale: window.devicePixelRatio || 2 });
       const url = canvas.toDataURL('image/png');
       const a = document.createElement('a'); a.href = url; a.download = 'llavero-respira-frase.png'; document.body.appendChild(a); a.click(); a.remove();
-    } catch (e) { console.warn('download error', e); alert('No se pudo descargar la imagen.'); }
+      showToast('Descarga iniciada');
+    } catch (e) { lrwarn('download error', e); showToast('No se pudo descargar la imagen.'); }
   }
 
   // New: download a specific element (exposed)
@@ -434,15 +498,16 @@
       const canvas = await html2canvas(el, { scale: window.devicePixelRatio || 2 });
       const url = canvas.toDataURL('image/png');
       const a = document.createElement('a'); a.href = url; a.download = fileName; document.body.appendChild(a); a.click(); a.remove();
+      showToast('Descarga iniciada');
       return true;
-    } catch (e) { console.warn('[helpers] downloadPhraseImage error', e); return false; }
+    } catch (e) { lrwarn('[helpers] downloadPhraseImage error', e); showToast('Error en descarga'); return false; }
   }
 
   // New: smart share that prefers Web Share API, fallback WhatsApp
   async function sharePhrase({ title, text, url }) {
     const shareText = `${text || ''}\n${url || location.href}`;
     if (navigator.share) {
-      try { await navigator.share({ title: title || 'Llavero Respira', text: shareText, url: url || location.href }); return true; } catch (e) { console.warn('[helpers] navigator.share failed', e); }
+      try { await navigator.share({ title: title || 'Llavero Respira', text: shareText, url: url || location.href }); showToast('Compartiendo...'); return true; } catch (e) { lrwarn('[helpers] navigator.share failed', e); }
     }
     const wa = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
     try { window.open(wa, '_blank'); return true; } catch (e) { copyToClipboard(shareText); return false; }
@@ -465,7 +530,7 @@
       try {
         el.addEventListener('click', fn);
         el.addEventListener('touchend', function (e) { e.preventDefault(); e.stopPropagation(); fn.call(this, e); }, { passive: false });
-      } catch (e) { console.warn('[helpers] attach error', ids[i], e); }
+      } catch (e) { lrwarn('[helpers] attach error', ids[i], e); }
     }
   }
 
@@ -477,7 +542,7 @@
     if (!delegated) {
       // fallback: bind known ids (backwards compatibility)
       attachTouchClick(['breathBtn_menu','breathBtn'], function () { startBreathFlowInternal(); });
-      attachTouchClick(['enableAudioBtn','enableAudio'], function () { resumeAudio().then(function () { alert('Intentado activar audio'); }); });
+      attachTouchClick(['enableAudioBtn','enableAudio'], function () { resumeAudio().then(function () { showToast('Intentado activar audio'); }); });
       attachTouchClick(['ttsBtn_menu','ttsBtn'], function () { const t = (document.getElementById('frase-text') && document.getElementById('frase-text').textContent) || (document.getElementById('frase') && document.getElementById('frase').textContent) || ''; if (t) playTTS(t); });
       attachTouchClick(['startAmbientBtn'], function () { preloadAssets().then(function () { if (audioBuffers.ambient) startAmbientLoop(audioBuffers.ambient); else if (htmlAudio.ambientEl) htmlAudio.ambientEl.play().catch(()=>{}); }); });
       attachTouchClick(['stopAmbientBtn'], function () { stopAmbientLoop(); });
@@ -514,11 +579,11 @@
     copyToClipboard: copyToClipboard,
     // debug & config
     dumpState: () => ({ audioCtxState: audioCtx ? audioCtx.state : 'no-audioctx', buffers: { inhaleCue: !!audioBuffers.inhaleCue, exhaleCue: !!audioBuffers.exhaleCue, breath: !!audioBuffers.breath, ambient: !!audioBuffers.ambient }, htmlAudio: { inhale: !!htmlAudio.inhaleEl, exhale: !!htmlAudio.exhaleEl, ambient: !!htmlAudio.ambientEl }, offsets: { inhaleOffsetSeconds, inhaleDurationSeconds, exhaleOffsetSeconds, exhaleDurationSeconds, hold1DurationSeconds, hold2DurationSeconds } }),
-    setOffsets: (a,b,c,d) => { inhaleOffsetSeconds = Number(a)||inhaleOffsetSeconds; inhaleDurationSeconds = Number(b)||inhaleDurationSeconds; exhaleOffsetSeconds = Number(c)||exhaleOffsetSeconds; exhaleDurationSeconds = Number(d)||exhaleDurationSeconds; console.log('[helpers] offsets', { inhaleOffsetSeconds, inhaleDurationSeconds, exhaleOffsetSeconds, exhaleDurationSeconds }); },
-    setBreathPattern: (name) => { const PRE = { box:{inh:4,h1:4,exh:4,h2:4}, calm:{inh:4,h1:4,exh:6,h2:1}, slow:{inh:5,h1:5,exh:7,h2:1}, '478':{inh:4,h1:7,exh:8,h2:1} }; const p = PRE[name]; if (!p) { console.warn('preset not found', name); return; } inhaleDurationSeconds = p.inh; hold1DurationSeconds = p.h1; exhaleDurationSeconds = p.exh; hold2DurationSeconds = p.h2; console.log('[helpers] preset applied', name); },
-    setCustomBreath: (inh,h1,exh,h2) => { inhaleDurationSeconds = Number(inh)||inhaleDurationSeconds; hold1DurationSeconds = Number(h1)||hold1DurationSeconds; exhaleDurationSeconds = Number(exh)||exhaleDurationSeconds; hold2DurationSeconds = Number(h2)||hold2DurationSeconds; console.log('[helpers] custom breath set', { inhaleDurationSeconds, hold1DurationSeconds, exhaleDurationSeconds, hold2DurationSeconds }); }
+    setOffsets: (a,b,c,d) => { inhaleOffsetSeconds = Number(a)||inhaleOffsetSeconds; inhaleDurationSeconds = Number(b)||inhaleDurationSeconds; exhaleOffsetSeconds = Number(c)||exhaleOffsetSeconds; exhaleDurationSeconds = Number(d)||exhaleDurationSeconds; lrlog('[helpers] offsets', { inhaleOffsetSeconds, inhaleDurationSeconds, exhaleOffsetSeconds, exhaleDurationSeconds }); },
+    setBreathPattern: (name) => { const PRE = { box:{inh:4,h1:4,exh:4,h2:4}, calm:{inh:4,h1:4,exh:6,h2:1}, slow:{inh:5,h1:5,exh:7,h2:1}, '478':{inh:4,h1:7,exh:8,h2:1} }; const p = PRE[name]; if (!p) { lrwarn('preset not found', name); return; } inhaleDurationSeconds = p.inh; hold1DurationSeconds = p.h1; exhaleDurationSeconds = p.exh; hold2DurationSeconds = p.h2; lrlog('[helpers] preset applied', name); },
+    setCustomBreath: (inh,h1,exh,h2) => { inhaleDurationSeconds = Number(inh)||inhaleDurationSeconds; hold1DurationSeconds = Number(h1)||hold1DurationSeconds; exhaleDurationSeconds = Number(exh)||exhaleDurationSeconds; hold2DurationSeconds = Number(h2)||hold2DurationSeconds; lrlog('[helpers] custom breath set', { inhaleDurationSeconds, hold1DurationSeconds, exhaleDurationSeconds, hold2DurationSeconds }); }
   });
 
   // autopreload (no blocking)
-  preloadAssets().catch(e => console.warn('[helpers] preload error', e));
+  preloadAssets().catch(e => lrwarn('[helpers] preload error', e));
 })();
