@@ -1,7 +1,18 @@
-// phrases.js - 100 micro-lecturas originales para Llavero Respira
-// Textos diseñados para acompañar la práctica de respiración.
-// Mantén window.mostrarFrase() y la API pública mínima expuesta más abajo.
-(function(){
+// phrases.js - Lista de fragmentos (micro-lecturas) para Llavero Respira
+// Este archivo contiene la colección completa de fragmentos y la lógica mínima
+// para inicializar fondos y mostrar una frase aleatoria.
+// IMPORTANTE: mostrarFrase() expone el índice y la frase actual en window para que
+// el TTS / compartir / descarga siempre usen la versión "oficial" en memoria.
+//
+// Reemplaza completamente el archivo js/phrases.js por este contenido.
+// Luego limpia cache / service worker y recarga la web para aplicar los cambios.
+
+(function () {
+  'use strict';
+
+  // ---------------------------------------------------------------------------
+  // Lista de frases (micro-lecturas)
+  // ---------------------------------------------------------------------------
   const frases = [
 `A veces lo único que necesitas es un momento contigo.
 Cerrar los ojos, inhalar profundo y soltar despacio.
@@ -414,109 +425,7 @@ Guárdala y léela cuando necesites ánimo.`,
 Ese gesto enseña a tu cuerpo que el ritmo no es una carrera.`,
 
 `Respira y recuerda: los pasos más pequeños crean caminos inmensos.
-Confía en la acumulación de tus acciones suaves.`
-   `A veces lo único que necesitas es un momento contigo.
-Cerrar los ojos, inhalar profundo y soltar despacio.
-Escuchar tu cuerpo antes que el ruido de fuera.
-Respira. Vas mejor de lo que crees.
-Y mañana, aún mejor.`,
-`Hoy permítete no correr.
-No cumplir todas las expectativas, solo las tuyas.
-La vida no te pide que seas perfecta,
-te pide que sigas presente.
-Respira, vuelve a tu centro y continúa.`,
-`Tú también mereces lugares suaves.
-Pensamientos que no duelan, palabras que abracen.
-Hoy regálate calma sin sentir culpa.
-Respira despacio y recuerda:
-ser amable contigo también cuenta como avanzar.`,
-`No estás llegando tarde a nada.
-Estás justo en el punto donde tu alma aprende.
-Lo que no entiendes aún, mañana será claridad.
-Respira profundo y suelta la prisa.
-El camino también te está eligiendo a ti.`,
-`No importa cuántas veces te hayas desordenado.
-Puedes volver a acomodarte todas las que necesites.
-Respira, repara, recomienza.
-Tú tienes permiso para empezar lento.
-Y para empezar de nuevo.`,
-`Hoy intenta esto:
-pon tu mano en el pecho, siente tu ritmo.
-Ese latido eres tú recordándote que sigues aquí.
-Respira lento, agradece tu historia,
-y sigue con la cabeza alta.`,
-`Hay días en los que simplemente sostenerte ya es un logro.
-No hace falta demostrar nada a nadie.
-Solo respirar, poner un pie delante del otro
-y no soltar tu propia mano.
-Eso también es valentía.`,
-`Respira hondo.
-Imagina que el aire limpia lo que pesa
-y abre un espacio nuevo dentro de ti.
-Esta calma es tuya, no es prestada.
-Vuelve a ella cada vez que lo necesites.`,
-`No estás rota; estás aprendiendo.
-Cada emoción difícil es un mensaje, no un enemigo.
-Respira y pregúntate qué necesitas, no qué hiciste mal.
-Cuidarte también es escuchar tu dolor.
-Y abrazarte con paciencia.`,
-`Deja que llegue la calma, aunque sea en pequeñas olas.
-Una pausa en medio del caos también es sagrada.
-Respira, suelta los hombros y vuelve a ti.
-Tu hogar está dentro, no fuera.
-Y allí siempre hay sitio para descansar.`,
-`Haz una pausa.
-Respira contando hasta cuatro, suelta contando hasta seis.
-Siente cómo tu cuerpo vuelve a su sitio.
-Tú puedes con esto y con más.
-Solo no te olvides de ti en el proceso.`,
-`Un día a la vez.
-Esa es la forma en que se reconstruyen las cosas verdaderas.
-Respira cuando duela, avanza cuando puedas.
-Tu historia no termina aquí:
-hoy es solo un capítulo más, no el final.`,
-`Respira y observa tu día como si fueras su visitante.
-Nada es tan inmenso como parece.
-Tú puedes elegir tu ritmo, tu tono y tu voz.
-Hoy elige suavidad, para ti.
-Y mira cómo cambia todo.`,
-`Si te sientes perdida, vuelve al aire.
-Respira profundo, vuelve al presente.
-Desde aquí puedes volver a comenzar.
-Paso a paso, pensamiento a pensamiento.
-Tu calma es un camino, no un destino.`,
-`Eres capaz incluso cuando dudas.
-La duda no es señal de debilidad, es señal de que estás creciendo.
-Respira, acomoda tus emociones,
-y recuerda que cada pequeña acción suma.
-Estás construyendo algo hermoso.`,
-`A veces lo más valiente es dejar de exigirte.
-Respirar, sentarte contigo, sentir lo que hay.
-No taparlo, no huir, solo estar.
-Tu historia merece esta pausa.
-Date esta tregua.`,
-`Respira y vuelve a tu corazón.
-Allí aún vive la versión de ti que soñaba grande.
-No la olvides en medio de la rutina.
-Hoy dale un poco de espacio,
-aunque sea durante un minuto.`,
-`Si hoy pesas, sé ligera contigo.
-Habla con ternura, muévete despacio.
-Respira como quien vuelve a casa.
-Porque eso eres tú:
-una casa a la que siempre puedes regresar.`,
-`Cierra los ojos un momento.
-Imagina que te sostienes la mano a ti misma.
-Respira, di tu nombre con cariño.
-Estás aquí, estás a salvo, estás aprendiendo.
-Eso es suficiente por hoy.`,
-`Respira hasta que el pecho se afloje.
-Hasta que el ruido deje de dirigir tus pasos.
-Hay un lugar dentro de ti donde siempre hay paz.
-Hoy acércate a él.
-Quédate el tiempo que necesites.`,
-
-/* --- ahora 80 fragmentos originales adicionales --- */
+Confía en la acumulación de tus acciones suaves.`,
 
 `Cada mañana es un borrón limpio.  
 No tienes que cargar con las decisiones de ayer.  
@@ -848,9 +757,12 @@ Repite un gesto amable hoy y mañana y verás cómo cambia tu memoria afectiva.
 Eso te sostiene.`,
 
 `Respira y reconoce la belleza en la rutina: la repetición crea refugio.  
-Encuentra lo bello en lo cotidiano y abrázalo.` 
+Encuentra lo bello en lo cotidiano y abrázalo.`
   ];
 
+  // ---------------------------------------------------------------------------
+  // Fondos por defecto (gradientes) y lista de imágenes candidatas
+  // ---------------------------------------------------------------------------
   const gradientFondos = [
     "linear-gradient(135deg, #f6d365, #fda085)",
     "linear-gradient(135deg, #a1c4fd, #c2e9fb)",
@@ -866,7 +778,11 @@ Encuentra lo bello en lo cotidiano y abrázalo.`
     "assets/bg4.webp"
   ];
 
-  // Exposición mínima para depuración / futuras funciones
+  // ---------------------------------------------------------------------------
+  // Exposición y lógica de selección / renderizado
+  // ---------------------------------------------------------------------------
+
+  // Exponer lista en memoria para que helpers (TTS / share / download) la lean
   window._phrases_list = frases;
 
   let fondosDisponibles = [...gradientFondos];
@@ -893,6 +809,7 @@ Encuentra lo bello en lo cotidiano y abrázalo.`
   }
 
   let lastIndex = -1;
+
   function applyBackgroundToElement(el, bgValue){
     if (!el) return;
     if (/\.(jpe?g|png|webp|avif)$/i.test(bgValue)){
@@ -911,6 +828,11 @@ Encuentra lo bello en lo cotidiano y abrázalo.`
     if (!fEl) return;
     let i = Math.floor(Math.random() * frases.length);
     if (i === lastIndex) i = (i + 1) % frases.length;
+
+    // Exponer índice y texto actual en window para que otros módulos usen la fuente "oficial"
+    window._phrases_currentIndex = i;
+    window._phrases_current = frases[i];
+
     lastIndex = i;
     const j = Math.floor(Math.random() * fondosDisponibles.length);
     fEl.style.opacity = 0;
