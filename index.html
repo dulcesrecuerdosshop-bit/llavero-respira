@@ -103,6 +103,7 @@
   </script>
 
   <!-- Core scripts: helpers first, phrases next -->
+  <!-- Apunta a la versión funcional actual -->
   <script src="js/helpers.v2.js" defer></script>
   <script src="js/phrases.js" defer></script>
   <script src="js/ui-fixes.js" defer></script>
@@ -113,15 +114,16 @@
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', async () => {
         try {
-          const reg = await navigator.serviceWorker.register('/sw.js');
+          // Ruta relativa para que GitHub Pages cargue sw.js desde el subdirectorio del repo
+          const reg = await navigator.serviceWorker.register('sw.js');
           console.log('[sw] registered', reg.scope);
 
-          // If an updated SW is waiting, ask it to skip waiting
+          // Si hay un SW esperando, pedir skipWaiting
           if (reg.waiting) {
             reg.waiting.postMessage({ type: 'SKIP_WAITING' });
           }
 
-          // Listen for updates and reload when the new SW takes control
+          // Recargar cuando el nuevo SW tome el control
           navigator.serviceWorker.addEventListener('controllerchange', () => {
             console.log('[sw] controllerchange -> reloading');
             window.location.reload();
