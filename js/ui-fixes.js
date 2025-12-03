@@ -1,5 +1,5 @@
 // ui-fixes.js - Añade listeners robustos para cambiar la frase (click en tarjeta y tecla ESPACIO)
-// Cargar con defer, después de js/phrases.js
+// Además: asegura que en pantallas móviles la tarjeta gane la clase .fullscreen automáticamente
 
 (function () {
   'use strict';
@@ -15,6 +15,26 @@
     } else {
       if (window.LR_DEBUG) console.warn('[ui-fixes] mostrarFrase not defined yet');
     }
+  }
+
+  // Toggle .fullscreen in small screens
+  function ensureFullscreenOnMobile() {
+    try {
+      const fc = document.getElementById('frase-card') || document.querySelector('.frase-card');
+      if (!fc) return;
+      const isMobile = window.innerWidth <= 640;
+      if (isMobile) fc.classList.add('fullscreen');
+      else fc.classList.remove('fullscreen');
+    } catch (e) { /* ignore */ }
+  }
+
+  // Debounced resize handler
+  function setupResizeHandler() {
+    let t = null;
+    window.addEventListener('resize', () => {
+      clearTimeout(t);
+      t = setTimeout(ensureFullscreenOnMobile, 160);
+    });
   }
 
   document.addEventListener('DOMContentLoaded', () => {
@@ -38,6 +58,10 @@
       }
     });
 
-    if (window.LR_DEBUG) console.log('[ui-fixes] listeners attached (card click, space key)');
+    // init fullscreen toggle and resize handler
+    ensureFullscreenOnMobile();
+    setupResizeHandler();
+
+    if (window.LR_DEBUG) console.log('[ui-fixes] listeners attached (card click, space key) and fullscreen-on-mobile initialized');
   });
 })();
