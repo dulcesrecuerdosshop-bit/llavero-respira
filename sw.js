@@ -1,5 +1,5 @@
 // sw.js — versión corregida para GitHub Pages en subpath (rutas relativas) y manejo tolerante de caché
-const CACHE_VERSION = 'v30';
+const CACHE_VERSION = 'v31';
 const CACHE_NAME = `llavero-respira-${CACHE_VERSION}`;
 
 // Assets relativos (importante usar rutas relativas ./ para GitHub Pages en /<repo>/)
