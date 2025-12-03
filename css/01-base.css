@@ -1,0 +1,135 @@
+/* Base / resets / layout (01-base.css) - sin :root (variables en 00-vars.css) */
+
+/* Base reset */
+* { box-sizing: border-box; }
+html, body {
+  height: 100%;
+  margin: 0;
+  font-family: var(--font-sans);
+  background: linear-gradient(180deg, var(--bg-start), var(--bg-end));
+  color: var(--text-dark);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Header */
+.app-header {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: var(--header-height);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: transparent;
+  z-index: 1200;
+}
+
+/* Left: logo + title */
+.header-left { display: flex; align-items: center; gap: 10px; }
+.app-header .logo { width: auto; height: 36px; max-width: 160px; object-fit: contain; }
+
+/* Title */
+.app-title { font-weight: 800; font-size: 1rem; color: var(--text-dark); }
+.user-greeting { color: var(--muted); font-size: 0.9rem; }
+
+/* Hamburger menu button */
+.menu-btn {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  padding: 8px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+/* Panel (centra contenido: la tarjeta debe ser lo primero que se ve) */
+.panel {
+  padding-top: calc(var(--header-height) + 12px);
+  padding-bottom: calc(var(--footer-space) + 12px);
+  min-height: calc(100vh - var(--header-height) - var(--footer-space));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+/* Hint text */
+.hint { margin-top: 14px; color: var(--muted); font-size: 0.95rem; text-align: center; }
+
+/* Footer */
+.app-footer { position: fixed; left: 16px; bottom: 16px; color: var(--muted); font-size: 0.86rem; z-index: 1100; }
+
+/* Frase card baseline (placeholder, card styles están en 10-card.css) */
+.frase-card { width: 92%; max-width: 920px; margin: 16px auto; }
+
+/* Menu panel (hamburger opens this) */
+.menu-panel {
+  position: fixed;
+  right: 16px;
+  top: calc(var(--header-height) + 8px);
+  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(255,255,255,0.95));
+  border-radius: 12px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 13000;
+  min-width: 200px;
+  box-shadow: 0 18px 60px rgba(16,24,40,0.08);
+  border: 1px solid rgba(7,20,34,0.04);
+}
+
+/* Menu buttons */
+.menu-panel button {
+  background: transparent;
+  border: 1px solid rgba(7,20,34,0.04);
+  padding: 10px;
+  border-radius: 10px;
+  color: var(--text-dark);
+  cursor: pointer;
+  text-align: left;
+}
+.menu-panel button.primary {
+  background: linear-gradient(90deg, var(--accent-start), var(--accent-end));
+  color: #072032;
+  border: none;
+}
+
+/* Welcome */
+.welcome { padding: 18px; width: 92%; max-width: 680px; margin: 18px auto; }
+.welcome-inner {
+  text-align: center;
+  padding: 28px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(255,255,255,0.96));
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.06);
+}
+.welcome-title { font-size: 1.8rem; margin: 6px 0; color: var(--text-dark); }
+.welcome-sub { color: var(--muted); margin-bottom: 14px; font-size: 1rem; }
+
+/* Focus style for interactive elements */
+button:focus, a:focus { outline: 3px solid rgba(94,193,255,0.18); outline-offset: 3px; }
+
+/* Responsive adjustments */
+@media (min-width: 960px) {
+  .app-header { height: var(--header-height); padding: 12px 24px; }
+  .panel { padding-top: calc(var(--header-height) + 20px); max-width: 1100px; }
+  .app-title { font-size: 1.05rem; }
+}
+
+/* Very small screens */
+@media (max-width:420px) {
+  .app-header .logo { height: 32px; }
+  .app-title { font-size: 0.98rem; }
+  .panel { padding-top: calc(var(--header-height) - 4px); }
+}
