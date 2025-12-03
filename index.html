@@ -8,8 +8,10 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="favicon.ico" type="image/x-icon">
 
+  <!-- Styles: global first, card styling, overlay, modal -->
   <link rel="stylesheet" href="css/global.css">
   <link rel="stylesheet" href="css/frase-card.css">
+  <link rel="stylesheet" href="css/overlay-custom.css">
   <link rel="stylesheet" href="css/modal-user.css">
 
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js" defer></script>
@@ -26,7 +28,7 @@
     </div>
   </section>
 
-  <!-- Main view (NO fullscreen class to avoid duplicate full-height behavior) -->
+  <!-- Main view -->
   <main id="main" class="main">
     <header class="app-header">
       <div class="header-left">
@@ -39,12 +41,11 @@
       <button id="menuToggle" class="menu-btn" aria-expanded="false" aria-controls="menuPanel">☰</button>
     </header>
 
-    <!-- MENU PANEL (clean: only global actions) -->
+    <!-- MENU PANEL (global actions) -->
     <div id="menuPanel" class="menu-panel" role="menu" aria-hidden="true" style="display:none;">
       <button id="breathBtn_menu" class="primary" data-action="breath">🌬️ Respirar</button>
       <button id="showFavs_menu" data-action="show-favorites">⭐ Favoritos</button>
       <button id="shareApp_menu" data-action="share-app">🔗 Compartir app</button>
-      <button id="invite_menu" data-action="invite">📩 Invitar</button>
       <hr>
       <button id="enableAudioBtn" data-action="enable-audio">🔈 Activar audio</button>
       <button id="settings_menu" data-action="settings">⚙️ Ajustes</button>
@@ -56,12 +57,13 @@
         <div class="frase-bg" id="frase-bg" aria-hidden="true"></div>
         <div class="frase-content">
           <div id="frase-text" class="frase-text">Cargando...</div>
+
           <div class="frase-controls" role="toolbar" aria-label="Controles de frase">
             <button id="ttsBtn" class="control" data-action="tts" aria-label="Escuchar">🔊 Escuchar</button>
             <button id="favBtn" class="control" data-action="favorite" aria-pressed="false" aria-label="Favorito">♡</button>
             <button id="downloadBtn" class="control" data-action="download" aria-label="Descargar">⬇️</button>
             <button id="shareBtn" class="control" data-action="share" aria-label="Compartir">🔗</button>
-            <button id="inviteBtn" class="control" data-action="invite" aria-label="Invitar">📩 Invitar</button>
+            <!-- inviteBtn removed per request (not functional / not relevant now) -->
           </div>
         </div>
       </div>
