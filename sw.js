@@ -1,5 +1,5 @@
 // sw.js - Service Worker final update (version bump para rotar caches)
-const CACHE_VERSION = 'v24';
+const CACHE_VERSION = 'v25';
 const CACHE_NAME = `llavero-respira-${CACHE_VERSION}`;
 
 // Critical same-origin assets to pre-cache on install
