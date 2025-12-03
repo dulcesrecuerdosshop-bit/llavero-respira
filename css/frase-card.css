@@ -1,7 +1,148 @@
-.frase-card{width:100%;max-width:920px;border-radius:14px;overflow:hidden;position:relative;box-shadow:0 14px 50px rgba(0,0,0,0.35);margin:12px}
-.frase-bg{position:absolute;inset:0;background-size:cover;background-position:center;filter:brightness(0.6);transition:background 450ms ease}
-.frase-content{position:relative;padding:28px;display:flex;flex-direction:column;gap:16px;min-height:220px;z-index:2}
-.frase-text{font-size:1.6rem;font-weight:800;line-height:1.3;color:#fff}
-.frase-controls{display:flex;gap:8px;justify-content:flex-end}
-.control{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.06);color:#fff;padding:10px 12px;border-radius:10px;cursor:pointer;font-weight:700}
-.control.primary{background:var(--accent);color:#111}
+/* frase-card.css — estilo centrado en lectura del fragmento, contraste y accesibilidad
+   Basado en frase-card.css original. :contentReference[oaicite:7]{index=7}
+*/
+
+/* Tokens locales */
+:root{
+  --card-radius: 16px;
+  --card-shadow: 0 18px 50px rgba(6,10,18,0.12);
+  --text-large: clamp(1.05rem, 2.8vw, 1.5rem);
+  --text-large-strong: clamp(1.1rem, 3.2vw, 1.6rem);
+  --muted-on-card: rgba(255,255,255,0.88);
+  --accent: linear-gradient(90deg, #ffd166, #ff9a9e);
+}
+
+/* Card container */
+.frase-card{
+  width: 94%;
+  max-width: 920px;
+  border-radius: var(--card-radius);
+  overflow: hidden;
+  position: relative;
+  margin: 14px auto;
+  box-shadow: var(--card-shadow);
+  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(255,255,255,0.96));
+  border: 1px solid rgba(7,20,34,0.03);
+}
+
+/* Background image layer (covers entire card) */
+.frase-bg{
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  filter: brightness(0.8) saturate(0.94);
+  transition: background 420ms ease, filter 420ms ease;
+  z-index: 0;
+}
+
+/* Layer overlay to ensure text contrast */
+.frase-bg::after{
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,0.0), rgba(6,8,12,0.12));
+  pointer-events: none;
+  z-index:1;
+}
+
+/* Content area (above bg) */
+.frase-content{
+  position: relative;
+  padding: clamp(18px, 4.2vw, 36px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 220px;
+  z-index: 2;
+}
+
+/* The fragment text — primera prioridad visual */
+.frase-text{
+  font-size: var(--text-large-strong);
+  font-weight: 800;
+  line-height: 1.36;
+  color: #072032; /* oscuro sobre fondo claro */
+  hyphens: auto;
+  word-break: break-word;
+  white-space: pre-wrap;
+  margin: 0;
+  padding: 0;
+  text-wrap: balance; /* intenta balancear líneas en navegadores compatibles */
+}
+
+/* If background is dark (toggle class .dark-bg on .frase-card), switch to light text */
+.frase-card.dark-bg .frase-text{
+  color: #ffffff;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.45);
+}
+
+/* Controls row (share, favorite, download, next) */
+.frase-controls{
+  display:flex;
+  gap:10px;
+  justify-content:flex-end;
+  align-items:center;
+  margin-top:6px;
+  z-index:2;
+}
+
+/* Buttons */
+.control{
+  background: transparent;
+  border: 1px solid rgba(7,20,34,0.06);
+  color: #072032;
+  padding: 10px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 700;
+  min-height:40px;
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+}
+
+/* Primary (leer siguiente / favorita) */
+.control.primary{
+  background: var(--accent);
+  color: #072032;
+  border: none;
+}
+
+/* When dark bg: invert control colors for readability */
+.frase-card.dark-bg .control{
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.06);
+  color: #fff;
+}
+.frase-card.dark-bg .control.primary{
+  background: var(--accent);
+  color:#072032;
+}
+
+/* Small screens: prioritize text, larger paddings */
+@media (max-width:640px){
+  .frase-card{ width:98%; margin:10px auto; border-radius:14px; }
+  .frase-content{ padding:18px; min-height:180px; }
+  .frase-text{ font-size: clamp(1rem, 4.2vw, 1.25rem); line-height:1.4; font-weight:800; }
+  .frase-controls{ justify-content:flex-end; gap:8px; margin-top:8px; }
+  .control{ padding:10px 12px; min-height:44px; }
+}
+
+/* Large screens: more breathing room */
+@media (min-width: 1200px){
+  .frase-content{ padding:40px 48px; min-height:260px; }
+  .frase-text{ font-size: clamp(1.3rem, 1.8vw, 1.9rem); line-height:1.34; }
+}
+
+/* Accessibility focus */
+.control:focus { outline: 3px solid rgba(94,193,255,0.18); outline-offset:3px; }
+
+/* Utility: small footer note inside card for attribution / brand */
+.frase-brand-note{
+  font-size:0.82rem;
+  color: var(--muted-on-card);
+  opacity:0.95;
+  margin-top:6px;
+  align-self:flex-start;
+}
