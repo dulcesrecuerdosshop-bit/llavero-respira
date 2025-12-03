@@ -1,8 +1,12 @@
-// sw.js - Service Worker actualizado - CACHE_VERSION bump + assets explícitos
-const CACHE_VERSION = 'v22';
+// sw.js - Service Worker final update
+// - Removed cross-origin CDN from install cache list to avoid install failures.
+// - Use network-first for navigation / CSS / JS to ensure latest styles/scripts are served.
+// - Use cache-first for images and other static assets with background update.
+// - Bump cache version.
+const CACHE_VERSION = 'v23';
 const CACHE_NAME = `llavero-respira-${CACHE_VERSION}`;
 
-// Lista de recursos críticos que queremos asegurar que se cacheen en instalación
+// Critical same-origin assets to pre-cache on install
 const ASSETS = [
   './',
   'index.html',
@@ -14,23 +18,22 @@ const ASSETS = [
   'css/frase-card.css',
   'css/overlay-custom.css',
   'css/modal-user.css',
-  // JS principales (incluir helpers.v2 y phrases para evitar versiones antiguas)
+  // JS principales (helpers y phrases)
   'js/helpers.v2.js',
   'js/phrases.js',
   'js/load-user.js',
-  // biblioteca usada
-  'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js'
+  'js/ui-fixes.js'
 ];
 
 self.addEventListener('install', event => {
   event.waitUntil((async () => {
-    const cache = await caches.open(CACHE_NAME);
     try {
+      const cache = await caches.open(CACHE_NAME);
       await cache.addAll(ASSETS);
     } catch (e) {
-      console.warn('[SW] install: cache.addAll failed', e);
+      console.warn('[SW] install: cache.addAll failed (non-fatal)', e);
+      // proceed even if some items failed to cache
     }
-    // force SW activo
     await self.skipWaiting();
   })());
 });
@@ -45,7 +48,7 @@ self.addEventListener('activate', event => {
   })());
 });
 
-// Helper: para requests cross-origin no interferimos
+// helper to detect same-origin
 function isSameOrigin(request) {
   try {
     const url = new URL(request.url);
@@ -58,18 +61,16 @@ function isSameOrigin(request) {
 self.addEventListener('fetch', event => {
   const req = event.request;
 
-  // Sólo gestionamos GET
+  // Only handle GET requests
   if (req.method !== 'GET') return;
 
-  // Ignorar requests cross-origin (CDN externas) salvo que queramos cachearlas
-  if (!isSameOrigin(req)) {
-    return;
-  }
+  // If cross-origin, do not intercept (let browser handle CDN & external resources)
+  if (!isSameOrigin(req)) return;
 
   const url = new URL(req.url);
   const pathname = url.pathname;
 
-  // Network-first for navigations (ensures index.html and updated CSS/JS served)
+  // NAVIGATION: network-first to ensure newest index.html and linked CSS/JS are used
   if (req.mode === 'navigate' || (req.headers.get('accept') || '').includes('text/html')) {
     event.respondWith((async () => {
       try {
@@ -87,11 +88,29 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // For static assets (css, js, images) - cache-first with background update
+  // For CSS and JS: use network-first with cache-fallback (ensures style updates propagate quickly)
+  if (pathname.endsWith('.css') || pathname.endsWith('.js')) {
+    event.respondWith((async () => {
+      try {
+        const networkResponse = await fetch(req);
+        if (networkResponse && networkResponse.ok) {
+          const cache = await caches.open(CACHE_NAME);
+          cache.put(req, networkResponse.clone()).catch(()=>{});
+        }
+        return networkResponse;
+      } catch (err) {
+        const cached = await caches.match(req);
+        return cached || Response.error();
+      }
+    })());
+    return;
+  }
+
+  // For images and other static assets: cache-first with background update
   event.respondWith((async () => {
     const cached = await caches.match(req);
     if (cached) {
-      // Kick off an async update in background
+      // update cache in background
       (async () => {
         try {
           const networkResponse = await fetch(req);
@@ -99,7 +118,7 @@ self.addEventListener('fetch', event => {
             const cache = await caches.open(CACHE_NAME);
             await cache.put(req, networkResponse.clone());
           }
-        } catch (e) { /* ignore background update errors */ }
+        } catch (e) { /* ignore */ }
       })();
       return cached;
     }
@@ -109,7 +128,7 @@ self.addEventListener('fetch', event => {
         try {
           const cache = await caches.open(CACHE_NAME);
           cache.put(req, networkResponse.clone()).catch(()=>{});
-        } catch (e) { /* ignore cache put errors */ }
+        } catch (e) { /* ignore */ }
       }
       return networkResponse;
     } catch (err) {
@@ -120,7 +139,5 @@ self.addEventListener('fetch', event => {
 
 self.addEventListener('message', event => {
   if (!event.data) return;
-  if (event.data.type === 'SKIP_WAITING') {
-    self.skipWaiting();
-  }
+  if (event.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
