@@ -1,9 +1,14 @@
-/* global.css — tema principal moderno, mobile-first, centrado en lectura.
-   Basado en global.css original. :contentReference[oaicite:6]{index=6}
+/* global.css — tema principal moderno, mobile-first. Prioridad: tarjeta de frase visible al abrir.
+   Cambios relevantes:
+   - Centrado vertical del panel para que la tarjeta quede en el foco al cargar la página.
+   - Variables y heights claras para header/footer.
+   - Spacing optimizado para móviles.
 */
 
 /* ROOT - tokens de marca */
 :root{
+  --header-height: 72px;
+  --footer-space: 64px;
   --bg-start: #fbfaf9;
   --bg-end: #f6f7fb;
   --card-bg: rgba(255,255,255,0.98);
@@ -13,30 +18,28 @@
   --radius: 16px;
   --font-sans: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
   --text-dark: #072032;
-  --glass-weak: rgba(255,255,255,0.6);
 }
 
 /* Base reset */
 *{box-sizing:border-box}
-html,body{height:100%;margin:0;font-family:var(--font-sans);background:linear-gradient(180deg,var(--bg-start),var(--bg-end));color:var(--text-dark);-webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;}
+html,body{height:100%;margin:0;font-family:var(--font-sans);background:linear-gradient(180deg,var(--bg-start),var(--bg-end));color:var(--text-dark);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;}
 
-/* Header (mobile-first) */
+/* Header */
 .app-header{
   position: fixed;
-  inset: 0 0 auto 0;
-  height:64px;
+  left:0; right:0; top:0;
+  height:var(--header-height);
   display:flex;
   align-items:center;
   justify-content:space-between;
   padding:10px 16px;
-  background: rgba(255,255,255,0.0);
+  background: transparent;
   z-index:1200;
-  gap:10px;
 }
 
 /* Left: logo + title */
 .header-left{ display:flex; align-items:center; gap:10px; }
-.app-header .logo { width:auto; height:36px; max-width:140px; object-fit:contain; }
+.app-header .logo { width:auto; height:36px; max-width:160px; object-fit:contain; }
 
 /* Title */
 .app-title{ font-weight:800; font-size:1rem; color:var(--text-dark); }
@@ -54,42 +57,35 @@ html,body{height:100%;margin:0;font-family:var(--font-sans);background:linear-gr
   justify-content:center;
   cursor:pointer;
 }
-.menu-btn .bar{
-  display:block;
-  width:22px;
-  height:2px;
-  background:var(--text-dark);
-  border-radius:2px;
-  box-shadow: 0 6px 0 0 var(--text-dark), 0 -6px 0 0 var(--text-dark);
-}
 
-/* Panel layout */
+/* Panel (centra contenido: la tarjeta debe ser lo primero que se ve) */
 .panel{
-  padding-top:82px;
-  padding-bottom:84px;
+  padding-top: calc(var(--header-height) + 12px);
+  padding-bottom: calc(var(--footer-space) + 12px);
+  min-height: calc(100vh - var(--header-height) - var(--footer-space));
   display:flex;
   flex-direction:column;
   align-items:center;
-  justify-content:flex-start;
+  justify-content:center; /* centra verticalmente para que la tarjeta quede en foco */
   width:100%;
-  max-width:980px;
+  max-width:1100px;
   margin:0 auto;
 }
 
 /* Hint text */
-.hint{ margin-top:14px; color:var(--muted); font-size:0.95rem; }
+.hint{ margin-top:14px; color:var(--muted); font-size:0.95rem; text-align:center; }
 
 /* Footer */
 .app-footer{ position:fixed; left:16px; bottom:16px; color:var(--muted); font-size:0.86rem; z-index:1100; }
 
-/* Frase card baseline (kept minimal here, detailed in frase-card.css) */
+/* Frase card baseline */
 .frase-card{ width:92%; max-width:920px; margin:16px auto; }
 
-/* Menu panel (hamburger opens this) - desktop behaviours */
+/* Menu panel (hamburger opens this) */
 .menu-panel{
   position:fixed;
   right:16px;
-  top:72px;
+  top:calc(var(--header-height) + 8px);
   background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(255,255,255,0.95));
   border-radius:12px;
   padding:10px;
@@ -118,7 +114,7 @@ html,body{height:100%;margin:0;font-family:var(--font-sans);background:linear-gr
   border:none;
 }
 
-/* Welcome card (central) */
+/* Welcome */
 .welcome{ padding:18px; width:92%; max-width:680px; margin:18px auto; }
 .welcome-inner{ text-align:center; padding:28px; background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(255,255,255,0.96)); border-radius:14px; box-shadow: 0 12px 40px rgba(0,0,0,0.06); }
 .welcome-title{ font-size:1.8rem; margin:6px 0; color:var(--text-dark); }
@@ -129,14 +125,14 @@ button:focus, a:focus { outline: 3px solid rgba(94,193,255,0.18); outline-offset
 
 /* Responsive adjustments */
 @media (min-width: 960px){
-  .app-header{ height:72px; padding:12px 24px; }
-  .panel{ padding-top:100px; max-width:1100px; }
+  .app-header{ height:var(--header-height); padding:12px 24px; }
+  .panel{ padding-top: calc(var(--header-height) + 20px); max-width:1100px; }
   .app-title{ font-size:1.05rem; }
 }
 
-/* Very small screens: ensure large readable fonts */
+/* Very small screens */
 @media (max-width:420px){
   .app-header .logo { height:32px; }
   .app-title { font-size:0.98rem; }
-  .panel{ padding-top:76px; }
+  .panel{ padding-top: calc(var(--header-height) - 4px); }
 }
