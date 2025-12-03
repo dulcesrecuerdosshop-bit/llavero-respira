@@ -1,5 +1,11 @@
-/* overlay-custom.css — overlay de respiración (20-overlay.css) */
+/* Overlay de respiración — oscuro, centrado y con foco */
 
+:root {
+  --overlay-bg-strong: rgba(6,8,12,0.86);
+  --overlay-light: rgba(255,255,255,0.06);
+}
+
+/* Fullscreen breathing overlay */
 #lr-breath-overlay {
   position: fixed !important;
   inset: 0 !important;
@@ -10,115 +16,61 @@
   justify-content: center !important;
   padding: 18px !important;
   box-sizing: border-box !important;
-  background: var(--overlay-bg) !important;
-  z-index: 20000 !important;
+  background: var(--overlay-bg-strong) !important;
+  z-index: 22000 !important;
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Center container */
 #lr-breath-overlay .lr-center {
   width: 100%;
-  max-width: 560px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 14px;
-  padding: 12px;
+  max-width: 680px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap: 18px;
+  padding: 14px;
   box-sizing: border-box;
-  position: relative;
 }
 
+/* Large breathing circle */
 #lr-breath-overlay .lr-circle {
-  width: min(76vw, 420px);
-  height: min(76vw, 420px);
+  width: min(72vw, 420px);
+  height: min(72vw, 420px);
   max-width: 420px;
   max-height: 420px;
   border-radius: 50%;
   background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-on-overlay);
-  font-weight: 800;
-  box-shadow: 0 18px 50px rgba(0,0,0,0.55);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color: #fff;
+  font-weight: 900;
+  box-shadow: 0 30px 80px rgba(0,0,0,0.6);
   padding: 16px;
   transition: transform 260ms cubic-bezier(.2,.9,.2,1), box-shadow 260ms;
-  -webkit-user-select: none; user-select: none;
+  user-select:none;
 }
 
-#lr-breath-overlay .lr-circle .lr-value {
-  font-size: clamp(18px, 6.2vw, 40px);
-  text-align: center;
-  line-height: 1;
-  padding: 6px 8px;
-}
-
+/* Caption and small controls */
 #lr-breath-overlay .lr-caption {
   color: rgba(255,255,255,0.95);
-  font-size: clamp(13px, 3.6vw, 16px);
-  text-align: center;
-  max-width: 92%;
-  margin: 0 auto;
-  line-height: 1.4;
+  font-size: clamp(14px, 3.2vw, 18px);
+  text-align:center;
+  max-width:90%;
 }
 
-#lr-breath-overlay .lr-actions {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  justify-content: center;
-  margin-top: 6px;
-  width: 100%;
-  max-width: 420px;
-}
-
+/* Action buttons */
+#lr-breath-overlay .lr-actions { display:flex; gap:12px; justify-content:center; margin-top:8px; }
 #lr-breath-overlay button {
-  -webkit-appearance: none;
-  appearance: none;
   border: none;
   padding: 10px 14px;
   border-radius: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  min-height: 44px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 8px 20px rgba(0,0,0,0.35);
+  font-weight:700;
+  cursor:pointer;
 }
+#lr-breath-overlay .btn-primary { background: linear-gradient(90deg,#ffd166,#ff9a9e); color:#072032; }
+#lr-breath-overlay .btn-ghost { background: transparent; border: 1px solid rgba(255,255,255,0.08); color: #fff; }
 
-#lr-breath-overlay .btn-primary {
-  background: linear-gradient(90deg, rgba(255,209,102,1), rgba(255,154,158,1));
-  color: #072032;
-  padding: 12px 18px;
-}
-
-#lr-breath-overlay .btn-ghost {
-  background: transparent;
-  border: 1px solid rgba(255,255,255,0.08);
-  color: rgba(255,255,255,0.94);
-}
-
-#lr-breath-overlay .lr-close {
-  position: absolute;
-  right: 12px;
-  top: 12px;
-  background: transparent;
-  border-radius: 8px;
-  color: rgba(255,255,255,0.9);
-  border: 1px solid rgba(255,255,255,0.04);
-  padding: 6px;
-  cursor: pointer;
-}
-
-@media (max-width:420px) {
-  #lr-breath-overlay .lr-circle { box-shadow: 0 8px 20px rgba(0,0,0,0.45); }
-  #lr-breath-overlay .lr-actions { gap: 8px; }
-}
-
+/* Prevent background scroll when overlay open */
 body.lr-overlay-open { overflow: hidden !important; touch-action: none !important; }
-
-.logo, .brand-logo, .site-logo, .logo img { background: transparent !important; box-shadow: none !important; border: 0 !important; padding: 0 !important; }
-
-#lr-breath-overlay button:focus { outline: 3px solid rgba(255, 209, 102, 0.25); outline-offset: 3px; }
-
-#lr-breath-overlay .lr-circle:active { transform: scale(0.995); }
