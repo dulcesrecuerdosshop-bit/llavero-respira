@@ -1,117 +1,152 @@
-/* Tarjeta de frase — versión fullscreen y lectura enfocada */
+/* css/10-card.css - tarjeta de frase (corregida, sin selectores duplicados) */
+
+/* Tokens y variables locales */
+:root{
+  --card-radius: 18px;
+  --card-shadow: 0 20px 60px rgba(6,10,18,0.12);
+  --text-large-strong: clamp(1.2rem, 5.6vw, 1.85rem);
+  --card-max-height-mobile: 78vh;
+}
 
 /* Contenedor principal de la tarjeta */
 .frase-card {
   width: min(96%, 920px);
   max-width: 920px;
   margin: 18px auto;
-  border-radius: 18px;
+  border-radius: var(--card-radius);
   overflow: hidden;
   position: relative;
   background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(255,255,255,0.96));
   border: 1px solid rgba(7,20,34,0.03);
-  box-shadow: 0 20px 60px rgba(6,10,18,0.12);
-  display:flex;
-  align-items:stretch;
-  justify-content:center;
+  box-shadow: var(--card-shadow);
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  box-sizing: border-box;
 }
 
-/* Fullscreen variant used on first view */
+/* Fullscreen variant: ocupa viewport debajo del header y centra contenido */
 .frase-card.fullscreen {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  border-radius: 0;
+  height: calc(100vh - var(--header-height,72px));
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: none;
-  border: 0;
   box-shadow: none;
-  display:flex;
-  align-items:center;
-  justify-content:center;
+  padding: 0;
+  box-sizing: border-box;
 }
 
-/* Background layer */
+/* Background image layer */
 .frase-bg {
   position: absolute;
   inset: 0;
   background-size: cover;
   background-position: center;
+  filter: brightness(0.82) saturate(0.96);
   transition: background 420ms ease, filter 420ms ease;
   z-index: 0;
-  filter: brightness(0.86) saturate(0.98);
 }
 
-/* overlay to ensure contrast */
-.frase-bg::after{
-  content: "";
-  position:absolute;
-  inset:0;
-  background: linear-gradient(180deg, rgba(0,0,0,0.06), rgba(0,0,0,0.16));
-  z-index:1;
-  pointer-events:none;
-}
-
-/* Content area centered and maximized for reading */
-.frase-content {
+/* Content area (arriba del bg) */
+.frase-card .frase-content {
   position: relative;
   z-index: 2;
   width: 100%;
   max-width: 920px;
   padding: clamp(20px, 6vw, 48px);
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  justify-content:center;
+  display: flex;
+  flex-direction: column;
   gap: 18px;
-  text-align:center;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
+  max-height: var(--card-max-height-mobile);
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
-/* Texto principal - grande y legible */
+/* Texto principal */
 .frase-text {
-  font-size: clamp(1.4rem, 6vw, 2.6rem);
+  font-size: var(--text-large-strong);
   font-weight: 800;
   line-height: 1.2;
   color: #072032;
-  max-width: 92%;
   hyphens: auto;
+  word-break: break-word;
   white-space: pre-wrap;
   margin: 0;
   padding: 0;
-  word-break: break-word;
+  max-width: 92%;
+  overflow-wrap: break-word;
 }
 
-/* If background is dark */
-.frase-card.dark-bg .frase-text {
-  color: #fff;
-  text-shadow: 0 3px 18px rgba(0,0,0,0.6);
+/* Texto mayor en fullscreen */
+.frase-card.fullscreen .frase-text {
+  font-size: clamp(1.4rem, 6vw, 2.6rem);
+  line-height: 1.2;
+  max-width: 92%;
 }
 
-/* Controls: minimal, compact, bottom aligned on fullscreen */
+/* Controls row */
 .frase-controls {
   display:flex;
   gap:12px;
   align-items:center;
   justify-content:center;
   margin-top: 12px;
+  z-index: 2;
+  flex-wrap:wrap;
 }
 
-/* Controls styling */
+/* Pin controls bottom center when fullscreen */
+.frase-card.fullscreen .frase-controls {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  justify-content: center;
+  background: transparent;
+  z-index: 5;
+}
+
+/* Button styling */
 .control {
-  background: rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.95);
   border: 1px solid rgba(7,20,34,0.06);
-  color: #fff;
+  color: #072032;
   padding: 10px 12px;
-  border-radius: 10px;
+  border-radius: 12px;
   cursor: pointer;
+  font-weight: 800;
   min-height:44px;
   min-width:44px;
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  font-weight:700;
-  backdrop-filter: blur(6px);
+  gap:8px;
+  box-sizing: border-box;
 }
 
-/* For normal (non-fullscreen) smaller controls */
-@media (min-width: 960px) {
-  .frase-card.fullscreen .frase-text { font-size: clamp(1.6rem, 5vw, 3rem); }
+/* Mobile fallback */
+@media (max-width:640px){
+  .frase-card { width:98%; margin:10px auto; border-radius:14px; }
+  .frase-card.fullscreen { height: calc(100vh - var(--header-height,72px)); }
+  .frase-card .frase-content { padding:18px; min-height:180px; }
+  .frase-card .frase-controls { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); }
+}
+
+/* Defensive rules: avoid floats/columns inside the card */
+.frase-card *, .frase-card *::before, .frase-card *::after {
+  float: none !important;
+  column-count: auto !important;
+  column-width: auto !important;
 }
 
 /* Accessibility focus */
-.control:focus { outline: 3px solid rgba(94,193,255,0.18); outline-offset: 3px; }
+.control:focus { outline: 3px solid rgba(94,193,255,0.2); outline-offset: 3px; }
