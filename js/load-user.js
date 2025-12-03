@@ -26,6 +26,18 @@
     }
   }
 
+  // Utility: ensure no focused element remains inside node; move focus to body
+  function ensureNoFocusInside(node) {
+    try {
+      const active = document.activeElement;
+      if (!active) return;
+      if (node.contains(active)) {
+        try { active.blur(); } catch (e) { /* ignore */ }
+        try { document.body.focus && document.body.focus({ preventScroll: true }); } catch (e) { /* ignore */ }
+      }
+    } catch (e) { /* ignore */ }
+  }
+
   // Modal creation and accessibility-safe open/close
   function ensureModalExists() {
     let modal = document.getElementById('lr-user-modal');
@@ -37,10 +49,14 @@
     // If already populated, leave it
     if (modal.dataset._initialized === '1') return;
 
+    // Create modal hidden and non-focusable
     modal.className = 'lr-user-modal hidden';
+    // Ensure we don't accidentally hide an already-focused descendant
+    ensureNoFocusInside(modal);
     modal.setAttribute('aria-hidden', 'true');
     modal.setAttribute('role', 'dialog');
     modal.setAttribute('aria-modal', 'true');
+
     modal.innerHTML = `
       <div class="lr-modal-card" role="document" aria-labelledby="lr-modal-title">
         <button class="lr-modal-close" aria-label="Cerrar" tabindex="-1">&times;</button>
@@ -97,11 +113,9 @@
   }
 
   function enableModalInteractive(modal, enable) {
-    // enable = true -> set focusable (tabindex=0) on controls; enable=false -> tabindex=-1
     const controls = modal.querySelectorAll('button, [href], input, textarea, select, [tabindex]');
     controls.forEach(c => {
       if (enable) {
-        c.removeAttribute('aria-hidden');
         if (c.dataset._origTab === undefined) c.dataset._origTab = c.getAttribute('tabindex') === null ? '' : c.getAttribute('tabindex');
         c.setAttribute('tabindex', '0');
       } else {
@@ -130,6 +144,9 @@
     // Make main inert BEFORE showing modal
     setInertToMain(true);
 
+    // Ensure no focus remains inside modal before transition
+    ensureNoFocusInside(modal);
+
     // Show modal and make it available to AT
     modal.classList.remove('hidden');
     modal.setAttribute('aria-hidden', 'false');
@@ -155,6 +172,9 @@
   function closeModal() {
     const modal = document.getElementById('lr-user-modal');
     if (!modal) return;
+
+    // Ensure we remove focus from any descendant BEFORE hiding from AT
+    ensureNoFocusInside(modal);
 
     // Mark hidden for AT first
     modal.setAttribute('aria-hidden', 'true');
