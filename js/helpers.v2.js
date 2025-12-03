@@ -1,21 +1,25 @@
-// helpers.v2.js - Final corrected helpers (audio, breath flow, favorites, TTS, share, download, delegation)
-// Cleaned of stray text that caused SyntaxError "Unexpected identifier 'continued'".
+// helpers.v2.js - Robust helpers (audio, breath flow, favorites, TTS, share, download, delegation)
+// Corregido: los botones del card principal (p. ej. "🔊 Escuchar") no recibían listeners cuando
+// initMenuDelegation() se activaba porque aquella delegación está atada sólo al panel del menú.
+// Ahora dejamos los handlers de control principales siempre enlazados (attachTouchClick) para
+// garantizar que los botones fuera del panel respondan. Mantén la limpieza de SW/caché al subir.
 (function () {
   'use strict';
 
-  // --- Logging helpers ---
+  // ---------- Logging ----------
   window.LR_DEBUG = window.LR_DEBUG === true;
-  function lrlog(...a) { if (window.LR_DEBUG) console.log(...a); }
-  function lrwarn(...a) { if (window.LR_DEBUG) console.warn(...a); }
+  function lrlog(...args) { if (window.LR_DEBUG) console.log(...args); }
+  function lrwarn(...args) { if (window.LR_DEBUG) console.warn(...args); }
 
-  lrlog('[helpers] start loading helpers.v2.js');
+  lrlog('[helpers.v2] init');
 
-  // --- Minimal toast helper (defined early so any function can call it safely) ---
+  // ---------- Small UI toast ----------
   function showToast(msg, timeout = 3500) {
     try {
       let t = document.getElementById('_lr_toast');
       if (!t) {
-        t = document.createElement('div'); t.id = '_lr_toast';
+        t = document.createElement('div');
+        t.id = '_lr_toast';
         Object.assign(t.style, {
           position: 'fixed',
           top: '18px',
@@ -27,7 +31,8 @@
           borderRadius: '8px',
           zIndex: 16000,
           fontSize: '0.95rem',
-          boxShadow: '0 6px 22px rgba(0,0,0,0.3)'
+          boxShadow: '0 6px 22px rgba(0,0,0,0.3)',
+          transition: 'opacity 300ms ease'
         });
         document.body.appendChild(t);
       }
@@ -41,7 +46,7 @@
   }
   if (!window.showToast) window.showToast = showToast;
 
-  // --- Config / defaults ---
+  // ---------- Audio config ----------
   const AUDIO = {
     breathCandidates: ['Breath.mp3', 'breath.mp3', 'BREATH.mp3'],
     inhaleCue: 'inhaleCue.mp3',
@@ -49,7 +54,7 @@
     ambientCandidates: ['ambient.mp3', 'Ambient.mp3', 'AMBIENT.mp3']
   };
 
-  // breathing timing defaults
+  // breathing timing defaults (seconds)
   let inhaleOffsetSeconds = 0.0;
   let inhaleDurationSeconds = 2.8;
   let exhaleOffsetSeconds = 2.8;
@@ -65,7 +70,7 @@
 
   const KEY_FAVORITOS = 'lr_favoritos_v1';
 
-  // --- Utilities ---
+  // ---------- Utilities ----------
   async function existsUrl(url) {
     if (!url) return false;
     try {
@@ -83,10 +88,10 @@
     try {
       const AC = window.AudioContext || window.webkitAudioContext;
       audioCtx = new AC();
-      lrlog('[helpers] AudioContext', audioCtx.state);
+      lrlog('[helpers] AudioContext ok', audioCtx.state);
       return audioCtx;
     } catch (e) {
-      lrwarn('[helpers] WebAudio not available', e);
+      lrwarn('[helpers] AudioContext unavailable', e);
       audioCtx = null;
       return null;
     }
@@ -100,10 +105,10 @@
       if (!r.ok) throw new Error('fetch ' + r.status);
       const ab = await r.arrayBuffer();
       const buf = await ctx.decodeAudioData(ab);
-      lrlog('[helpers] decoded buffer', url);
+      lrlog('[helpers] audio decoded', url);
       return buf;
     } catch (e) {
-      lrwarn('[helpers] loadAudioBuffer error', url, e);
+      lrwarn('[helpers] loadAudioBuffer failed', url, e);
       return null;
     }
   }
@@ -130,14 +135,14 @@
       lrlog('[helpers] scheduledBufferPlay', { offset, playDuration });
       return true;
     } catch (e) {
-      lrwarn('[helpers] scheduleBufferPlay failed', e);
+      lrwarn('[helpers] scheduleBufferPlay error', e);
       return false;
     }
   }
 
   function playHtml(url, offset = 0, duration = 2000) {
     try {
-      let el;
+      let el = null;
       if (htmlAudio.inhaleEl && htmlAudio.inhaleEl.src && htmlAudio.inhaleEl.src.includes(url)) el = htmlAudio.inhaleEl;
       else if (htmlAudio.exhaleEl && htmlAudio.exhaleEl.src && htmlAudio.exhaleEl.src.includes(url)) el = htmlAudio.exhaleEl;
       else if (htmlAudio.ambientEl && htmlAudio.ambientEl.src && htmlAudio.ambientEl.src.includes(url)) el = htmlAudio.ambientEl;
@@ -154,7 +159,7 @@
     }
   }
 
-  // --- Ambient helpers ---
+  // ---------- Ambient helpers ----------
   function startAmbientLoop(buffer, url) {
     if (audioCtx && buffer) {
       stopAmbientLoop();
@@ -166,13 +171,13 @@
       ambientSource.connect(ambientGain).connect(audioCtx.destination);
       ambientSource.start();
       try { ambientGain.gain.linearRampToValueAtTime(0.12, audioCtx.currentTime + 2.0); } catch (e) {}
-      lrlog('[helpers] startAmbientLoop (webaudio)');
+      lrlog('[helpers] ambient (webaudio) started');
       return;
     }
     if (url) {
       if (!htmlAudio.ambientEl) { htmlAudio.ambientEl = new Audio(url); htmlAudio.ambientEl.loop = true; htmlAudio.ambientEl.volume = 0.12; }
       htmlAudio.ambientEl.play().catch(()=>{});
-      lrlog('[helpers] startAmbientLoop (html audio)');
+      lrlog('[helpers] ambient (html) started');
     }
   }
 
@@ -181,10 +186,10 @@
     try { if (ambientSource && audioCtx) ambientSource.stop(audioCtx.currentTime + 0.5); } catch (e) {}
     ambientSource = null; ambientGain = null;
     try { if (htmlAudio.ambientEl) { htmlAudio.ambientEl.pause(); htmlAudio.ambientEl.currentTime = 0; } } catch (e) {}
-    lrlog('[helpers] stopAmbientLoop');
+    lrlog('[helpers] ambient stopped');
   }
 
-  // --- Preload audio assets (safe) ---
+  // ---------- Preload assets ----------
   async function preloadAssets() {
     await ensureAudioContext();
     try {
@@ -225,7 +230,7 @@
     });
   }
 
-  // --- Breath flow players (exposed functions) ---
+  // ---------- Breath flow players ----------
   async function playInhale() {
     await preloadAssets();
     if (audioBuffers.inhaleCue) { if (scheduleBufferPlay(audioBuffers.inhaleCue, 0, audioBuffers.inhaleCue.duration || inhaleDurationSeconds)) return; }
@@ -244,7 +249,7 @@
     lrlog('[helpers] playExhale fallback: no audio');
   }
 
-  // --- Start/Stop breath overlay ---
+  // ---------- Breath overlay ----------
   async function startBreathFlowInternal() {
     await resumeAudio();
     await preloadAssets();
@@ -259,7 +264,10 @@
     Object.assign(container.style, { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' });
 
     const circle = document.createElement('div');
-    Object.assign(circle.style, { width: '220px', height: '220px', borderRadius: '50%', background: 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '28px', fontWeight: 700 });
+    Object.assign(circle.style, {
+      width: '220px', height: '220px', borderRadius: '50%', background: 'rgba(255,255,255,0.06)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '28px', fontWeight: 700
+    });
 
     const small = document.createElement('div');
     Object.assign(small.style, { color: 'rgba(255,255,255,0.95)', fontSize: '18px', textAlign: 'center' });
@@ -379,14 +387,14 @@
       box.innerHTML = `<div style="font-weight:700;margin-bottom:8px">Activar audio</div>
                        <div style="color:#374151;margin-bottom:14px">Pulsa el botón para activar el audio (permiso local del navegador).</div>
                        <div style="display:flex;gap:8px;justify-content:center">
-                         <button id="_lr_enable_audio_btn" style="padding:10px 14px;border-radius:8px;border:none;background:linear-gradient(90deg,#7bd389,#5ec1ff);color:#04232a;font-weight:700">Activar audio</button>
+                         <button id="_lr_enable_audio_btn" style="padding:10px 14px;border-radius:8px;border:none;background:linear-gradient(90deg,#7bd389,#5ec1ff);color:#04232a;font-weight:700">Activar sonido</button>
                          <button id="_lr_enable_audio_cancel" style="padding:10px 14px;border-radius:8px;border:1px solid #cbd5e1;background:transparent;color:#04232a">Cancelar</button>
                        </div>`;
       modal.appendChild(box); document.body.appendChild(modal);
       document.getElementById('_lr_enable_audio_btn').addEventListener('click', async () => {
         await resumeAudio();
         modal.remove();
-        showToast('Intentando activar audio — prueba de nuevo el botón 🔊');
+        showToast('Intentando activar audio — prueba el botón 🔊');
       });
       document.getElementById('_lr_enable_audio_cancel').addEventListener('click', () => modal.remove());
     } catch (e) { lrwarn(e); }
@@ -470,17 +478,21 @@
     const favs = getFavoritos();
     const modal = document.getElementById('_lr_fav_modal') || document.createElement('div'); modal.id = '_lr_fav_modal';
     Object.assign(modal.style, { position:'fixed', left:0, right:0, top:0, bottom:0, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,0.6)', zIndex:19000 });
-    const box = document.createElement('div'); Object.assign(box.style, { maxWidth:'720px', width:'92%', maxHeight:'70vh', overflow:'auto', background:'rgba(255,255,255,0.98)', color:'#042231', padding:'18px', borderRadius:'12px' });
-    let inner = '<div style="display:flex;justify-content:space-between;align-items:center"><strong>Favoritos</strong><button id="_lr_close_fav" style="background:transparent;color:#042231;border:1px solid rgba(0,0,0,0.06);padding:6px;border-radius:8px">Cerrar</button></div><hr style="opacity:.08;margin:8px 0">';
-    if (favs && favs.length) inner += favs.map(f => '<div style="margin:10px 0;line-height:1.3;color:#022">'+ escapeHtml(f) + '</div>').join('');
+    const box = document.createElement('div');
+    Object.assign(box.style, { maxWidth:'720px', width:'92%', maxHeight:'70vh', overflow:'auto', background:'#fff', color:'#042231', padding:'18px', borderRadius:'12px', boxShadow:'0 20px 60px rgba(3,10,18,0.12)' });
+    let inner = '<div style="display:flex;justify-content:space-between;align-items:center"><strong>Favoritos</strong><button id="_lr_close_fav" style="background:transparent;border:1px solid rgba(0,0,0,0.06);padding:6px;border-radius:8px">Cerrar</button></div><hr style="margin:10px 0;opacity:0.06"/>';
+    if (favs && favs.length) inner += favs.map(f => `<div style="margin:10px 0;line-height:1.3;color:#022">${escapeHtml(f)}</div>`).join('');
     else inner += '<div style="color:rgba(7,16,28,0.8)">No hay favoritos</div>';
-    box.innerHTML = inner; modal.innerHTML = ''; modal.appendChild(box); document.body.appendChild(modal);
+    box.innerHTML = inner;
+    modal.innerHTML = '';
+    modal.appendChild(box);
+    document.body.appendChild(modal);
     const closeBtn = document.getElementById('_lr_close_fav'); if (closeBtn) closeBtn.addEventListener('click', () => modal && modal.parentNode && modal.parentNode.removeChild(modal));
   }
 
   function escapeHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-  // --- Settings modal ---
+  // ---------- Settings modal ----------
   function showSettingsModal() {
     if (document.getElementById('_lr_settings_modal')) return;
     const modal = document.createElement('div'); modal.id = '_lr_settings_modal';
@@ -513,14 +525,14 @@
 
     const ttsCheckbox = document.getElementById('_lr_toggle_tts');
     const ambientCheckbox = document.getElementById('_lr_toggle_ambient');
-    ttsCheckbox.checked = (window._lr_tts_enabled !== false);
-    ambientCheckbox.checked = !!(htmlAudio.ambientEl || audioBuffers.ambient);
+    if (ttsCheckbox) ttsCheckbox.checked = (window._lr_tts_enabled !== false);
+    if (ambientCheckbox) ambientCheckbox.checked = !!(htmlAudio.ambientEl || audioBuffers.ambient);
 
-    ttsCheckbox.addEventListener('change', () => {
+    if (ttsCheckbox) ttsCheckbox.addEventListener('change', () => {
       showToast('TTS ' + (ttsCheckbox.checked ? 'activado' : 'desactivado'));
       window._lr_tts_enabled = ttsCheckbox.checked;
     });
-    ambientCheckbox.addEventListener('change', () => {
+    if (ambientCheckbox) ambientCheckbox.addEventListener('change', () => {
       showToast('Ambient ' + (ambientCheckbox.checked ? 'activado' : 'desactivado'));
       window._lr_ambient_enabled = ambientCheckbox.checked;
     });
@@ -594,19 +606,38 @@
     } catch (e) { lrwarn('[helpers] annotate error', e); return 0; }
   }
 
+  // ---------- Core action handler ----------
   function handleMenuAction(action, btn) {
-    const phraseEl = document.getElementById('frase-text') || document.getElementById('frase');
-    const phrase = phraseEl ? (phraseEl.textContent || '') : '';
+    // Prefer canonical in-memory phrase provided by phrases.js
+    let phrase = '';
+    try {
+      if (window._phrases_current) phrase = window._phrases_current;
+      else if (typeof window._phrases_currentIndex === 'number' && Array.isArray(window._phrases_list)) phrase = window._phrases_list[window._phrases_currentIndex] || '';
+    } catch (e) { phrase = ''; }
+    if (!phrase) {
+      const pEl = document.getElementById('frase-text') || document.getElementById('frase');
+      phrase = pEl ? (pEl.textContent || '') : '';
+    }
+
     switch (action) {
       case 'breath': startBreathFlowInternal(); break;
       case 'favorite': if (phrase) { const added = toggleFavorite(phrase); if (btn) btn.textContent = added ? '♥ Favorita' : '♡ Favorita'; } break;
       case 'copy': if (phrase) copyToClipboard(phrase); break;
-      case 'share': if (navigator.share && phrase) navigator.share({ title: 'Frase', text: phrase }).catch(e => lrwarn(e)); else if (phrase) { copyToClipboard(phrase); showToast('Compartir no soportado, frase copiada'); } break;
-      case 'tts': if (phrase && window._lr_tts_enabled !== false) playTTS(phrase); break;
-      case 'ambient-start': preloadAssets().then(() => { if (audioBuffers.ambient) startAmbientLoop(audioBuffers.ambient); else if (htmlAudio.ambientEl) htmlAudio.ambientEl.play().catch(() => {}); }); break;
+      case 'share': if (phrase) sharePhrase({ title: 'Frase', text: phrase, url: location.href }); break;
+      case 'tts': if (phrase && window._lr_tts_enabled !== false) playTTS(phrase); else showToast('No hay texto para leer'); break;
+      case 'ambient-start': preloadAssets().then(() => { if (audioBuffers.ambient) startAmbientLoop(audioBuffers.ambient); else if (htmlAudio.ambientEl) htmlAudio.ambientEl.play().catch(()=>{}); }); break;
       case 'ambient-stop': stopAmbientLoop(); break;
-      case 'download': downloadImageFallback(); break;
-      case 'enable-audio': resumeAudio().then(() => showToast('Intentado activar audio')); break;
+      case 'download': {
+        const el = document.querySelector('.frase-card') || document.body;
+        let backup;
+        try {
+          const fEl = document.getElementById('frase-text');
+          if (fEl) { backup = fEl.textContent; if (phrase) fEl.textContent = phrase; }
+        } catch (e) {}
+        downloadPhraseImage(el);
+        try { const fEl = document.getElementById('frase-text'); if (fEl && typeof backup === 'string') fEl.textContent = backup; } catch (e) {}
+      } break;
+      case 'enable-audio': resumeAudio().then(() => showToast('Intentando activar audio')); break;
       case 'show-favorites': showFavoritesModal(); break;
       case 'share-app': sharePhrase({ title:'Llavero Respira', text:'Echa un vistazo', url: location.href }); break;
       case 'invite': inviteFriend(); break;
@@ -615,7 +646,7 @@
     }
   }
 
-  // Fallback attach helpers and delegation
+  // ---------- Fallback attach helper ----------
   function attachTouchClick(ids, fn) {
     if (!Array.isArray(ids)) ids = [ids];
     for (let i = 0; i < ids.length; i++) {
@@ -628,6 +659,7 @@
     }
   }
 
+  // ---------- Delegation ----------
   function initMenuDelegation() {
     const panel = document.getElementById('menuPanel');
     if (!panel) {
@@ -638,7 +670,7 @@
       try {
         const target = (e.target && e.target.closest && e.target.closest('button, [role="menuitem"], [data-action]')) || e.target;
         if (!target || !panel.contains(target)) return;
-        if (e.type === 'touchend') { e.preventDefault(); }
+        if (e.type === 'touchend') e.preventDefault();
         e.stopPropagation();
         const action = detectActionFromButton(target);
         if (action) handleMenuAction(action, target);
@@ -651,24 +683,50 @@
     return true;
   }
 
-  // Init bindings
+  // ---------- Init bindings ----------
   document.addEventListener('DOMContentLoaded', function () {
     annotateMenuButtonsOnce();
-    const delegated = initMenuDelegation();
-    if (!delegated) {
-      attachTouchClick(['breathBtn_menu','breathBtn'], function () { startBreathFlowInternal(); });
-      attachTouchClick(['enableAudioBtn','enableAudio'], function () { resumeAudio().then(function () { showToast('Intentado activar audio'); }); });
-      attachTouchClick(['ttsBtn_menu','ttsBtn'], function () { const t = (document.getElementById('frase-text') && document.getElementById('frase-text').textContent) || (document.getElementById('frase') && document.getElementById('frase').textContent) || ''; if (t) playTTS(t); });
-      attachTouchClick(['startAmbientBtn'], function () { preloadAssets().then(function () { if (audioBuffers.ambient) startAmbientLoop(audioBuffers.ambient); else if (htmlAudio.ambientEl) htmlAudio.ambientEl.play().catch(()=>{}); }); });
-      attachTouchClick(['stopAmbientBtn'], function () { stopAmbientLoop(); });
-      attachTouchClick(['favBtn_menu','favBtn'], function () { const t = (document.getElementById('frase-text') && document.getElementById('frase-text').textContent) || (document.getElementById('frase') && document.getElementById('frase').textContent) || ''; if (t) { const added = toggleFavorite(t); const el = document.getElementById('favBtn_menu') || document.getElementById('favBtn'); if (el) el.textContent = added ? '♥ Favorita' : '♡ Favorita'; } });
-      attachTouchClick(['downloadBtn','downloadBtn_menu'], function () { const el = document.querySelector('.frase-card') || document.querySelector('.card') || document.body; downloadPhraseImage(el); });
-      attachTouchClick(['shareBtn','shareBtn_menu'], function () { const t = (document.getElementById('frase-text') && document.getElementById('frase-text').textContent) || (document.getElementById('frase') && document.getElementById('frase').textContent) || ''; sharePhrase({ title: 'Frase', text: t, url: location.href }); });
-      attachTouchClick(['inviteBtn'], function () { inviteFriend(); });
-    }
+    initMenuDelegation();
+
+    // IMPORTANT: siempre enlazamos los controles principales del card para que funcionen
+    // aunque la delegación del panel exista (el panel solo cubre botones dentro de #menuPanel).
+    attachTouchClick(['breathBtn_menu','breathBtn'], function () { startBreathFlowInternal(); });
+    attachTouchClick(['enableAudioBtn','enableAudio'], function () { resumeAudio().then(function () { showToast('Intentado activar audio'); }); });
+    attachTouchClick(['ttsBtn_menu','ttsBtn'], function () {
+      // preferir frase en memoria para evitar recortes por CSS
+      let t = '';
+      try { if (window._phrases_current) t = window._phrases_current; else if (typeof window._phrases_currentIndex === 'number' && Array.isArray(window._phrases_list)) t = window._phrases_list[window._phrases_currentIndex] || ''; } catch (e) { t = ''; }
+      if (!t) t = (document.getElementById('frase-text') && document.getElementById('frase-text').textContent) || (document.getElementById('frase') && document.getElementById('frase').textContent) || '';
+      if (t) playTTS(t); else showToast('No hay texto para leer');
+    });
+    attachTouchClick(['startAmbientBtn'], function () { preloadAssets().then(function () { if (audioBuffers.ambient) startAmbientLoop(audioBuffers.ambient); else if (htmlAudio.ambientEl) htmlAudio.ambientEl.play().catch(()=>{}); }); });
+    attachTouchClick(['stopAmbientBtn'], function () { stopAmbientLoop(); });
+    attachTouchClick(['favBtn_menu','favBtn'], function () {
+      let t = '';
+      try { if (window._phrases_current) t = window._phrases_current; else if (typeof window._phrases_currentIndex === 'number' && Array.isArray(window._phrases_list)) t = window._phrases_list[window._phrases_currentIndex] || ''; } catch (e) { t = ''; }
+      if (!t) t = (document.getElementById('frase-text') && document.getElementById('frase-text').textContent) || (document.getElementById('frase') && document.getElementById('frase').textContent) || '';
+      if (t) { const added = toggleFavorite(t); const el = document.getElementById('favBtn_menu') || document.getElementById('favBtn'); if (el) el.textContent = added ? '♥ Favorita' : '♡ Favorita'; }
+    });
+    attachTouchClick(['downloadBtn','downloadBtn_menu'], function () {
+      const el = document.querySelector('.frase-card') || document.querySelector('.card') || document.body;
+      let backup;
+      try {
+        const fEl = document.getElementById('frase-text');
+        if (fEl) { backup = fEl.textContent; if (window._phrases_current) fEl.textContent = window._phrases_current; }
+      } catch (e) {}
+      downloadPhraseImage(el);
+      try { const fEl = document.getElementById('frase-text'); if (fEl && typeof backup === 'string') fEl.textContent = backup; } catch (e) {}
+    });
+    attachTouchClick(['shareBtn','shareBtn_menu'], function () {
+      let t = '';
+      try { if (window._phrases_current) t = window._phrases_current; else if (typeof window._phrases_currentIndex === 'number' && Array.isArray(window._phrases_list)) t = window._phrases_list[window._phrases_currentIndex] || ''; } catch(e){ t = ''; }
+      if (!t) t = (document.getElementById('frase-text') && document.getElementById('frase-text').textContent) || (document.getElementById('frase') && document.getElementById('frase').textContent) || '';
+      if (t) sharePhrase({ title: 'Frase', text: t, url: location.href }); else showToast('No hay texto para compartir');
+    });
+    attachTouchClick(['inviteBtn'], function () { inviteFriend(); });
   });
 
-  // Public API
+  // ---------- Public API ----------
   window.lr_helpers = window.lr_helpers || {};
   Object.assign(window.lr_helpers, {
     preload: preloadAssets,
@@ -716,4 +774,5 @@
   window.lr_helpers.downloadPhraseImage = downloadPhraseImage;
   window.lr_helpers.downloadImageFallback = downloadImageFallback;
 
+  lrlog('[helpers.v2] ready');
 })();
