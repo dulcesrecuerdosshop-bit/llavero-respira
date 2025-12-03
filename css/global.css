@@ -1,9 +1,4 @@
-/* global.css — tema principal moderno, mobile-first. Prioridad: tarjeta de frase visible al abrir.
-   Cambios relevantes:
-   - Centrado vertical del panel para que la tarjeta quede en el foco al cargar la página.
-   - Variables y heights claras para header/footer.
-   - Spacing optimizado para móviles.
-*/
+/* global.css — tema principal moderno, mobile-first. Ajustes para welcome y fullscreen. */
 
 /* ROOT - tokens de marca */
 :root{
@@ -22,7 +17,32 @@
 
 /* Base reset */
 *{box-sizing:border-box}
-html,body{height:100%;margin:0;font-family:var(--font-sans);background:linear-gradient(180deg,var(--bg-start),var(--bg-end));color:var(--text-dark);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;}
+html,body{
+  height:100%;
+  margin:0;
+  font-family:var(--font-sans);
+  background:linear-gradient(180deg,var(--bg-start),var(--bg-end));
+  color:var(--text-dark);
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  -webkit-text-size-adjust:100%;
+}
+
+/* Utility: clase genérica para ocultar elementos (uso seguro) */
+.hidden { display:none !important; visibility:hidden !important; pointer-events:none !important; }
+
+/* Fullscreen helper para pantallas de bienvenida o overlays */
+.fullscreen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  box-sizing: border-box;
+  z-index: 14000;
+  background: transparent; /* si quieres fondo, usar .welcome.fullscreen + background */
+}
 
 /* Header */
 .app-header{
@@ -39,26 +59,60 @@ html,body{height:100%;margin:0;font-family:var(--font-sans);background:linear-gr
 
 /* Left: logo + title */
 .header-left{ display:flex; align-items:center; gap:10px; }
-.app-header .logo { width:auto; height:36px; max-width:160px; object-fit:contain; }
 
-/* Title */
-.app-title{ font-weight:800; font-size:1rem; color:var(--text-dark); }
-.user-greeting{ color:var(--muted); font-size:0.9rem; }
-
-/* Hamburger menu button */
-.menu-btn{
-  -webkit-appearance:none; appearance:none;
-  background: transparent;
-  border: 0;
-  padding:8px;
-  border-radius:10px;
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  cursor:pointer;
+/* Header logo (pequeño y controlado) */
+.app-header .logo, img.logo {
+  max-height: 36px;
+  height: 36px;
+  width: auto;
+  max-width: 160px;
+  object-fit: contain;
+  display:inline-block;
 }
 
-/* Panel (centra contenido: la tarjeta debe ser lo primero que se ve) */
+/* Welcome (centrado y no invasivo) */
+.welcome.fullscreen {
+  /* si se marca fullscreen, se centra su contenido pero no fuerza un logo enorme */
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  box-sizing: border-box;
+  z-index: 14000;
+  background: rgba(0,0,0,0.02); /* ligero efecto para que no oculte todo la app detrás */
+}
+
+/* Welcome inner card: card centrada y compacta */
+.welcome .welcome-inner {
+  width: 100%;
+  max-width: 720px;
+  padding: 28px;
+  text-align: center;
+  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(255,255,255,0.96));
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.06);
+  box-sizing: border-box;
+}
+
+/* Logo en la pantalla de bienvenida: tamaño controlado y responsive */
+.welcome .welcome-logo,
+#welcome img.welcome-logo {
+  display: block;
+  margin: 0 auto 18px;
+  height: 96px;
+  max-height: 140px;
+  width: auto;
+  max-width: 60%;
+  object-fit: contain;
+}
+
+/* Title (welcome) */
+.welcome-title{ font-size:1.8rem; margin:6px 0; color:var(--text-dark); }
+.welcome-sub{ color:var(--muted); margin-bottom:14px; font-size:1rem; }
+
+/* Panel (centra contenido: la tarjeta debe ser lo primero que se vea) */
 .panel{
   padding-top: calc(var(--header-height) + 12px);
   padding-bottom: calc(var(--footer-space) + 12px);
@@ -66,7 +120,7 @@ html,body{height:100%;margin:0;font-family:var(--font-sans);background:linear-gr
   display:flex;
   flex-direction:column;
   align-items:center;
-  justify-content:center; /* centra verticalmente para que la tarjeta quede en foco */
+  justify-content:center;
   width:100%;
   max-width:1100px;
   margin:0 auto;
@@ -114,12 +168,6 @@ html,body{height:100%;margin:0;font-family:var(--font-sans);background:linear-gr
   border:none;
 }
 
-/* Welcome */
-.welcome{ padding:18px; width:92%; max-width:680px; margin:18px auto; }
-.welcome-inner{ text-align:center; padding:28px; background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(255,255,255,0.96)); border-radius:14px; box-shadow: 0 12px 40px rgba(0,0,0,0.06); }
-.welcome-title{ font-size:1.8rem; margin:6px 0; color:var(--text-dark); }
-.welcome-sub{ color:var(--muted); margin-bottom:14px; font-size:1rem; }
-
 /* Focus style for interactive elements */
 button:focus, a:focus { outline: 3px solid rgba(94,193,255,0.18); outline-offset:3px; }
 
@@ -133,6 +181,7 @@ button:focus, a:focus { outline: 3px solid rgba(94,193,255,0.18); outline-offset
 /* Very small screens */
 @media (max-width:420px){
   .app-header .logo { height:32px; }
+  .welcome .welcome-logo { height:84px; max-width:84%; }
   .app-title { font-size:0.98rem; }
   .panel{ padding-top: calc(var(--header-height) - 4px); }
 }
