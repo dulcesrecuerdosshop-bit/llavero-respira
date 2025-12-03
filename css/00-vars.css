@@ -1,0 +1,41 @@
+/* Variables centralizadas (00-vars.css)
+   Consolidación de todas las variables :root para evitar redefiniciones.
+   Mantén aquí los tokens de tema y variables compartidas.
+*/
+:root {
+  /* Layout */
+  --header-height: 72px;
+  --footer-space: 64px;
+
+  /* Paleta / fondos */
+  --bg-start: #fbfaf9;
+  --bg-end: #f6f7fb;
+  --card-bg: rgba(255,255,255,0.98);
+
+  /* Texto / accesibilidad */
+  --muted: #6b7684;
+  --text-dark: #072032;
+
+  /* Acentos */
+  --accent-start: #ffd166;
+  --accent-end: #ff9a9e;
+
+  /* Radios / tipografía */
+  --radius: 16px;
+  --font-sans: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+
+  /* Modal-specific (overlay / modal / glass) */
+  --modal-bg: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+  --overlay: rgba(6,10,18,0.6);
+  --overlay-bg: rgba(4,8,12,0.78);
+  --text-on-overlay: #ffffff;
+  --glass: rgba(255,255,255,0.04);
+
+  /* Card-specific */
+  --card-radius: 18px;
+  --card-shadow: 0 20px 60px rgba(6,10,18,0.12);
+  --text-large: clamp(1.05rem, 4.2vw, 1.35rem);
+  --text-large-strong: clamp(1.2rem, 5.6vw, 1.85rem);
+  --muted-on-card: rgba(7,20,34,0.6);
+  --card-max-height-mobile: 78vh;
+}
