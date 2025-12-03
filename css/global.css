@@ -1,79 +1,142 @@
+/* global.css — tema principal moderno, mobile-first, centrado en lectura.
+   Basado en global.css original. :contentReference[oaicite:6]{index=6}
+*/
+
+/* ROOT - tokens de marca */
 :root{
-  --bg-start: #eef2ff;
-  --bg-end: #f7f9fc;
-  --card-bg: rgba(255,255,255,0.95);
-  --muted: #546070;
-  --accent-start: #7bd389;
-  --accent-end: #5ec1ff;
-  --radius: 18px;
+  --bg-start: #fbfaf9;
+  --bg-end: #f6f7fb;
+  --card-bg: rgba(255,255,255,0.98);
+  --muted: #6b7684;
+  --accent-start: #ffd166;
+  --accent-end: #ff9a9e;
+  --radius: 16px;
   --font-sans: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  --text-dark: #072032;
+  --glass-weak: rgba(255,255,255,0.6);
 }
 
-/* Reset / base */
+/* Base reset */
 *{box-sizing:border-box}
-html,body{height:100%;margin:0;font-family:var(--font-sans);background:linear-gradient(180deg,var(--bg-start),var(--bg-end));color:#16324f;-webkit-font-smoothing:antialiased}
+html,body{height:100%;margin:0;font-family:var(--font-sans);background:linear-gradient(180deg,var(--bg-start),var(--bg-end));color:var(--text-dark);-webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;}
 
-/* fullscreen only for welcome to avoid duplicated full-page sections */
-.welcome.fullscreen{min-height:100vh;display:flex;align-items:center;justify-content:center}
-
-/* Header */
+/* Header (mobile-first) */
 .app-header{
-  position:fixed;
-  top:0; left:0; right:0;
-  height:72px;
+  position: fixed;
+  inset: 0 0 auto 0;
+  height:64px;
   display:flex;
   align-items:center;
   justify-content:space-between;
-  padding:12px 20px;
-  background:transparent;
+  padding:10px 16px;
+  background: rgba(255,255,255,0.0);
   z-index:1200;
+  gap:10px;
 }
 
-/* Logos */
-.header-left{display:flex;align-items:center;gap:12px}
-.app-header .header-left .logo,
-header .logo,
-.logo{ display:block; width:auto; height:auto; max-height:clamp(34px, 4.2vh, 44px); max-width:180px; border-radius:10px; box-shadow:0 6px 20px rgba(0,0,0,0.06); object-fit:contain; }
-.welcome .welcome-inner .welcome-logo, .welcome-logo{ display:block; width:auto; height:auto; max-width:clamp(100px, 20vw, 160px); max-height:160px; border-radius:12px; margin-bottom:18px; object-fit:contain; }
+/* Left: logo + title */
+.header-left{ display:flex; align-items:center; gap:10px; }
+.app-header .logo { width:auto; height:36px; max-width:140px; object-fit:contain; }
 
-.app-title{font-weight:800;font-size:1.05rem;color:#0f1724}
-.user-greeting{color:var(--muted);font-size:0.92rem}
-.menu-btn{background:transparent;border:1px solid rgba(15,19,36,0.06);padding:10px;border-radius:12px;color:#0f1724;cursor:pointer}
+/* Title */
+.app-title{ font-weight:800; font-size:1rem; color:var(--text-dark); }
+.user-greeting{ color:var(--muted); font-size:0.9rem; }
 
-/* Layout */
-.panel{padding-top:92px;padding-bottom:72px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;width:100%;max-width:1100px;margin:0 auto}
-.hint{margin-top:14px;color:var(--muted)}
-.app-footer{position:fixed;left:18px;bottom:18px;color:var(--muted);font-size:0.9rem}
-
-/* Card */
-.frase-card{ width:100%; max-width:920px; border-radius:var(--radius); overflow:hidden; position:relative; box-shadow:0 12px 40px rgba(16,24,40,0.06); margin:18px; background:linear-gradient(180deg, var(--card-bg), rgba(255,255,255,0.96)); backdrop-filter: blur(6px); padding:0; }
-.frase-bg{ position:absolute; inset:0; background-size:cover; background-position:center; filter:brightness(0.78) saturate(0.95); transition:background 600ms ease }
-.frase-content{ position:relative; padding:30px 28px; display:flex; flex-direction:column; gap:12px; min-height:220px }
-.frase-text{ font-size:clamp(1rem, 1.8vw, 1.6rem); font-weight:700; line-height:1.36; color:#072032; hyphens:auto; word-break:break-word; white-space:normal; margin:0; padding:0; }
-.frase-controls{ display:flex; gap:10px; justify-content:flex-end; margin-top:6px; }
-.control{ background:transparent; border:1px solid rgba(7,20,34,0.06); color:#072032; padding:10px 12px; border-radius:10px; cursor:pointer; font-weight:700; }
-.control.primary{ background:linear-gradient(90deg,var(--accent-start),var(--accent-end)); color:#012331; border:none; }
-
-/* Menu panel */
-.menu-panel{ position:fixed; right:18px; left:auto !important; top:84px; background:linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,255,255,0.92)); border-radius:14px; padding:12px; display:flex; flex-direction:column; gap:8px; z-index:13000; min-width:220px; box-shadow:0 18px 60px rgba(16,24,40,0.10); border:1px solid rgba(7,20,34,0.04); }
-.menu-panel button{ background:transparent; border:1px solid rgba(7,20,34,0.04); padding:10px; border-radius:10px; color:#072032; cursor:pointer; text-align:left; }
-.menu-panel button.primary{ background:linear-gradient(90deg,var(--accent-start),var(--accent-end)); color:#012331; border:none; }
-
-/* Welcome card */
-.welcome{padding:20px}
-.welcome-inner{text-align:center;padding:36px;background:linear-gradient(180deg, rgba(255,255,255,0.96), rgba(255,255,255,0.94));border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,0.04)}
-.welcome-title{font-size:2.2rem;margin:6px 0;color:#072032}
-.welcome-sub{color:var(--muted);margin-bottom:18px;font-size:1rem}
-
-/* Responsive */
-@media (max-width:960px){
-  .welcome-title{font-size:1.6rem}
-  .frase-text{font-size:1.05rem}
-  .menu-panel{right:10px;top:72px;min-width:160px}
-  .frase-content{padding:18px}
-  .logo{max-height:36px}
-  .welcome-logo{max-width:120px}
+/* Hamburger menu button */
+.menu-btn{
+  -webkit-appearance:none; appearance:none;
+  background: transparent;
+  border: 0;
+  padding:8px;
+  border-radius:10px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+}
+.menu-btn .bar{
+  display:block;
+  width:22px;
+  height:2px;
+  background:var(--text-dark);
+  border-radius:2px;
+  box-shadow: 0 6px 0 0 var(--text-dark), 0 -6px 0 0 var(--text-dark);
 }
 
-/* focus */
-button:focus{outline:3px solid rgba(94,193,255,0.25);outline-offset:3px}
+/* Panel layout */
+.panel{
+  padding-top:82px;
+  padding-bottom:84px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:flex-start;
+  width:100%;
+  max-width:980px;
+  margin:0 auto;
+}
+
+/* Hint text */
+.hint{ margin-top:14px; color:var(--muted); font-size:0.95rem; }
+
+/* Footer */
+.app-footer{ position:fixed; left:16px; bottom:16px; color:var(--muted); font-size:0.86rem; z-index:1100; }
+
+/* Frase card baseline (kept minimal here, detailed in frase-card.css) */
+.frase-card{ width:92%; max-width:920px; margin:16px auto; }
+
+/* Menu panel (hamburger opens this) - desktop behaviours */
+.menu-panel{
+  position:fixed;
+  right:16px;
+  top:72px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(255,255,255,0.95));
+  border-radius:12px;
+  padding:10px;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  z-index:13000;
+  min-width:200px;
+  box-shadow: 0 18px 60px rgba(16,24,40,0.08);
+  border:1px solid rgba(7,20,34,0.04);
+}
+
+/* Menu buttons */
+.menu-panel button{
+  background:transparent;
+  border:1px solid rgba(7,20,34,0.04);
+  padding:10px;
+  border-radius:10px;
+  color:var(--text-dark);
+  cursor:pointer;
+  text-align:left;
+}
+.menu-panel button.primary{
+  background: linear-gradient(90deg, var(--accent-start), var(--accent-end));
+  color:#072032;
+  border:none;
+}
+
+/* Welcome card (central) */
+.welcome{ padding:18px; width:92%; max-width:680px; margin:18px auto; }
+.welcome-inner{ text-align:center; padding:28px; background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(255,255,255,0.96)); border-radius:14px; box-shadow: 0 12px 40px rgba(0,0,0,0.06); }
+.welcome-title{ font-size:1.8rem; margin:6px 0; color:var(--text-dark); }
+.welcome-sub{ color:var(--muted); margin-bottom:14px; font-size:1rem; }
+
+/* Focus style for interactive elements */
+button:focus, a:focus { outline: 3px solid rgba(94,193,255,0.18); outline-offset:3px; }
+
+/* Responsive adjustments */
+@media (min-width: 960px){
+  .app-header{ height:72px; padding:12px 24px; }
+  .panel{ padding-top:100px; max-width:1100px; }
+  .app-title{ font-size:1.05rem; }
+}
+
+/* Very small screens: ensure large readable fonts */
+@media (max-width:420px){
+  .app-header .logo { height:32px; }
+  .app-title { font-size:0.98rem; }
+  .panel{ padding-top:76px; }
+}
