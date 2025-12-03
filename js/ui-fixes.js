@@ -1,5 +1,5 @@
-// ui-fixes.js - Añade listeners seguros para cambiar frase (click en tarjeta y tecla ESPACIO)
-// Debe cargarse con defer y después de js/phrases.js para asegurar que mostrarFrase exista.
+// ui-fixes.js - Añade listeners robustos para cambiar la frase (click en tarjeta y tecla ESPACIO)
+// Cargar con defer, después de js/phrases.js
 
 (function () {
   'use strict';
@@ -25,7 +25,7 @@
         // Ignorar clicks sobre controles dentro de la tarjeta
         if (ev.target.closest && ev.target.closest('.frase-controls')) return;
         safeMostrarFrase();
-      });
+      }, { passive: true });
     }
 
     // Tecla ESPACIO para avanzar (evitar que haga scroll cuando input esté enfocado)
@@ -38,7 +38,6 @@
       }
     });
 
-    // Debug hint
     if (window.LR_DEBUG) console.log('[ui-fixes] listeners attached (card click, space key)');
   });
 })();
