@@ -432,332 +432,414 @@ No tienes que cargar con las decisiones de ayer.
 Respira y permite que la luz entre en tus pensamientos.  
 Hoy es una página en blanco; escribe algo amable.`,
 
-`Cuando sientas que el mundo te empuja, baja la velocidad.  
-Una respiración larga disminuye la prisa y aclara el juicio.  
-Respira con intención y elige tu próximo movimiento.`,
-
-`La serenidad no llega por accidente; se construye en las pausas.  
-Respira tres veces con atención y deja que tu cuerpo hable.  
-Lo que sigue será más claro y más tuyo.`,
-
-`Respira como quien regresa a un lugar seguro.  
-Siembra una palabra amable en tu pecho y riega ese jardín.  
-Con tiempo, florecerá.`,
-
-`No necesitas arreglar todo ahora.  
-Respira y prioriza lo que importa: tu bienestar.  
-Lo demás encontrará su orden.`,
-
-`Respira y observa una parte de ti con ternura.  
-No critiques lo que late, acompáñalo.  
-El cambio se hace mejor con cariño que con empuje.`,
-
-`Si la ansiedad llama, abre la puerta con curiosidad.  
-Respira y pregúntate: ¿qué necesita este miedo?  
-A veces escucharlo lo transforma.`,
-
-`Respira despacio hasta que notes el suelo.  
-Siente la conexión entre tus pies y el mundo.  
-Desde ahí, cualquier paso no parecerá tan grande.`,
-
-`Cuando todo parezca demasiado, fragmenta el día.  
-Respira entre cada fragmento; esa pausa es una victoria.  
-Haz menos, pero hazlo con presencia.`,
-
-`Respira y recuerda un gesto que te alivie: una canción, una taza, una llamada.  
-Arma un pequeño ritual y vuelve a él cuando haga falta.  
-La repetición crea alivio.`,
-
-`Respira y regresa a lo esencial: tu cuerpo, tu aliento, tu ahora.  
-Deja que las expectativas se disuelvan por un momento.  
-Ese silencio te hará fuerte.`,
-
-`Respira para recordar quién eres, más allá de las tareas.  
-Eres el mismo ser que soñó y que late con deseos simples.  
-Cuida esa conexión.`,
-
-`Respira y suelta el mapa de lo perfecto.  
-El progreso real se mide en pasos serenos, no en velocidad.  
-Hoy avanza con compasión.`,
-
-`Respira y celebra un pequeño logro hoy.  
-Puede ser mínimo, pero el reconocimiento suma.  
-Mañana tu impulso será más amable.`,
-
-`Respira y practica la paciencia contigo.  
-La prisa suele nublar el tacto con lo que importa.  
-Vuelve a hacer las cosas despacio; verás detalles nuevos.`,
-
-`Respira y perdona un tropiezo no como fracaso sino como lección.  
-Lo que duele tiene una enseñanza.  
-Permítete aprender sin culpas.`,
-
-`Respira y coloca una intención: hoy seré amable con mi tiempo.  
-Protege tu espacio mental como proteges tu agenda.  
-Eso te hará sostenible.`,
-
-`Respira y observa tus pensamientos como si fuesen nubes.  
-No tienes que aferrarte a ninguno.  
-Deja que pasen y vuelve a tu centro.`,
-
-`Respira y ancla un recuerdo de gratitud.  
-Puede ser un gesto pequeño, una palabra dicha, un café.  
-Ese anclaje te sostendrá el día.`,
-
-`Respira y date permiso para descansar sin condiciones.  
-El descanso no es pereza, es renovación.  
-Regálatelo con cariño.`,
-
-`Respira y comparte menos juicios, más preguntas.  
-Las preguntas abren puertas; los juicios las cierran.  
-Practica la curiosidad amablemente.`,
-
-`Respira y confía en la trama de tu vida.  
-No siempre verás el patrón desde dentro, pero existe.  
-Confía en las piezas que estás colocando.`,
-
-`Respira y recuerda que la valentía no es ausencia de miedo.  
-Es hacer lo que importa aunque tiemble.  
-Hoy un paso, aunque pequeño, ya es valer.`,
-
-`Respira y reconoce la fuerza en tu historia.  
-Cada capítulo te ha moldeado, no te ha derrotado.  
-Eres más resistente de lo que crees.`,
-
-`Respira y haz silencio para escuchar tu intuición.  
-La corazonada suele llegar cuando el ruido baja.  
-Confía en su pequeña voz.`,
-
-`Respira e imagina una luz suave dentro de ti.  
-Deja que se extienda, primero al pecho, luego a las manos, luego al resto.  
-Esa luz te calma y te guía.`,
-
-`Respira y decreta una sola prioridad hoy: estar presente.  
-Si te pierdes en el trajín, vuelve al aliento.  
-La presencia es la brújula más fiel.`,
-
-`Respira y observa el lenguaje que usas contigo.  
-Si suena duro, cámbialo por uno que sume.  
-Tu voz interna merece respeto.`,
-
-`Respira y toma decisiones desde la calma, no desde la urgencia.  
-Las decisiones aquietadas suelen ser más sabias.  
-Respira y luego actúa.`,
-
-`Respira y siembra una intención de cariño para alguien (incluyéndote).  
-Ese gesto no cuesta, y da mucho.  
-La ternura es revolucionaria.`,
-
-`Respira y recorta expectativas innecesarias.  
-El alivio llega cuando aceptas lo esencial.  
-Suelta lo accesorio.`,
-
-`Respira y recicla tus pensamientos negativos en preguntas útiles.  
-En vez de “¿por qué me pasa esto?”, prueba “¿qué puedo aprender?”  
-La reescritura abre vías.`,
-
-`Respira y mira tu día como un par de manos que sostienen una taza:  
-con cuidado y atención.  
-Ese cuidado transforma lo rutinario en sagrado.`,
-
-`Respira y siéntate a sentir una emoción sin etiqueta.  
-No todo necesita nombre; algunos sentimientos piden tiempo.  
-Dáselo, sin prisa.`,
-
-`Respira y recuerda una promesa que te hiciste a ti mismo.  
-No tiene que ser grande; basta con ser verdadera.  
-Retómala con conciencia.`,
-
-`Respira y haz un inventario de pequeñas alegrías.  
-Una canción, un color, un gesto amable.  
-Acumula estos tesoros para días grises.`,
-
-`Respira y regula el ritmo: alterna esfuerzo con pausa.  
-Eso es eficiencia humana, no fallo.  
-Respira y equilibra.`,
-
-`Respira y observa que la perfección es una ilusión que fatiga.  
-Mejor la coherencia amable que el brillo puntual.  
-Aplica ternura en tu constancia.`,
-
-`Respira y recuerda que pedir ayuda no te disminuye; te permite continuar.  
-Sostenerte solo no es requisito.  
-Pedir es también valentía.`,
-
-`Respira y elige un gesto de autocuidado ahora mismo.  
-Puede ser lavarte las manos con atención o beber agua despacio.  
-Esos gestos te devuelven al cuerpo.`,
-
-`Respira y visualiza una versión tuya con paz en el rostro.  
-Ese modelo existe y se construye desde hoy.  
-Actúa con la intención de acercarte a él.`,
-
-`Respira y acepta que algunas respuestas llegan con tiempo.  
-La paciencia te ahorra dolor y te da perspectiva.  
-Respira y confía en el proceso.`,
-
-`Respira y celebra una mejora mínima de esta semana.  
-Lo pequeño acumulado es lo que mueve la vida.  
-Reconócelo y sigue.`,
-
-`Respira y suelta la culpa ligada a lo que “debiste”.  
-Lo que hiciste fue lo que supiste hacer entonces.  
-Perdónate y avanza.`,
-
-`Respira y construye un gesto simbólico para cuando necesites anclar la calma.  
-Puede ser apretar un botón, tocar una tela o decir una palabra.  
-Repite y se volverá efectivo.`,
-
-`Respira y guarda un minuto para imaginar un futuro amable.  
-No para huir, sino para orientar.  
-Ese mapa mental te ayuda a elegir el paso siguiente.`,
-
-`Respira y recuerda: tus límites no son fracasos, son señales.  
-Señalan dónde cuidar y dónde afirmar tu territorio.  
-Respira y respétalos.`,
-
-`Respira y siéntete digna de descanso.  
-No por méritos, sino por ser humana.  
-Date ese permiso sin condiciones.`,
-
-`Respira y elige una palabra que te sostenga hoy: calma, fuerte, suave.  
-Repite en la pausa y deja que dirija tu ritmo.  
-Esa palabra será faro.`,
-
-`Respira y mira la belleza simple: la luz en una taza, una silueta en la ventana.  
-Estas pequeñas imágenes te sostienen más de lo que crees.  
-Aliméntalas.`,
-
-`Respira y observa tus límites con curiosidad en vez de juicio.  
-¿Qué te piden? ¿Qué necesitan?  
-La escucha consciente transforma.`,
-
-`Respira y acepta los días de poca energía como parte del ciclo.  
-No todo tiene que ser productivo.  
-A veces recibir es suficiente.`,
-
-`Respira y recuerda que no estás sola en tus emociones.  
-Compartir un poco aligera mucho.  
-Busca un oído amable cuando lo necesites.`,
-
-`Respira y conviértete en tu propio testigo compasivo.  
-Observa sin atacar, registra sin juzgar.  
-Eso te libera.`,
-
-`Respira y practica la gratitud concreta hoy: nombra tres cosas reales.  
-La gratitud atada a lo cotidiano cambia la mirada.  
-Hazlo con pausa.`,
-
-`Respira y cultiva el hábito de pequeñas celebraciones.  
-Una medalla invisible por cada acto de valentía.  
-Acumúlalas con ternura.`,
-
-`Respira y suaviza las comparaciones: cada vida tiene su ritmo.  
-La comparación borra la singularidad de tu camino.  
-Vuelve a tu propio pulso.`,
-
-`Respira y cuida tu diálogo interno como un amigo querido.  
-Si suena duro, corrígelo con cariño.  
-Ese trato cambia el día.`,
-
-`Respira y observa que los límites también protegen la creatividad.  
-A veces decir "no" es un acto de amor por lo que quieres crear.  
-Respira y decide con calma.`,
-
-`Respira y vuelve a intentarlo cuando algo falle.  
-La insistencia amable es más poderosa que la fuerza de choque.  
-Sigue con ternura.`,
-
-`Respira y mantén un gesto ritual antes de cada tarea importante.  
-Puede ser ajustar los hombros, inhalar y soltar.  
-El ritual prepara la mente.`,
-
-`Respira y respeta tus tiempos emocionales.  
-No todos los procesos se ven desde fuera; algunos suceden lento por dentro.  
-Dales el espacio que piden.`,
-
-`Respira y recuerda que la compasión externa nace de la interna.  
-Si no te cuidas, tienes menos para dar.  
-Llena la taza primero.`,
-
-`Respira y crea una lista corta de enemigos de tu calma (ruido, pantalla, prisa).  
-Identifica y reduce uno hoy.  
-El efecto acumulado te sorprenderá.`,
-
-`Respira y acoge los cambios pequeños como pistas de evolución.  
-No todo gran salto se anuncia; muchos vienen de pasos diminutos.  
-Celebra lo sutil.`,
-
-`Respira y acepta que la seguridad total no existe; existe la capacidad de adaptarte.  
-Esa capacidad es tu músculo vital.  
-Entrénalo con paciencia.`,
-
-`Respira y usa la imaginación para desactivar miedo: visualiza un resultado tolerable.  
-Si lo puedes imaginar, puedes planear pasos reales.  
-Respira y actúa.`,
-
-`Respira y recuerda que no estás obligado a resolver todo ahora.  
-Hay temporadas de sembrar y otras de cosechar.  
-Sintoniza con tu temporada.`,
-
-`Respira y recorta pensamientos que no te pertenecen.  
-A veces llevamos expectativas ajenas como si fueran nuestras.  
-Devuélvelas con calma.`,
-
-`Respira y haz del final del día un pequeño rito: ordenar, agradecer, soltar.  
-Ese gesto marca la diferencia para descansar bien.  
-Hazlo con intención.`,
-
-`Respira y reparte ternura a tu cuerpo: estírate, mira, respira.  
-El cuerpo también memoriza cuidados.  
-Aliméntalo con presencia.`,
-
-`Respira y mira qué te presenta resistencia hoy.  
-La resistencia señala crecimiento posible.  
-Respira y acércate con curiosidad.`,
-
-`Respira y enmarca tu día con dos preguntas: ¿qué me da energía? ¿qué la quita?  
-Haz más de lo primero, reduce lo segundo.  
-Ese balance mejora todo.`,
-
-`Respira y reconoce que algunas heridas sanan mejor con tiempo y cuidado.  
-No fuerces el proceso; acompáñalo.  
-La lentitud cura.`,
-
-`Respira y permite que la alegría te encuentre en pequeñas cosas.  
-No la busques lejos; a veces está en un gesto mínimo.  
-Recíbela con gratitud.`,
-
-`Respira y recuerda: cada elección con conciencia construye dignidad.  
-Aunque parezca insignificante, tu orden interno se fortalece.  
-Sigue con ternura.`,
-
-`Respira y mira la vida como un taller, no como un examen.  
-Hay herramientas, ensayo y ajuste.  
-Equivocarse es parte del oficio.`,
-
-`Respira y vístete de amabilidad ante el espejo.  
-Las palabras que te dices forman la escena del día.  
-Elige una que te sostenga.`,
-
-`Respira y conviértete en arquitecta de tu tiempo.  
-Diseña descansos, acota interrupciones, protege trabajo profundo.  
-Tu paz depende de esas decisiones.`,
-
-`Respira y exhala expectativas irreales.  
-La vida real es imperfecta y preciosa.  
-Acomódala con amor.`,
-
-`Respira y toma hoy una acción diminuta hacia un sueño.  
-Un gesto pequeño sostenido es más que inspiración pasajera.  
-Hazlo por ti.`,
-
-`Respira y recuerda que la memoria feliz se construye con repetición.  
-Repite un gesto amable hoy y mañana y verás cómo cambia tu memoria afectiva.  
-Eso te sostiene.`,
-
-`Respira y reconoce la belleza en la rutina: la repetición crea refugio.  
-Encuentra lo bello en lo cotidiano y abrázalo.`
+
+  `Cuando sientas que el mundo te empuja, baja la velocidad.  
+  Una respiración larga disminuye la prisa y aclara el juicio.  
+  Respira con intención y elige tu próximo movimiento.`,
+
+
+  `La serenidad no llega por accidente; se construye en las pausas.  
+  Respira tres veces con atención y deja que tu cuerpo hable.  
+  Lo que sigue será más claro y más tuyo.`,
+
+
+  `Respira como quien regresa a un lugar seguro.  
+  Siembra una palabra amable en tu pecho y riega ese jardín.  
+  Con tiempo, florecerá.`,
+
+
+  `No necesitas arreglar todo ahora.  
+  Respira y prioriza lo que importa: tu bienestar.  
+  Lo demás encontrará su orden.`,
+
+
+  `Respira y observa una parte de ti con ternura.  
+  No critiques lo que late, acompáñalo.  
+  El cambio se hace mejor con cariño que con empuje.`,
+
+
+  `Si la ansiedad llama, abre la puerta con curiosidad.  
+  Respira y pregúntate: ¿qué necesita este miedo?  
+  A veces escucharlo lo transforma.`,
+
+
+  `Respira despacio hasta que notes el suelo.  
+  Siente la conexión entre tus pies y el mundo.  
+  Desde ahí, cualquier paso no parecerá tan grande.`,
+
+
+  `Cuando todo parezca demasiado, fragmenta el día.  
+  Respira entre cada fragmento; esa pausa es una victoria.  
+  Haz menos, pero hazlo con presencia.`,
+
+
+  `Respira y recuerda un gesto que te alivie: una canción, una taza, una llamada.  
+  Arma un pequeño ritual y vuelve a él cuando haga falta.  
+  La repetición crea alivio.`,
+
+
+  `Respira y regresa a lo esencial: tu cuerpo, tu aliento, tu ahora.  
+  Deja que las expectativas se disuelvan por un momento.  
+  Ese silencio te hará fuerte.`,
+
+
+  `Respira para recordar quién eres, más allá de las tareas.  
+  Eres el mismo ser que soñó y que late con deseos simples.  
+  Cuida esa conexión.`,
+
+
+  `Respira y suelta el mapa de lo perfecto.  
+  El progreso real se mide en pasos serenos, no en velocidad.  
+  Hoy avanza con compasión.`,
+
+
+  `Respira y celebra un pequeño logro hoy.  
+  Puede ser mínimo, pero el reconocimiento suma.  
+  Mañana tu impulso será más amable.`,
+
+
+  `Respira y practica la paciencia contigo.  
+  La prisa suele nublar el tacto con lo que importa.  
+  Vuelve a hacer las cosas despacio; verás detalles nuevos.`,
+
+
+  `Respira y perdona un tropiezo no como fracaso sino como lección.  
+  Lo que duele tiene una enseñanza.  
+  Permítete aprender sin culpas.`,
+
+
+  `Respira y coloca una intención: hoy seré amable con mi tiempo.  
+  Protege tu espacio mental como proteges tu agenda.  
+  Eso te hará sostenible.`,
+
+
+  `Respira y observa tus pensamientos como si fuesen nubes.  
+  No tienes que aferrarte a ninguno.  
+  Deja que pasen y vuelve a tu centro.`,
+
+
+  `Respira y ancla un recuerdo de gratitud.  
+  Puede ser un gesto pequeño, una palabra dicha, un café.  
+  Ese anclaje te sostendrá el día.`,
+
+
+  `Respira y date permiso para descansar sin condiciones.  
+  El descanso no es pereza, es renovación.  
+  Regálatelo con cariño.`,
+
+
+  `Respira y comparte menos juicios, más preguntas.  
+  Las preguntas abren puertas; los juicios las cierran.  
+  Practica la curiosidad amablemente.`,
+
+
+  `Respira y confía en la trama de tu vida.  
+  No siempre verás el patrón desde dentro, pero existe.  
+  Confía en las piezas que estás colocando.`,
+
+
+  `Respira y recuerda que la valentía no es ausencia de miedo.  
+  Es hacer lo que importa aunque tiemble.  
+  Hoy un paso, aunque pequeño, ya es valer.`,
+
+
+  `Respira y reconoce la fuerza en tu historia.  
+  Cada capítulo te ha moldeado, no te ha derrotado.  
+  Eres más resistente de lo que crees.`,
+
+
+  `Respira y haz silencio para escuchar tu intuición.  
+  La corazonada suele llegar cuando el ruido baja.  
+  Confía en su pequeña voz.`,
+
+
+  `Respira e imagina una luz suave dentro de ti.  
+  Deja que se extienda, primero al pecho, luego a las manos, luego al resto.  
+  Esa luz te calma y te guía.`,
+
+
+  `Respira y decreta una sola prioridad hoy: estar presente.  
+  Si te pierdes en el trajín, vuelve al aliento.  
+  La presencia es la brújula más fiel.`,
+
+
+  `Respira y observa el lenguaje que usas contigo.  
+  Si suena duro, cámbialo por uno que sume.  
+  Tu voz interna merece respeto.`,
+
+
+  `Respira y toma decisiones desde la calma, no desde la urgencia.  
+  Las decisiones aquietadas suelen ser más sabias.  
+  Respira y luego actúa.`,
+
+
+  `Respira y siembra una intención de cariño para alguien (incluyéndote).  
+  Ese gesto no cuesta, y da mucho.  
+  La ternura es revolucionaria.`,
+
+
+  `Respira y recorta expectativas innecesarias.  
+  El alivio llega cuando aceptas lo esencial.  
+  Suelta lo accesorio.`,
+
+
+  `Respira y recicla tus pensamientos negativos en preguntas útiles.  
+  En vez de “¿por qué me pasa esto?”, prueba “¿qué puedo aprender?”  
+  La reescritura abre vías.`,
+
+
+  `Respira y mira tu día como un par de manos que sostienen una taza:  
+  con cuidado y atención.  
+  Ese cuidado transforma lo rutinario en sagrado.`,
+
+
+  `Respira y siéntate a sentir una emoción sin etiqueta.  
+  No todo necesita nombre; algunos sentimientos piden tiempo.  
+  Dáselo, sin prisa.`,
+
+
+  `Respira y recuerda una promesa que te hiciste a ti mismo.  
+  No tiene que ser grande; basta con ser verdadera.  
+  Retómala con conciencia.`,
+
+
+  `Respira y haz un inventario de pequeñas alegrías.  
+  Una canción, un color, un gesto amable.  
+  Acumula estos tesoros para días grises.`,
+
+
+  `Respira y regula el ritmo: alterna esfuerzo con pausa.  
+  Eso es eficiencia humana, no fallo.  
+  Respira y equilibra.`,
+
+
+  `Respira y observa que la perfección es una ilusión que fatiga.  
+  Mejor la coherencia amable que el brillo puntual.  
+  Aplica ternura en tu constancia.`,
+
+
+  `Respira y recuerda que pedir ayuda no te disminuye; te permite continuar.  
+  Sostenerte solo no es requisito.  
+  Pedir es también valentía.`,
+
+
+  `Respira y elige un gesto de autocuidado ahora mismo.  
+  Puede ser lavarte las manos con atención o beber agua despacio.  
+  Esos gestos te devuelven al cuerpo.`,
+
+
+  `Respira y visualiza una versión tuya con paz en el rostro.  
+  Ese modelo existe y se construye desde hoy.  
+  Actúa con la intención de acercarte a él.`,
+
+
+  `Respira y acepta que algunas respuestas llegan con tiempo.  
+  La paciencia te ahorra dolor y te da perspectiva.  
+  Respira y confía en el proceso.`,
+
+
+  `Respira y celebra una mejora mínima de esta semana.  
+  Lo pequeño acumulado es lo que mueve la vida.  
+  Reconócelo y sigue.`,
+
+
+  `Respira y suelta la culpa ligada a lo que “debiste”.  
+  Lo que hiciste fue lo que supiste hacer entonces.  
+  Perdónate y avanza.`,
+
+
+  `Respira y construye un gesto simbólico para cuando necesites anclar la calma.  
+  Puede ser apretar un botón, tocar una tela o decir una palabra.  
+  Repite y se volverá efectivo.`,
+
+
+  `Respira y guarda un minuto para imaginar un futuro amable.  
+  No para huir, sino para orientar.  
+  Ese mapa mental te ayuda a elegir el paso siguiente.`,
+
+
+  `Respira y recuerda: tus límites no son fracasos, son señales.  
+  Señalan dónde cuidar y dónde afirmar tu territorio.  
+  Respira y respétalos.`,
+
+
+  `Respira y siéntete digna de descanso.  
+  No por méritos, sino por ser humana.  
+  Date ese permiso sin condiciones.`,
+
+
+  `Respira y elige una palabra que te sostenga hoy: calma, fuerte, suave.  
+  Repite en la pausa y deja que dirija tu ritmo.  
+  Esa palabra será faro.`,
+
+
+  `Respira y mira la belleza simple: la luz en una taza, una silueta en la ventana.  
+  Estas pequeñas imágenes te sostienen más de lo que crees.  
+  Aliméntalas.`,
+
+
+  `Respira y observa tus límites con curiosidad en vez de juicio.  
+  ¿Qué te piden? ¿Qué necesitan?  
+  La escucha consciente transforma.`,
+
+
+  `Respira y acepta los días de poca energía como parte del ciclo.  
+  No todo tiene que ser productivo.  
+  A veces recibir es suficiente.`,
+
+
+  `Respira y recuerda que no estás sola en tus emociones.  
+  Compartir un poco aligera mucho.  
+  Busca un oído amable cuando lo necesites.`,
+
+
+  `Respira y conviértete en tu propio testigo compasivo.  
+  Observa sin atacar, registra sin juzgar.  
+  Eso te libera.`,
+
+
+  `Respira y practica la gratitud concreta hoy: nombra tres cosas reales.  
+  La gratitud atada a lo cotidiano cambia la mirada.  
+  Hazlo con pausa.`,
+
+
+  `Respira y cultiva el hábito de pequeñas celebraciones.  
+  Una medalla invisible por cada acto de valentía.  
+  Acumúlalas con ternura.`,
+
+
+  `Respira y suaviza las comparaciones: cada vida tiene su ritmo.  
+  La comparación borra la singularidad de tu camino.  
+  Vuelve a tu propio pulso.`,
+
+
+  `Respira y cuida tu diálogo interno como un amigo querido.  
+  Si suena duro, corrígelo con cariño.  
+  Ese trato cambia el día.`,
+
+
+  `Respira y observa que los límites también protegen la creatividad.  
+  A veces decir "no" es un acto de amor por lo que quieres crear.  
+  Respira y decide con calma.`,
+
+
+  `Respira y vuelve a intentarlo cuando algo falle.  
+  La insistencia amable es más poderosa que la fuerza de choque.  
+  Sigue con ternura.`,
+
+
+  `Respira y mantén un gesto ritual antes de cada tarea importante.  
+  Puede ser ajustar los hombros, inhalar y soltar.  
+  El ritual prepara la mente.`,
+
+
+  `Respira y respeta tus tiempos emocionales.  
+  No todos los procesos se ven desde fuera; algunos suceden lento por dentro.  
+  Dales el espacio que piden.`,
+
+
+  `Respira y recuerda que la compasión externa nace de la interna.  
+  Si no te cuidas, tienes menos para dar.  
+  Llena la taza primero.`,
+
+
+  `Respira y crea una lista corta de enemigos de tu calma (ruido, pantalla, prisa).  
+  Identifica y reduce uno hoy.  
+  El efecto acumulado te sorprenderá.`,
+
+
+  `Respira y acoge los cambios pequeños como pistas de evolución.  
+  No todo gran salto se anuncia; muchos vienen de pasos diminutos.  
+  Celebra lo sutil.`,
+
+
+  `Respira y acepta que la seguridad total no existe; existe la capacidad de adaptarte.  
+  Esa capacidad es tu músculo vital.  
+  Entrénalo con paciencia.`,
+
+
+  `Respira y usa la imaginación para desactivar miedo: visualiza un resultado tolerable.  
+  Si lo puedes imaginar, puedes planear pasos reales.  
+  Respira y actúa.`,
+
+
+  `Respira y recuerda que no estás obligado a resolver todo ahora.  
+  Hay temporadas de sembrar y otras de cosechar.  
+  Sintoniza con tu temporada.`,
+
+
+  `Respira y recorta pensamientos que no te pertenecen.  
+  A veces llevamos expectativas ajenas como si fueran nuestras.  
+  Devuélvelas con calma.`,
+
+
+  `Respira y haz del final del día un pequeño rito: ordenar, agradecer, soltar.  
+  Ese gesto marca la diferencia para descansar bien.  
+  Hazlo con intención.`,
+
+
+  `Respira y reparte ternura a tu cuerpo: estírate, mira, respira.  
+  El cuerpo también memoriza cuidados.  
+  Aliméntalo con presencia.`,
+
+
+  `Respira y mira qué te presenta resistencia hoy.  
+  La resistencia señala crecimiento posible.  
+  Respira y acércate con curiosidad.`,
+
+
+  `Respira y enmarca tu día con dos preguntas: ¿qué me da energía? ¿qué la quita?  
+  Haz más de lo primero, reduce lo segundo.  
+  Ese balance mejora todo.`,
+
+
+  `Respira y reconoce que algunas heridas sanan mejor con tiempo y cuidado.  
+  No fuerces el proceso; acompáñalo.  
+  La lentitud cura.`,
+
+
+  `Respira y permite que la alegría te encuentre en pequeñas cosas.  
+  No la busques lejos; a veces está en un gesto mínimo.  
+  Recíbela con gratitud.`,
+
+
+  `Respira y recuerda: cada elección con conciencia construye dignidad.  
+  Aunque parezca insignificante, tu orden interno se fortalece.  
+  Sigue con ternura.`,
+
+
+  `Respira y mira la vida como un taller, no como un examen.  
+  Hay herramientas, ensayo y ajuste.  
+  Equivocarse es parte del oficio.`,
+
+
+  `Respira y vístete de amabilidad ante el espejo.  
+  Las palabras que te dices forman la escena del día.  
+  Elige una que te sostenga.`,
+
+
+  `Respira y conviértete en arquitecta de tu tiempo.  
+  Diseña descansos, acota interrupciones, protege trabajo profundo.  
+  Tu paz depende de esas decisiones.`,
+
+
+  `Respira y exhala expectativas irreales.  
+  La vida real es imperfecta y preciosa.  
+  Acomódala con amor.`,
+
+
+  `Respira y toma hoy una acción diminuta hacia un sueño.  
+  Un gesto pequeño sostenido es más que inspiración pasajera.  
+  Hazlo por ti.`,
+
+
+  `Respira y recuerda que la memoria feliz se construye con repetición.  
+  Repite un gesto amable hoy y mañana y verás cómo cambia tu memoria afectiva.  
+  Eso te sostiene.`,
+
+
+  `Respira y reconoce la belleza en la rutina: la repetición crea refugio.  
+  Encuentra lo bello en lo cotidiano y abrázalo.`
   ];
 
   // ---------------------------------------------------------------------------
