@@ -1,9 +1,5 @@
-// sw.js - Service Worker final update
-// - Removed cross-origin CDN from install cache list to avoid install failures.
-// - Use network-first for navigation / CSS / JS to ensure latest styles/scripts are served.
-// - Use cache-first for images and other static assets with background update.
-// - Bump cache version.
-const CACHE_VERSION = 'v23';
+// sw.js - Service Worker final update (version bump para rotar caches)
+const CACHE_VERSION = 'v24';
 const CACHE_NAME = `llavero-respira-${CACHE_VERSION}`;
 
 // Critical same-origin assets to pre-cache on install
@@ -13,12 +9,13 @@ const ASSETS = [
   'favicon.ico',
   'logo.png',
   'manifest.json',
-  // CSS principales
-  'css/global.css',
-  'css/frase-card.css',
-  'css/overlay-custom.css',
-  'css/modal-user.css',
-  // JS principales (helpers y phrases)
+  // CSS (modular)
+  'css/00-vars.css',
+  'css/01-base.css',
+  'css/10-card.css',
+  'css/20-overlay.css',
+  'css/30-modal.css',
+  // JS principales
   'js/helpers.v2.js',
   'js/phrases.js',
   'js/load-user.js',
@@ -32,7 +29,6 @@ self.addEventListener('install', event => {
       await cache.addAll(ASSETS);
     } catch (e) {
       console.warn('[SW] install: cache.addAll failed (non-fatal)', e);
-      // proceed even if some items failed to cache
     }
     await self.skipWaiting();
   })());
@@ -48,7 +44,6 @@ self.addEventListener('activate', event => {
   })());
 });
 
-// helper to detect same-origin
 function isSameOrigin(request) {
   try {
     const url = new URL(request.url);
@@ -60,17 +55,12 @@ function isSameOrigin(request) {
 
 self.addEventListener('fetch', event => {
   const req = event.request;
-
-  // Only handle GET requests
   if (req.method !== 'GET') return;
-
-  // If cross-origin, do not intercept (let browser handle CDN & external resources)
   if (!isSameOrigin(req)) return;
 
   const url = new URL(req.url);
   const pathname = url.pathname;
 
-  // NAVIGATION: network-first to ensure newest index.html and linked CSS/JS are used
   if (req.mode === 'navigate' || (req.headers.get('accept') || '').includes('text/html')) {
     event.respondWith((async () => {
       try {
@@ -88,7 +78,6 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // For CSS and JS: use network-first with cache-fallback (ensures style updates propagate quickly)
   if (pathname.endsWith('.css') || pathname.endsWith('.js')) {
     event.respondWith((async () => {
       try {
@@ -106,11 +95,9 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // For images and other static assets: cache-first with background update
   event.respondWith((async () => {
     const cached = await caches.match(req);
     if (cached) {
-      // update cache in background
       (async () => {
         try {
           const networkResponse = await fetch(req);
@@ -118,7 +105,7 @@ self.addEventListener('fetch', event => {
             const cache = await caches.open(CACHE_NAME);
             await cache.put(req, networkResponse.clone());
           }
-        } catch (e) { /* ignore */ }
+        } catch (e) {}
       })();
       return cached;
     }
@@ -128,7 +115,7 @@ self.addEventListener('fetch', event => {
         try {
           const cache = await caches.open(CACHE_NAME);
           cache.put(req, networkResponse.clone()).catch(()=>{});
-        } catch (e) { /* ignore */ }
+        } catch (e) {}
       }
       return networkResponse;
     } catch (err) {
