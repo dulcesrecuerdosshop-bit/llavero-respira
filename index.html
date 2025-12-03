@@ -32,7 +32,7 @@
   <main id="main" class="main">
     <header class="app-header">
       <div class="header-left">
-        <img src="logo.png" alt="Logo" class="logo">
+        <img src="logo.png" alt="Logo" class="logo" />
         <div class="greeting">
           <div id="appTitle" class="app-title">Llavero Respira</div>
           <div id="user-greeting" class="user-greeting">Un recordatorio amable</div>
@@ -105,8 +105,32 @@
   <!-- Core scripts: helpers first, phrases next -->
   <script src="js/helpers.v2.js" defer></script>
   <script src="js/phrases.js" defer></script>
-  <!-- Added: ui-fixes ensures card click/Space invoke mostrarFrase() reliably -->
   <script src="js/ui-fixes.js" defer></script>
   <script src="js/load-user.js" defer></script>
+
+  <!-- Service worker registration to ensure the new sw.js is active and can update caches -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', async () => {
+        try {
+          const reg = await navigator.serviceWorker.register('/sw.js');
+          console.log('[sw] registered', reg.scope);
+
+          // If an updated SW is waiting, ask it to skip waiting
+          if (reg.waiting) {
+            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+          }
+
+          // Listen for updates and reload when the new SW takes control
+          navigator.serviceWorker.addEventListener('controllerchange', () => {
+            console.log('[sw] controllerchange -> reloading');
+            window.location.reload();
+          });
+        } catch (e) {
+          console.warn('[sw] registration failed', e);
+        }
+      });
+    }
+  </script>
 </body>
 </html>
