@@ -1,6 +1,5 @@
-/* Base / resets / layout (01-base.css) - sin :root (variables en 00-vars.css) */
+/* Base / layout — adaptado para experiencia fullscreen centrada en la frase */
 
-/* Base reset */
 * { box-sizing: border-box; }
 html, body {
   height: 100%;
@@ -10,7 +9,11 @@ html, body {
   color: var(--text-dark);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
 }
+
+/* Utility: fuerza ocultación cuando se aplica la clase hidden */
+.hidden { display: none !important; visibility: hidden !important; pointer-events: none !important; }
 
 /* Header */
 .app-header {
@@ -23,137 +26,91 @@ html, body {
   align-items: center;
   justify-content: space-between;
   padding: 10px 16px;
-  background: transparent;
+  background: rgba(255,255,255,0.0); /* transparente para no restar foco */
   z-index: 1200;
 }
 
-/* Left: logo + title */
+/* Header logo pequeño */
 .header-left { display: flex; align-items: center; gap: 10px; }
-/* header logo (pequeño) */
-.app-header .logo { width: auto; height: 36px; max-width: 160px; object-fit: contain; }
-
-/* Welcome screen logo (centrado y tamaño controlado) */
-.welcome .welcome-logo,
-#welcome img.welcome-logo {
-  display: block;
-  margin: 0 auto 20px;
-  height: 96px;
-  max-height: 140px;
-  width: auto;
-  max-width: 80%;
-  object-fit: contain;
-}
-
-/* Title */
-.app-title { font-weight: 800; font-size: 1rem; color: var(--text-dark); }
-.user-greeting { color: var(--muted); font-size: 0.9rem; }
-
-/* Hamburger menu button */
-.menu-btn {
-  -webkit-appearance: none;
-  appearance: none;
-  background: transparent;
-  border: 0;
-  padding: 8px;
-  border-radius: 10px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-
-/* Panel (centra contenido: la tarjeta debe ser lo primero que se ve) */
-.panel {
-  padding-top: calc(var(--header-height) + 12px);
-  padding-bottom: calc(var(--footer-space) + 12px);
-  min-height: calc(100vh - var(--header-height) - var(--footer-space));
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  max-width: 1100px;
-  margin: 0 auto;
-}
-
-/* Hint text */
-.hint { margin-top: 14px; color: var(--muted); font-size: 0.95rem; text-align: center; }
-
-/* Footer */
-.app-footer { position: fixed; left: 16px; bottom: 16px; color: var(--muted); font-size: 0.86rem; z-index: 1100; }
-
-/* Frase card baseline (placeholder, card styles están en 10-card.css) */
-.frase-card { width: 92%; max-width: 920px; margin: 16px auto; }
-
-/* Menu panel (hamburger opens this) */
-.menu-panel {
-  position: fixed;
-  right: 16px;
-  top: calc(var(--header-height) + 8px);
-  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(255,255,255,0.95));
-  border-radius: 12px;
-  padding: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  z-index: 13000;
-  min-width: 200px;
-  box-shadow: 0 18px 60px rgba(16,24,40,0.08);
-  border: 1px solid rgba(7,20,34,0.04);
-}
-
-/* Menu buttons */
-.menu-panel button {
-  background: transparent;
-  border: 1px solid rgba(7,20,34,0.04);
-  padding: 10px;
-  border-radius: 10px;
-  color: var(--text-dark);
-  cursor: pointer;
-  text-align: left;
-}
-.menu-panel button.primary {
-  background: linear-gradient(90deg, var(--accent-start), var(--accent-end));
-  color: #072032;
-  border: none;
-}
-
-/* Welcome */
-.welcome { padding: 18px; width: 92%; max-width: 680px; margin: 18px auto; }
-.welcome-inner {
-  text-align: center;
-  padding: 28px;
-  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(255,255,255,0.96));
-  border-radius: 14px;
-  box-shadow: 0 12px 40px rgba(0,0,0,0.06);
-}
-.welcome-title { font-size: 1.8rem; margin: 6px 0; color: var(--text-dark); }
-.welcome-sub { color: var(--muted); margin-bottom: 14px; font-size: 1rem; }
-
-/* Focus style for interactive elements */
-button:focus, a:focus { outline: 3px solid rgba(94,193,255,0.18); outline-offset: 3px; }
-
-/* Responsive adjustments */
-@media (min-width: 960px) {
-  .app-header { height: var(--header-height); padding: 12px 24px; }
-  .panel { padding-top: calc(var(--header-height) + 20px); max-width: 1100px; }
-  .app-title { font-size: 1.05rem; }
-}
-
-/* Very small screens */
-@media (max-width:420px) {
-  .app-header .logo { height: 32px; }
-  .welcome .welcome-logo { height: 84px; }
-  .app-title { font-size: 0.98rem; }
-  .panel { padding-top: calc(var(--header-height) - 4px); }
-}
-
-/* --- LOGO guard rule (si hay otras reglas que anulen, esta asegura tamaño controlado) --- */
-.app-header .logo,
-img.logo {
+.app-header .logo, img.logo {
   max-height: 36px;
   height: 36px;
   width: auto;
   max-width: 160px;
   object-fit: contain;
+  display:inline-block;
+}
+
+/* Panel principal: ahora está pensado para funcionar como viewport primario */
+.panel {
+  padding-top: calc(var(--header-height) + 12px);
+  padding-bottom: 12px;
+  min-height: calc(100vh - var(--header-height));
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+  display:flex;
+  align-items:stretch;
+  justify-content:center;
+  position: relative;
+  box-sizing: border-box;
+}
+
+/* FRAMING: hacer que la tarjeta ocupe la pantalla visible por defecto */
+.frase-card.fullscreen {
+  width: 100%;
+  height: calc(100vh - var(--header-height));
+  max-width: none;
+  margin: 0;
+  border-radius: 0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding: 28px;
+}
+
+/* Hint básico visible debajo de la tarjeta cuando se haga scroll */
+.hint {
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 0.95rem;
+  text-align:center;
+}
+
+/* Footer discreto */
+.app-footer { position: fixed; left: 16px; bottom: 12px; color: var(--muted); font-size: 0.86rem; z-index:1100; }
+
+/* Menu panel */
+.menu-panel {
+  position: fixed;
+  right: 16px;
+  top: calc(var(--header-height) + 8px);
+  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(255,255,255,0.95));
+  border-radius:12px;
+  padding:10px;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  z-index:13000;
+  min-width:200px;
+  box-shadow: 0 18px 60px rgba(16,24,40,0.08);
+  border:1px solid rgba(7,20,34,0.04);
+}
+
+/* Welcome (mantener, pero no invade la experiencia si se marca como hidden o se pasa a modal) */
+.welcome.fullscreen {
+  position: fixed;
+  inset: 0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding: 24px;
+  z-index:14000;
+  background: transparent;
+}
+
+/* small helper: reduce espacio en pantallas pequeñas */
+@media (max-width:420px) {
+  .panel { padding-top: calc(var(--header-height) + 8px); }
+  .app-header .logo { height: 32px; }
 }
