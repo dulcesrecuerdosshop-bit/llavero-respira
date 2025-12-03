@@ -25,15 +25,16 @@
   box-sizing: border-box;
 }
 
-/* Fullscreen variant: ocupa viewport debajo del header y centra contenido */
+/* Fullscreen variant: ocupa viewport debajo del header y arriba del footer */
 .frase-card.fullscreen {
-  /* Ahora ocupamos el área debajo del header con position fixed para respetar viewport */
   position: fixed;
   left: 0;
   right: 0;
   top: var(--header-height, 72px);
-  bottom: 0;
-  height: calc(100vh - var(--header-height,72px));
+  /* <-- usar el espacio reservado para el footer en lugar de bottom:0 */
+  bottom: var(--footer-space, 64px);
+  /* altura calculada restando header + footer */
+  height: calc(100vh - var(--header-height,72px) - var(--footer-space,64px));
   width: 100vw;
   max-width: none;
   margin: 0;
@@ -44,7 +45,7 @@
   background: none;
   box-shadow: none;
   padding: 0;
-  z-index: 1100;
+  z-index: 1100; /* Footer debe tener z-index mayor (p.ej. 1500) */
   box-sizing: border-box;
 }
 
