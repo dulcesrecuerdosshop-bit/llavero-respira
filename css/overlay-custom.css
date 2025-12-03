@@ -1,9 +1,9 @@
-/* overlay-custom.css — versión mejorada
-   Objetivo: overlay de respiración fullscreen, claro, táctil-friendly y centrado en móvil.
-   Basado en: overlay-custom.css original. :contentReference[oaicite:4]{index=4}
+/* overlay-custom.css — overlay de respiración optimizado para móvil y escritorio
+   - Full screen overlay
+   - Círculo responsivo y controles táctiles
+   - Evita scroll del body cuando activo
 */
 
-/* variables rápidas (puedes moverlas a :root si quieres centralizar) */
 :root{
   --overlay-bg: rgba(4,8,12,0.78);
   --accent: #ffd166;
@@ -12,7 +12,6 @@
   --glass: rgba(255,255,255,0.04);
 }
 
-/* Container full-screen (mobile-first) */
 #lr-breath-overlay{
   position: fixed !important;
   inset: 0 !important;
@@ -28,19 +27,18 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Centro: caja que contiene círculo + texto + controles */
 #lr-breath-overlay .lr-center {
   width: 100%;
-  max-width: 520px;
+  max-width: 560px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 14px;
   padding: 12px;
   box-sizing: border-box;
+  position: relative;
 }
 
-/* Círculo principal (respiración) — adaptable y con alto contraste */
 #lr-breath-overlay .lr-circle {
   width: min(76vw, 420px);
   height: min(76vw, 420px);
@@ -57,19 +55,15 @@
   padding: 16px;
   transition: transform 260ms cubic-bezier(.2,.9,.2,1), box-shadow 260ms;
   -webkit-user-select: none; user-select: none;
-  touch-action: manipulation;
 }
 
-/* Texto grande dentro del círculo (control de tamaño responsive) */
 #lr-breath-overlay .lr-circle .lr-value {
-  font-size: clamp(18px, 6vw, 40px);
+  font-size: clamp(18px, 6.2vw, 40px);
   text-align: center;
   line-height: 1;
-  letter-spacing: -0.02em;
   padding: 6px 8px;
 }
 
-/* Subtexto explicativo bajo el círculo */
 #lr-breath-overlay .lr-caption {
   color: rgba(255,255,255,0.95);
   font-size: clamp(13px, 3.6vw, 16px);
@@ -79,7 +73,6 @@
   line-height: 1.4;
 }
 
-/* Botonera primaria del overlay */
 #lr-breath-overlay .lr-actions {
   display: flex;
   gap: 10px;
@@ -90,7 +83,6 @@
   max-width: 420px;
 }
 
-/* Botones táctiles grandes */
 #lr-breath-overlay button {
   -webkit-appearance: none;
   appearance: none;
@@ -106,21 +98,18 @@
   box-shadow: 0 8px 20px rgba(0,0,0,0.35);
 }
 
-/* Primary (iniciar/pausar) */
 #lr-breath-overlay .btn-primary{
   background: linear-gradient(90deg, rgba(255,209,102,1), rgba(255,154,158,1));
   color: #072032;
   padding: 12px 18px;
 }
 
-/* Secondary (cerrar/skip) */
 #lr-breath-overlay .btn-ghost{
   background: transparent;
   border: 1px solid rgba(255,255,255,0.08);
   color: rgba(255,255,255,0.94);
 }
 
-/* Small control icon (close) */
 #lr-breath-overlay .lr-close {
   position: absolute;
   right: 12px;
@@ -133,20 +122,15 @@
   cursor: pointer;
 }
 
-/* Reduce animaciones y sombras en móviles muy pequeños para rendimiento */
 @media (max-width:420px){
   #lr-breath-overlay .lr-circle { box-shadow: 0 8px 20px rgba(0,0,0,0.45); }
   #lr-breath-overlay .lr-actions { gap: 8px; }
 }
 
-/* Evitar scroll body cuando el overlay está activo */
 body.lr-overlay-open { overflow: hidden !important; touch-action: none !important; }
 
-/* Limpieza de logos: mantener transparencia y quitar marcos */
 .logo, .brand-logo, .site-logo, .logo img { background: transparent !important; box-shadow: none !important; border: 0 !important; padding: 0 !important; }
 
-/* Accesibilidad: foco visible, contraste en botones */
 #lr-breath-overlay button:focus { outline: 3px solid rgba(255, 209, 102, 0.25); outline-offset: 3px; }
 
-/* Interacción: efecto pulsación para tocar/gesto */
 #lr-breath-overlay .lr-circle:active { transform: scale(0.995); }
