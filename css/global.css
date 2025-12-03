@@ -185,3 +185,24 @@ button:focus, a:focus { outline: 3px solid rgba(94,193,255,0.18); outline-offset
   .app-title { font-size:0.98rem; }
   .panel{ padding-top: calc(var(--header-height) - 4px); }
 }
+
+/* Footer site */
+.site-footer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--footer-space, 64px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1500; /* debe ser mayor que la tarjeta (1100) y controles (1200) */
+  background: rgba(255,255,255,0.96);
+  box-sizing: border-box;
+  padding: 8px 12px;
+  pointer-events: auto;
+}
+
+.site-footer .site-footer-inner { text-align:center; }
+.site-footer .thank-you { font-weight:800; color: #072032; margin-bottom:2px; }
+.site-footer .copyright { color: var(--muted); font-size:0.85rem; }
