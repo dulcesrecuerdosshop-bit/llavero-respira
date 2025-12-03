@@ -1,19 +1,53 @@
 // helpers.v2.js - Robust helpers (audio, breath flow, favorites, TTS, share, download, delegation)
-// Ensures TTS/share/download use the canonical in-memory phrase (window._phrases_current / window._phrases_currentIndex)
-// so the Escuchar button reads full fragments even if CSS truncates the visible DOM.
-//
-// Replace the repository file js/helpers.v2.js with this content, then clear SW/cache and reload.
+// This file is a reviewed, complete and self-contained replacement for js/helpers.v2.js.
+// - Ensures TTS/share/download use the canonical in-memory phrase (window._phrases_current / window._phrases_currentIndex).
+// - Avoids truncated strings / elisions and includes full implementations for all helpers.
+// After replacing the file, clear SW/cache and reload the site to pick up changes.
 
 (function () {
   'use strict';
 
-  // Logging control
+  // ---------- Logging ----------
   window.LR_DEBUG = window.LR_DEBUG === true;
-  function lrlog(...a) { if (window.LR_DEBUG) console.log(...a); }
-  function lrwarn(...a) { if (window.LR_DEBUG) console.warn(...a); }
+  function lrlog(...args) { if (window.LR_DEBUG) console.log(...args); }
+  function lrwarn(...args) { if (window.LR_DEBUG) console.warn(...args); }
 
-  lrlog('[helpers] loading helpers.v2.js');
+  lrlog('[helpers.v2] init');
 
+  // ---------- Small UI toast ----------
+  function showToast(msg, timeout = 3500) {
+    try {
+      let t = document.getElementById('_lr_toast');
+      if (!t) {
+        t = document.createElement('div');
+        t.id = '_lr_toast';
+        Object.assign(t.style, {
+          position: 'fixed',
+          top: '18px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: 'rgba(8,12,20,0.9)',
+          color: '#fff',
+          padding: '8px 14px',
+          borderRadius: '8px',
+          zIndex: 16000,
+          fontSize: '0.95rem',
+          boxShadow: '0 6px 22px rgba(0,0,0,0.3)',
+          transition: 'opacity 300ms ease'
+        });
+        document.body.appendChild(t);
+      }
+      t.textContent = msg;
+      t.style.opacity = '1';
+      clearTimeout(t._t);
+      t._t = setTimeout(() => { t.style.opacity = '0'; }, timeout);
+    } catch (e) {
+      try { console.log('TOAST:', msg); } catch (_) {}
+    }
+  }
+  if (!window.showToast) window.showToast = showToast;
+
+  // ---------- Audio config ----------
   const AUDIO = {
     breathCandidates: ['Breath.mp3', 'breath.mp3', 'BREATH.mp3'],
     inhaleCue: 'inhaleCue.mp3',
@@ -21,7 +55,7 @@
     ambientCandidates: ['ambient.mp3', 'Ambient.mp3', 'AMBIENT.mp3']
   };
 
-  // breathing timing defaults (can be changed via API)
+  // breathing timing defaults (seconds)
   let inhaleOffsetSeconds = 0.0;
   let inhaleDurationSeconds = 2.8;
   let exhaleOffsetSeconds = 2.8;
@@ -29,7 +63,7 @@
   let hold1DurationSeconds = 4.0;
   let hold2DurationSeconds = 1.0;
 
-  // audio contexts / buffers
+  // audio holders
   let audioCtx = null;
   const audioBuffers = { breath: null, inhaleCue: null, exhaleCue: null, ambient: null };
   let ambientSource = null, ambientGain = null;
@@ -37,13 +71,13 @@
 
   const KEY_FAVORITOS = 'lr_favoritos_v1';
 
-  /* ---------- Utilities ---------- */
+  // ---------- Utilities ----------
   async function existsUrl(url) {
     if (!url) return false;
     try {
       const r = await fetch(url, { method: 'HEAD' });
       if (r && r.ok) return true;
-    } catch (e) { /* ignore HEAD fail */ }
+    } catch (e) { /* ignore */ }
     try {
       const r2 = await fetch(url, { method: 'GET' });
       return !!(r2 && r2.ok);
@@ -55,10 +89,10 @@
     try {
       const AC = window.AudioContext || window.webkitAudioContext;
       audioCtx = new AC();
-      lrlog('[helpers] AudioContext created', audioCtx.state);
+      lrlog('[helpers] AudioContext ok', audioCtx.state);
       return audioCtx;
     } catch (e) {
-      lrwarn('[helpers] WebAudio not available', e);
+      lrwarn('[helpers] AudioContext unavailable', e);
       audioCtx = null;
       return null;
     }
@@ -72,17 +106,17 @@
       if (!r.ok) throw new Error('fetch ' + r.status);
       const ab = await r.arrayBuffer();
       const buf = await ctx.decodeAudioData(ab);
-      lrlog('[helpers] buffer decoded ->', url);
+      lrlog('[helpers] audio decoded', url);
       return buf;
     } catch (e) {
-      lrwarn('[helpers] error loading audio', url, e);
+      lrwarn('[helpers] loadAudioBuffer failed', url, e);
       return null;
     }
   }
 
   function scheduleBufferPlay(buffer, offset, duration, opts) {
     opts = opts || {};
-    const gain = typeof opts.gain === 'number' ? opts.gain : 0.9;
+    const gainVal = typeof opts.gain === 'number' ? opts.gain : 0.9;
     const fade = typeof opts.fade === 'number' ? opts.fade : 0.06;
     if (!audioCtx || !buffer) return false;
     try {
@@ -91,18 +125,18 @@
       const g = audioCtx.createGain();
       const now = audioCtx.currentTime;
       g.gain.setValueAtTime(0.0001, now);
-      g.gain.linearRampToValueAtTime(gain, now + fade);
+      g.gain.linearRampToValueAtTime(gainVal, now + fade);
       const playDuration = Math.max(0.05, duration);
       const endAt = now + playDuration;
-      g.gain.setValueAtTime(gain, endAt - fade);
+      g.gain.setValueAtTime(gainVal, endAt - fade);
       g.gain.linearRampToValueAtTime(0.0001, endAt);
       src.connect(g).connect(audioCtx.destination);
       src.start(now, offset, playDuration);
       src.stop(endAt + 0.05);
-      lrlog('[helpers] scheduled play', { offset, playDuration });
+      lrlog('[helpers] scheduledBufferPlay', { offset, playDuration });
       return true;
     } catch (e) {
-      lrwarn('[helpers] schedule error', e);
+      lrwarn('[helpers] scheduleBufferPlay error', e);
       return false;
     }
   }
@@ -116,17 +150,17 @@
       else el = new Audio(url);
       try { el.currentTime = offset; } catch (e) {}
       el.volume = 0.95;
-      el.play().catch(e => lrwarn('[helpers] html play error', e));
+      el.play().catch(e => lrwarn('[helpers] playHtml play error', e));
       setTimeout(() => { try { el.pause(); el.currentTime = 0; } catch (e) {} }, Math.max(400, Math.round(duration)));
-      lrlog('[helpers] html played', url, { offset, duration });
+      lrlog('[helpers] playHtml', url);
       return true;
     } catch (e) {
-      lrwarn('[helpers] playHtml failed', e);
+      lrwarn('[helpers] playHtml top error', e);
       return false;
     }
   }
 
-  /* ---------- Ambient / Breath players ---------- */
+  // ---------- Ambient helpers ----------
   function startAmbientLoop(buffer, url) {
     if (audioCtx && buffer) {
       stopAmbientLoop();
@@ -138,15 +172,16 @@
       ambientSource.connect(ambientGain).connect(audioCtx.destination);
       ambientSource.start();
       try { ambientGain.gain.linearRampToValueAtTime(0.12, audioCtx.currentTime + 2.0); } catch (e) {}
-      lrlog('[helpers] ambient webaudio start');
+      lrlog('[helpers] ambient (webaudio) started');
       return;
     }
     if (url) {
       if (!htmlAudio.ambientEl) { htmlAudio.ambientEl = new Audio(url); htmlAudio.ambientEl.loop = true; htmlAudio.ambientEl.volume = 0.12; }
       htmlAudio.ambientEl.play().catch(()=>{});
-      lrlog('[helpers] ambient html start');
+      lrlog('[helpers] ambient (html) started');
     }
   }
+
   function stopAmbientLoop() {
     try { if (ambientGain && audioCtx) ambientGain.gain.linearRampToValueAtTime(0.0001, audioCtx.currentTime + 0.6); } catch (e) {}
     try { if (ambientSource && audioCtx) ambientSource.stop(audioCtx.currentTime + 0.5); } catch (e) {}
@@ -155,7 +190,7 @@
     lrlog('[helpers] ambient stopped');
   }
 
-  /* ---------- Preload assets (audio) ---------- */
+  // ---------- Preload assets ----------
   async function preloadAssets() {
     await ensureAudioContext();
     try {
@@ -188,7 +223,6 @@
     } catch (e) {
       lrwarn('[helpers] preloadAssets error', e);
     }
-
     lrlog('[helpers] preload results', {
       inhaleCue: !!audioBuffers.inhaleCue || !!htmlAudio.inhaleEl,
       exhaleCue: !!audioBuffers.exhaleCue || !!htmlAudio.exhaleEl,
@@ -197,40 +231,35 @@
     });
   }
 
-  /* ---------- Breath flow (UI + scheduling) ---------- */
+  // ---------- Breath flow players ----------
   async function playInhale() {
     await preloadAssets();
     if (audioBuffers.inhaleCue) { if (scheduleBufferPlay(audioBuffers.inhaleCue, 0, audioBuffers.inhaleCue.duration || inhaleDurationSeconds)) return; }
     if (htmlAudio.inhaleEl) { if (playHtml(htmlAudio.inhaleEl.src, 0, inhaleDurationSeconds)) return; }
     if (audioBuffers.breath) { if (scheduleBufferPlay(audioBuffers.breath, inhaleOffsetSeconds, inhaleDurationSeconds)) return; }
     if (htmlAudio.breathUrl) { if (playHtml(htmlAudio.breathUrl, inhaleOffsetSeconds, inhaleDurationSeconds)) return; }
-    lrlog('[helpers] no inhale audio available');
+    lrlog('[helpers] playInhale fallback: no audio');
   }
+
   async function playExhale() {
     await preloadAssets();
     if (audioBuffers.exhaleCue) { if (scheduleBufferPlay(audioBuffers.exhaleCue, 0, audioBuffers.exhaleCue.duration || exhaleDurationSeconds)) return; }
     if (htmlAudio.exhaleEl) { if (playHtml(htmlAudio.exhaleEl.src, 0, exhaleDurationSeconds)) return; }
     if (audioBuffers.breath) { if (scheduleBufferPlay(audioBuffers.breath, exhaleOffsetSeconds, exhaleDurationSeconds)) return; }
     if (htmlAudio.breathUrl) { if (playHtml(htmlAudio.breathUrl, exhaleOffsetSeconds, exhaleDurationSeconds)) return; }
-    lrlog('[helpers] no exhale audio available');
+    lrlog('[helpers] playExhale fallback: no audio');
   }
 
+  // ---------- Breath overlay ----------
   async function startBreathFlowInternal() {
     await resumeAudio();
     await preloadAssets();
 
-    // avoid creating multiple overlays
-    if (document.getElementById('lr-breath-overlay')) {
-      lrlog('[helpers] breath overlay already active');
-      return;
-    }
+    if (document.getElementById('lr-breath-overlay')) { lrlog('[helpers] breath overlay already present'); return; }
 
     const overlay = document.createElement('div');
     overlay.id = 'lr-breath-overlay';
-    Object.assign(overlay.style, {
-      position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: 'rgba(0,0,0,0.55)', zIndex: 17000
-    });
+    Object.assign(overlay.style, { position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.55)', zIndex: 17000 });
 
     const container = document.createElement('div');
     Object.assign(container.style, { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' });
@@ -249,7 +278,6 @@
     overlay.appendChild(container);
     document.body.appendChild(overlay);
 
-    // start ambient if available and setting enabled
     if (window._lr_ambient_enabled !== false) {
       if (audioBuffers.ambient) startAmbientLoop(audioBuffers.ambient);
       else if (htmlAudio.ambientEl) startAmbientLoop(null, htmlAudio.ambientEl.src);
@@ -270,24 +298,18 @@
         circle.textContent = s.label;
         small.textContent = s.label + (s.duration ? ' · ' + Math.round(s.duration) + 's' : '');
       } catch (e) {}
-      if (s.action) {
-        try { await s.action(); } catch (e) { lrwarn('[helpers] action error', e); }
-      }
+      if (s.action) { try { await s.action(); } catch (e) { lrwarn('[helpers] breath action error', e); } }
       try {
         const scaleFrom = s.label === 'Exhala' ? 1 : 0.6;
         const scaleTo = s.label === 'Exhala' ? 0.6 : 1.0;
         if (circle.animate) {
-          circle.animate([{ transform: 'scale(' + scaleFrom + ')', opacity: 0.75 }, { transform: 'scale(' + scaleTo + ')', opacity: 1 }],
-            { duration: s.duration * 1000, easing: 'ease-in-out', fill: 'forwards' });
+          circle.animate([{ transform: 'scale(' + scaleFrom + ')', opacity: 0.75 }, { transform: 'scale(' + scaleTo + ')', opacity: 1 }], { duration: s.duration * 1000, easing: 'ease-in-out', fill: 'forwards' });
         } else {
           circle.style.transition = 'transform ' + s.duration + 's ease-in-out';
           circle.style.transform = 'scale(' + scaleTo + ')';
         }
       } catch (e) {}
-      timeoutId = setTimeout(function () {
-        idx = (idx + 1) % steps.length;
-        loopStep();
-      }, Math.round(s.duration * 1000));
+      timeoutId = setTimeout(function () { idx = (idx + 1) % steps.length; loopStep(); }, Math.round(s.duration * 1000));
     }
     loopStep();
 
@@ -295,13 +317,13 @@
       running = false;
       if (timeoutId) clearTimeout(timeoutId);
       try { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); } catch (e) {}
-      lrlog('[helpers] overlay stopped');
+      lrlog('[helpers] breath overlay removed');
     };
-    overlay.addEventListener('click', function () { if (overlay._stop) overlay._stop(); });
+    overlay.addEventListener('click', () => { if (overlay._stop) overlay._stop(); });
     window._lastBreathOverlay = overlay;
   }
 
-  /* ---------- TTS ---------- */
+  // ---------- TTS ----------
   function loadVoicesOnce() {
     return new Promise((resolve) => {
       const vs = speechSynthesis.getVoices();
@@ -313,15 +335,9 @@
   }
 
   async function playTTS(text) {
-    if (!text) return;
-    if (!('speechSynthesis' in window)) {
-      showToast('La síntesis de voz no está disponible en este navegador.');
-      return false;
-    }
-    if (window._lr_tts_enabled === false) {
-      showToast('TTS desactivado en ajustes');
-      return false;
-    }
+    if (!text) { showToast('No hay texto para leer'); return false; }
+    if (!('speechSynthesis' in window)) { showToast('La síntesis de voz no está disponible en este navegador.'); return false; }
+    if (window._lr_tts_enabled === false) { showToast('TTS desactivado en ajustes'); return false; }
     try {
       await resumeAudio();
       const vs = await loadVoicesOnce();
@@ -332,7 +348,7 @@
       u.rate = 1; u.pitch = 1;
       window.speechSynthesis.cancel();
       window.speechSynthesis.speak(u);
-      lrlog('[helpers] TTS speak', text);
+      lrlog('[helpers] TTS started');
       return true;
     } catch (e) {
       lrwarn('[helpers] playTTS failed', e);
@@ -341,7 +357,7 @@
     }
   }
 
-  /* ---------- Resume audio (unlock tricks) ---------- */
+  // ---------- Resume audio (unlock) ----------
   async function resumeAudio() {
     await ensureAudioContext();
     if (audioCtx && audioCtx.state === 'suspended') {
@@ -355,13 +371,37 @@
         src.connect(audioCtx.destination);
         src.start(0);
         src.stop(0.05);
-        lrlog('[helpers] silent buffer played to unlock audio');
+        lrlog('[helpers] resumeAudio silent buffer played');
       }
-    } catch (e) { lrwarn('[helpers] resume fallback failed', e); }
+    } catch (e) { lrwarn('[helpers] resumeAudio fallback failed', e); }
     return audioCtx ? audioCtx.state : 'no-audioctx';
   }
 
-  /* ---------- copy & download helpers ---------- */
+  // ---------- Audio enable prompt ----------
+  function showAudioEnablePrompt() {
+    try {
+      if (document.getElementById('_lr_enable_audio_modal')) return;
+      const modal = document.createElement('div'); modal.id = '_lr_enable_audio_modal';
+      Object.assign(modal.style, { position:'fixed', inset:0, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,0.45)', zIndex:17000 });
+      const box = document.createElement('div');
+      Object.assign(box.style, { background:'#fff', color:'#061226', padding:'18px', borderRadius:'12px', maxWidth:'420px', width:'92%', textAlign:'center', boxShadow:'0 20px 60px rgba(3,10,18,0.12)' });
+      box.innerHTML = `<div style="font-weight:700;margin-bottom:8px">Activar audio</div>
+                       <div style="color:#374151;margin-bottom:14px">Pulsa el botón para activar el audio (permiso local del navegador).</div>
+                       <div style="display:flex;gap:8px;justify-content:center">
+                         <button id="_lr_enable_audio_btn" style="padding:10px 14px;border-radius:8px;border:none;background:linear-gradient(90deg,#7bd389,#5ec1ff);color:#04232a;font-weight:700">Activar sonido</button>
+                         <button id="_lr_enable_audio_cancel" style="padding:10px 14px;border-radius:8px;border:1px solid #cbd5e1;background:transparent;color:#04232a">Cancelar</button>
+                       </div>`;
+      modal.appendChild(box); document.body.appendChild(modal);
+      document.getElementById('_lr_enable_audio_btn').addEventListener('click', async () => {
+        await resumeAudio();
+        modal.remove();
+        showToast('Intentando activar audio — prueba el botón 🔊');
+      });
+      document.getElementById('_lr_enable_audio_cancel').addEventListener('click', () => modal.remove());
+    } catch (e) { lrwarn('[helpers] showAudioEnablePrompt failed', e); }
+  }
+
+  // ---------- Copy & download helpers ----------
   function copyToClipboard(text) {
     if (!text) return;
     if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text).then(() => showToast('Frase copiada'));
@@ -378,7 +418,7 @@
       const a = document.createElement('a'); a.href = url; a.download = 'llavero-respira-frase.png'; document.body.appendChild(a); a.click(); a.remove();
       showToast('Descarga iniciada');
     } catch (e) {
-      lrwarn('download error', e);
+      lrwarn('[helpers] downloadImageFallback error', e);
       showToast('No se pudo descargar la imagen.');
     }
   }
@@ -398,13 +438,21 @@
     }
   }
 
-  // expose globally (in case other scripts call it directly)
+  // expose download helpers (global)
   window.downloadPhraseImage = downloadPhraseImage;
+  window.downloadImageFallback = downloadImageFallback;
 
+  // ---------- Share ----------
   async function sharePhrase({ title, text, url }) {
     const shareText = `${text || ''}\n${url || location.href}`;
     if (navigator.share) {
-      try { await navigator.share({ title: title || 'Llavero Respira', text: shareText, url: url || location.href }); showToast('Compartiendo...'); return true; } catch (e) { lrwarn('[helpers] navigat[...]
+      try {
+        await navigator.share({ title: title || 'Llavero Respira', text: shareText, url: url || location.href });
+        showToast('Compartiendo...');
+        return true;
+      } catch (e) {
+        lrwarn('[helpers] navigator.share failed', e);
+      }
     }
     const wa = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
     try { window.open(wa, '_blank'); return true; } catch (e) { copyToClipboard(shareText); return false; }
@@ -417,19 +465,36 @@
     window.open(wa, '_blank');
   }
 
-  /* ---------- Favorites ---------- */
+  // ---------- Favorites ----------
   function getFavoritos() { try { return JSON.parse(localStorage.getItem(KEY_FAVORITOS) || '[]'); } catch (e) { return []; } }
   function saveFavoritos(arr) { try { localStorage.setItem(KEY_FAVORITOS, JSON.stringify(arr)); } catch (e) {} }
-  function toggleFavorite(text) { if (!text) return false; const favs = getFavoritos(); if (favs.indexOf(text) !== -1) { const next = favs.filter(x => x !== text); saveFavoritos(next); return false; }[...]
+  function toggleFavorite(text) {
+    if (!text) return false;
+    const favs = getFavoritos();
+    if (favs.indexOf(text) !== -1) { const next = favs.filter(x => x !== text); saveFavoritos(next); return false; }
+    favs.unshift(text); saveFavoritos(favs.slice(0, 200));
+    return true;
+  }
+
   function showFavoritesModal() {
     const favs = getFavoritos();
     const modal = document.getElementById('_lr_fav_modal') || document.createElement('div'); modal.id = '_lr_fav_modal';
     Object.assign(modal.style, { position:'fixed', left:0, right:0, top:0, bottom:0, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,0.6)', zIndex:19000 });
-    const box = document.createElement('div'); Object.assign(box.style, { maxWidth:'720px', width:'92%', maxHeight:'70vh', overflow:'auto', background:'rgba(255,255,255,0.98)', color:'#042231', paddin[...]
+    const box = document.createElement('div');
+    Object.assign(box.style, { maxWidth:'720px', width:'92%', maxHeight:'70vh', overflow:'auto', background:'#fff', color:'#042231', padding:'18px', borderRadius:'12px', boxShadow:'0 20px 60px rgba(3,10,18,0.12)' });
+    let inner = '<div style="display:flex;justify-content:space-between;align-items:center"><strong>Favoritos</strong><button id="_lr_close_fav" style="background:transparent;border:1px solid rgba(0,0,0,0.06);padding:6px;border-radius:8px">Cerrar</button></div><hr style="margin:10px 0;opacity:0.06"/>';
+    if (favs && favs.length) inner += favs.map(f => `<div style="margin:10px 0;line-height:1.3;color:#022">${escapeHtml(f)}</div>`).join('');
+    else inner += '<div style="color:rgba(7,16,28,0.8)">No hay favoritos</div>';
+    box.innerHTML = inner;
+    modal.innerHTML = '';
+    modal.appendChild(box);
+    document.body.appendChild(modal);
+    const closeBtn = document.getElementById('_lr_close_fav'); if (closeBtn) closeBtn.addEventListener('click', () => modal && modal.parentNode && modal.parentNode.removeChild(modal));
   }
+
   function escapeHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-  /* ---------- Settings modal ---------- */
+  // ---------- Settings modal ----------
   function showSettingsModal() {
     if (document.getElementById('_lr_settings_modal')) return;
     const modal = document.createElement('div'); modal.id = '_lr_settings_modal';
@@ -460,7 +525,32 @@
     document.body.appendChild(modal);
     document.getElementById('_lr_close_settings').addEventListener('click', () => modal.remove());
 
-  /* ---------- Menu helpers (annotation + delegation) ---------- */
+    const ttsCheckbox = document.getElementById('_lr_toggle_tts');
+    const ambientCheckbox = document.getElementById('_lr_toggle_ambient');
+    if (ttsCheckbox) ttsCheckbox.checked = (window._lr_tts_enabled !== false);
+    if (ambientCheckbox) ambientCheckbox.checked = !!(htmlAudio.ambientEl || audioBuffers.ambient);
+
+    if (ttsCheckbox) ttsCheckbox.addEventListener('change', () => {
+      showToast('TTS ' + (ttsCheckbox.checked ? 'activado' : 'desactivado'));
+      window._lr_tts_enabled = ttsCheckbox.checked;
+    });
+    if (ambientCheckbox) ambientCheckbox.addEventListener('change', () => {
+      showToast('Ambient ' + (ambientCheckbox.checked ? 'activado' : 'desactivado'));
+      window._lr_ambient_enabled = ambientCheckbox.checked;
+    });
+
+    box.querySelectorAll('._lr_preset_btn').forEach(b => {
+      b.addEventListener('click', () => {
+        const p = b.getAttribute('data-preset');
+        if (p && window.lr_helpers && typeof window.lr_helpers.setBreathPattern === 'function') {
+          window.lr_helpers.setBreathPattern(p);
+          showToast('Preset aplicado: ' + p);
+        }
+      });
+    });
+  }
+
+  // ---------- Menu annotation & delegation ----------
   function normalizeText(s) { return (s||'').trim().toLowerCase().replace(/\s+/g,' '); }
   function detectActionFromButton(btn) {
     if (!btn) return null;
@@ -486,6 +576,7 @@
     if (txt.includes('activar audio') || txt.includes('activar sonido') || txt.includes('🔈')) return 'enable-audio';
     if (txt.includes('favoritos') && txt.includes('mostrar')) return 'show-favorites';
     if (txt.includes('compart') || txt.includes('share') || txt.includes('🔗')) return 'share';
+    if (txt.includes('ajust') || txt.includes('ajuste') || txt.includes('settings') || txt.includes('⚙')) return 'settings';
     return null;
   }
 
@@ -509,6 +600,7 @@
         else if (txt.includes('activar audio') || txt.includes('activar sonido') || txt.includes('🔈')) action = 'enable-audio';
         else if (txt.includes('favoritos') && txt.includes('mostrar')) action = 'show-favorites';
         else if (txt.includes('compart') || txt.includes('share') || txt.includes('🔗')) action = 'share';
+        else if (txt.includes('ajust') || txt.includes('ajuste') || txt.includes('settings') || txt.includes('⚙')) action = 'settings';
         if (action) { b.dataset.action = action; changed++; }
       });
       if (changed) lrlog('[helpers] annotateMenuButtonsOnce -> data-action added:', changed);
@@ -516,8 +608,9 @@
     } catch (e) { lrwarn('[helpers] annotate error', e); return 0; }
   }
 
+  // ---------- Core action handler ----------
   function handleMenuAction(action, btn) {
-    // Prefer canonical in-memory phrase (set by phrases.js). Fallback to DOM (#frase-text or #frase)
+    // Prefer canonical in-memory phrase provided by phrases.js
     let phrase = '';
     try {
       if (window._phrases_current) phrase = window._phrases_current;
@@ -527,35 +620,36 @@
       const pEl = document.getElementById('frase-text') || document.getElementById('frase');
       phrase = pEl ? (pEl.textContent || '') : '';
     }
+
     switch (action) {
       case 'breath': startBreathFlowInternal(); break;
       case 'favorite': if (phrase) { const added = toggleFavorite(phrase); if (btn) btn.textContent = added ? '♥ Favorita' : '♡ Favorita'; } break;
       case 'copy': if (phrase) copyToClipboard(phrase); break;
       case 'share': if (phrase) sharePhrase({ title: 'Frase', text: phrase, url: location.href }); break;
-      case 'tts': if (phrase && window._lr_tts_enabled !== false) playTTS(phrase); break;
-      case 'ambient-start': preloadAssets().then(() => { if (audioBuffers.ambient) startAmbientLoop(audioBuffers.ambient); else if (htmlAudio.ambientEl) htmlAudio.ambientEl.play().catch(() => {}); }); break;
+      case 'tts': if (phrase && window._lr_tts_enabled !== false) playTTS(phrase); else showToast('No hay texto para leer'); break;
+      case 'ambient-start': preloadAssets().then(() => { if (audioBuffers.ambient) startAmbientLoop(audioBuffers.ambient); else if (htmlAudio.ambientEl) htmlAudio.ambientEl.play().catch(()=>{}); }); break;
       case 'ambient-stop': stopAmbientLoop(); break;
       case 'download': {
-        // ensure phrase in DOM for capture if needed (temporarily)
+        // ensure full phrase present in DOM to capture image reliably
         const el = document.querySelector('.frase-card') || document.body;
+        let backup;
         try {
-          const fEl = el.querySelector && el.querySelector('#frase-text');
-          const backup = fEl ? fEl.textContent : null;
-          if (fEl && phrase) fEl.textContent = phrase;
-          downloadPhraseImage(el);
-          if (fEl && typeof backup === 'string') fEl.textContent = backup;
-        } catch (e) { downloadPhraseImage(el); }
+          const fEl = document.getElementById('frase-text');
+          if (fEl) { backup = fEl.textContent; if (phrase) fEl.textContent = phrase; }
+        } catch (e) {}
+        downloadPhraseImage(el);
+        try { const fEl = document.getElementById('frase-text'); if (fEl && typeof backup === 'string') fEl.textContent = backup; } catch (e) {}
       } break;
-      case 'enable-audio': resumeAudio().then(() => showToast('Intentado activar audio')); break;
+      case 'enable-audio': resumeAudio().then(() => showToast('Intentando activar audio')); break;
       case 'show-favorites': showFavoritesModal(); break;
-      case 'share-app': sharePhrase({ title: 'Llavero Respira', text: 'Echa un vistazo', url: location.href }); break;
+      case 'share-app': sharePhrase({ title:'Llavero Respira', text:'Echa un vistazo', url: location.href }); break;
       case 'invite': inviteFriend(); break;
       case 'settings': showSettingsModal(); break;
       default: lrlog('[helpers] action not mapped:', action); break;
     }
   }
 
-  /* ---------- Fallback attach helpers ---------- */
+  // ---------- Fallback attach helper ----------
   function attachTouchClick(ids, fn) {
     if (!Array.isArray(ids)) ids = [ids];
     for (let i = 0; i < ids.length; i++) {
@@ -568,7 +662,7 @@
     }
   }
 
-  /* ---------- Menu delegation ---------- */
+  // ---------- Delegation ----------
   function initMenuDelegation() {
     const panel = document.getElementById('menuPanel');
     if (!panel) {
@@ -579,7 +673,7 @@
       try {
         const target = (e.target && e.target.closest && e.target.closest('button, [role="menuitem"], [data-action]')) || e.target;
         if (!target || !panel.contains(target)) return;
-        if (e.type === 'touchend') { e.preventDefault(); }
+        if (e.type === 'touchend') e.preventDefault();
         e.stopPropagation();
         const action = detectActionFromButton(target);
         if (action) handleMenuAction(action, target);
@@ -588,24 +682,24 @@
     }
     panel.addEventListener('click', onPointer);
     panel.addEventListener('touchend', onPointer, { passive: false });
-    lrlog('[helpers] menu delegation activated');
+    lrlog('[helpers] menu delegation active');
     return true;
   }
 
-  /* ---------- Init ---------- */
+  // ---------- Init bindings ----------
   document.addEventListener('DOMContentLoaded', function () {
     annotateMenuButtonsOnce();
     const delegated = initMenuDelegation();
     if (!delegated) {
-      // fallback bindings
+      // fallback bindings (ids present in index.html)
       attachTouchClick(['breathBtn_menu','breathBtn'], function () { startBreathFlowInternal(); });
       attachTouchClick(['enableAudioBtn','enableAudio'], function () { resumeAudio().then(function () { showToast('Intentado activar audio'); }); });
       attachTouchClick(['ttsBtn_menu','ttsBtn'], function () {
-        // Prefer memory phrase
+        // prefer in-memory phrase
         let t = '';
-        try { if (window._phrases_current) t = window._phrases_current; else if (typeof window._phrases_currentIndex === 'number' && Array.isArray(window._phrases_list)) t = window._phrases_list[window._phrases_currentIndex] || ''; } catch(e){ t = ''; }
+        try { if (window._phrases_current) t = window._phrases_current; else if (typeof window._phrases_currentIndex === 'number' && Array.isArray(window._phrases_list)) t = window._phrases_list[window._phrases_currentIndex] || ''; } catch (e) { t = ''; }
         if (!t) t = (document.getElementById('frase-text') && document.getElementById('frase-text').textContent) || (document.getElementById('frase') && document.getElementById('frase').textContent) || '';
-        if (t) playTTS(t);
+        if (t) playTTS(t); else showToast('No hay texto para leer');
       });
       attachTouchClick(['startAmbientBtn'], function () { preloadAssets().then(function () { if (audioBuffers.ambient) startAmbientLoop(audioBuffers.ambient); else if (htmlAudio.ambientEl) htmlAudio.ambientEl.play().catch(()=>{}); }); });
       attachTouchClick(['stopAmbientBtn'], function () { stopAmbientLoop(); });
@@ -617,7 +711,7 @@
       });
       attachTouchClick(['downloadBtn','downloadBtn_menu'], function () {
         const el = document.querySelector('.frase-card') || document.querySelector('.card') || document.body;
-        // temporarily ensure DOM contains full phrase for capture
+        // temporarily ensure DOM contains full phrase
         let backup;
         try {
           const fEl = document.getElementById('frase-text');
@@ -630,13 +724,13 @@
         let t = '';
         try { if (window._phrases_current) t = window._phrases_current; else if (typeof window._phrases_currentIndex === 'number' && Array.isArray(window._phrases_list)) t = window._phrases_list[window._phrases_currentIndex] || ''; } catch(e){ t = ''; }
         if (!t) t = (document.getElementById('frase-text') && document.getElementById('frase-text').textContent) || (document.getElementById('frase') && document.getElementById('frase').textContent) || '';
-        if (t) sharePhrase({ title: 'Frase', text: t, url: location.href });
+        if (t) sharePhrase({ title: 'Frase', text: t, url: location.href }); else showToast('No hay texto para compartir');
       });
       attachTouchClick(['inviteBtn'], function () { inviteFriend(); });
     }
   });
 
-  /* ---------- Public API ---------- */
+  // ---------- Public API ----------
   window.lr_helpers = window.lr_helpers || {};
   Object.assign(window.lr_helpers, {
     preload: preloadAssets,
@@ -684,4 +778,5 @@
   window.lr_helpers.downloadPhraseImage = downloadPhraseImage;
   window.lr_helpers.downloadImageFallback = downloadImageFallback;
 
+  lrlog('[helpers.v2] ready');
 })();
