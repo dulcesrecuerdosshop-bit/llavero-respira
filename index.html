@@ -63,7 +63,7 @@
             <button id="favBtn" class="control" data-action="favorite" aria-pressed="false" aria-label="Favorito">♡</button>
             <button id="downloadBtn" class="control" data-action="download" aria-label="Descargar">⬇️</button>
             <button id="shareBtn" class="control" data-action="share" aria-label="Compartir">🔗</button>
-            <!-- inviteBtn removed per request (not functional / not relevant now) -->
+            <!-- inviteBtn intentionally removed -->
           </div>
         </div>
       </div>
@@ -102,8 +102,11 @@
     });
   </script>
 
+  <!-- Core scripts: helpers first, phrases next -->
   <script src="js/helpers.v2.js" defer></script>
   <script src="js/phrases.js" defer></script>
+  <!-- Added: ui-fixes ensures card click/Space invoke mostrarFrase() reliably -->
+  <script src="js/ui-fixes.js" defer></script>
   <script src="js/load-user.js" defer></script>
 </body>
 </html>
