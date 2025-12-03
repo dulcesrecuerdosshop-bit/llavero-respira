@@ -1,4 +1,4 @@
-// js/load-user.js - carga personalización por id y gestiona modal de bienvenida
+// js/load-user.js - carga personalización por id y gestiona modal de bienvenida (gestión segura del foco)
 (function () {
   'use strict';
 
@@ -28,25 +28,27 @@
 
   // Modal creation and accessibility-safe open/close
   function ensureModalExists() {
-    const modal = document.getElementById('lr-user-modal');
-    if (!modal) return;
+    let modal = document.getElementById('lr-user-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'lr-user-modal';
+      document.body.appendChild(modal);
+    }
     // If already populated, leave it
     if (modal.dataset._initialized === '1') return;
 
-    // Basic structure
     modal.className = 'lr-user-modal hidden';
     modal.setAttribute('aria-hidden', 'true');
     modal.setAttribute('role', 'dialog');
     modal.setAttribute('aria-modal', 'true');
-
     modal.innerHTML = `
       <div class="lr-modal-card" role="document" aria-labelledby="lr-modal-title">
-        <button class="lr-modal-close" aria-label="Cerrar">&times;</button>
+        <button class="lr-modal-close" aria-label="Cerrar" tabindex="-1">&times;</button>
         <h2 id="lr-modal-title" class="lr-modal-title">Bienvenido</h2>
         <div class="lr-modal-message" id="lr-modal-message">Mensaje</div>
         <div class="lr-modal-actions">
-          <button id="lr-modal-view" class="lr-btn">Ver frase</button>
-          <button id="lr-modal-go" class="lr-btn primary">Ir</button>
+          <button id="lr-modal-view" class="lr-btn" tabindex="-1">Ver frase</button>
+          <button id="lr-modal-go" class="lr-btn primary" tabindex="-1">Ir</button>
         </div>
       </div>
     `;
@@ -80,26 +82,37 @@
   }
 
   function setInertToMain(enable) {
-    // Use the inert attribute if available (modern browsers). Otherwise fallback to aria-hidden.
     const main = document.querySelector('main') || document.getElementById('main') || document.body;
     try {
       if (enable) {
-        // mark main as inert so it won't be focusable or reachable for AT
-        if ('inert' in HTMLElement.prototype) {
-          main.inert = true;
-        } else {
-          main.setAttribute('aria-hidden', 'true');
-        }
+        if ('inert' in HTMLElement.prototype) main.inert = true;
+        else main.setAttribute('aria-hidden', 'true');
       } else {
-        if ('inert' in HTMLElement.prototype) {
-          main.inert = false;
-        } else {
-          main.removeAttribute('aria-hidden');
-        }
+        if ('inert' in HTMLElement.prototype) main.inert = false;
+        else main.removeAttribute('aria-hidden');
       }
     } catch (e) {
       console.warn('[load-user] setInertToMain failed', e);
     }
+  }
+
+  function enableModalInteractive(modal, enable) {
+    // enable = true -> set focusable (tabindex=0) on controls; enable=false -> tabindex=-1
+    const controls = modal.querySelectorAll('button, [href], input, textarea, select, [tabindex]');
+    controls.forEach(c => {
+      if (enable) {
+        c.removeAttribute('aria-hidden');
+        if (c.dataset._origTab === undefined) c.dataset._origTab = c.getAttribute('tabindex') === null ? '' : c.getAttribute('tabindex');
+        c.setAttribute('tabindex', '0');
+      } else {
+        if (c.dataset._origTab !== undefined) {
+          if (c.dataset._origTab === '') c.removeAttribute('tabindex');
+          else c.setAttribute('tabindex', c.dataset._origTab);
+        } else {
+          c.setAttribute('tabindex', '-1');
+        }
+      }
+    });
   }
 
   function openModal({ title, message }) {
@@ -107,62 +120,61 @@
     const modal = document.getElementById('lr-user-modal');
     if (!modal) return;
 
-    // Store previously focused element (to restore focus on close)
-    let prev = document.activeElement;
-    if (prev && prev !== document.body && prev.id) {
-      modal.dataset._previousFocusId = prev.id;
-    } else {
-      // store element reference as fallback (not persisted across navigations)
-      try { modal.dataset._previousFocusTag = prev ? prev.tagName : ''; } catch (_) { modal.dataset._previousFocusTag = ''; }
-    }
+    // Save previous focus element id (if possible)
+    const prev = document.activeElement;
+    try {
+      if (prev && prev !== document.body && prev.id) modal.dataset._previousFocusId = prev.id;
+      else modal.dataset._previousFocusTag = prev ? prev.tagName : '';
+    } catch (_) { modal.dataset._previousFocusTag = ''; }
 
-    // Make page inert (prevent focus on background) BEFORE making modal visible
+    // Make main inert BEFORE showing modal
     setInertToMain(true);
 
-    // Make modal visible and accessible
+    // Show modal and make it available to AT
     modal.classList.remove('hidden');
     modal.setAttribute('aria-hidden', 'false');
 
-    // Set content
+    // Ensure controls become focusable only after modal visible
+    enableModalInteractive(modal, true);
+
+    // Focus first interactive control in modal after microtask
+    setTimeout(() => {
+      const first = modal.querySelector('#lr-modal-go') || modal.querySelector('#lr-modal-view') || modal.querySelector('.lr-modal-close');
+      if (first && typeof first.focus === 'function') {
+        try { first.focus({ preventScroll: true }); } catch (e) { try { first.focus(); } catch (_) {} }
+      }
+    }, 10);
+
+    // Set title/message
     const titleEl = modal.querySelector('#lr-modal-title');
     const msgEl = modal.querySelector('#lr-modal-message');
     if (titleEl && title) titleEl.textContent = title;
     if (msgEl && message) msgEl.textContent = message;
-
-    // After a microtask, move focus into the modal (ensures aria-hidden=false is in effect)
-    setTimeout(() => {
-      const first = modal.querySelector('#lr-modal-go') || modal.querySelector('#lr-modal-view') || modal.querySelector('.lr-modal-close');
-      if (first && typeof first.focus === 'function') {
-        try { first.focus({ preventScroll: true }); }
-        catch (e) { try { first.focus(); } catch (e2) { } }
-      }
-    }, 20);
   }
 
   function closeModal() {
     const modal = document.getElementById('lr-user-modal');
     if (!modal) return;
 
-    // Hide modal from AT first
+    // Mark hidden for AT first
     modal.setAttribute('aria-hidden', 'true');
 
-    // Hide visually
+    // Remove visual display
     modal.classList.add('hidden');
 
-    // Remove inert from main so it becomes focusable again
+    // Make controls unfocusable
+    enableModalInteractive(modal, false);
+
+    // Remove inert from main
     setInertToMain(false);
 
-    // Restore focus to the previously focused element (if possible)
+    // Restore focus
     try {
       const prevId = modal.dataset._previousFocusId;
       if (prevId) {
         const prevEl = document.getElementById(prevId);
-        if (prevEl && typeof prevEl.focus === 'function') {
-          prevEl.focus({ preventScroll: true });
-          return;
-        }
+        if (prevEl && typeof prevEl.focus === 'function') { prevEl.focus({ preventScroll: true }); return; }
       }
-      // fallback: try to focus main or body
       const main = document.querySelector('main') || document.getElementById('main') || document.body;
       if (main && typeof main.focus === 'function') main.focus({ preventScroll: true });
     } catch (e) {
@@ -174,12 +186,10 @@
     if (!data) return;
     const title = data.nombre ? `Hola ${data.nombre}` : 'Bienvenido';
     const message = data.mensaje || `Hola ${data.nombre || ''}, respira conmigo`;
-    // Update greeting (visible in header)
     try {
       const greet = document.getElementById('user-greeting');
       if (greet) greet.textContent = data.mensaje || 'Un recordatorio amable';
     } catch (e) {}
-    // Open modal with safe focus handling
     openModal({ title, message });
   }
 
