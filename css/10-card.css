@@ -1,4 +1,4 @@
-/* css/10-card.css - tarjeta de frase (corregida, sin selectores duplicados) */
+/* css/10-card.css - tarjeta de frase (corregida, fullscreen robusto para móvil) */
 
 /* Tokens y variables locales */
 :root{
@@ -27,17 +27,24 @@
 
 /* Fullscreen variant: ocupa viewport debajo del header y centra contenido */
 .frase-card.fullscreen {
-  width: 100%;
+  /* Ahora ocupamos el área debajo del header con position fixed para respetar viewport */
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: var(--header-height, 72px);
+  bottom: 0;
+  height: calc(100vh - var(--header-height,72px));
+  width: 100vw;
   max-width: none;
   margin: 0;
   border-radius: 0;
-  height: calc(100vh - var(--header-height,72px));
   display: flex;
   align-items: center;
   justify-content: center;
   background: none;
   box-shadow: none;
   padding: 0;
+  z-index: 1100;
   box-sizing: border-box;
 }
 
@@ -71,6 +78,18 @@
   -webkit-overflow-scrolling: touch;
 }
 
+/* When fullscreen, allow the content to expand and center */
+.frase-card.fullscreen .frase-content {
+  max-height: none;
+  overflow: auto;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: clamp(18px, 5vw, 36px);
+  width: 100%;
+  box-sizing: border-box;
+}
+
 /* Texto principal */
 .frase-text {
   font-size: var(--text-large-strong);
@@ -89,7 +108,7 @@
 /* Texto mayor en fullscreen */
 .frase-card.fullscreen .frase-text {
   font-size: clamp(1.4rem, 6vw, 2.6rem);
-  line-height: 1.2;
+  line-height: 1.15;
   max-width: 92%;
 }
 
@@ -112,7 +131,7 @@
   transform: translateX(-50%);
   justify-content: center;
   background: transparent;
-  z-index: 5;
+  z-index: 1200;
 }
 
 /* Button styling */
@@ -135,10 +154,11 @@
 
 /* Mobile fallback */
 @media (max-width:640px){
-  .frase-card { width:98%; margin:10px auto; border-radius:14px; }
-  .frase-card.fullscreen { height: calc(100vh - var(--header-height,72px)); }
+  .frase-card { width:98%; margin:10px auto; border-radius:14px; position: relative; }
+  /* En móviles, si la clase fullscreen está activa, la regla superior la fijará como fixed */
   .frase-card .frase-content { padding:18px; min-height:180px; }
-  .frase-card .frase-controls { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); }
+  .frase-card .frase-controls { position: static; transform:none; margin-top: 12px; }
+  .frase-card.fullscreen .frase-controls { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); }
 }
 
 /* Defensive rules: avoid floats/columns inside the card */
