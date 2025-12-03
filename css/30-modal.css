@@ -1,0 +1,93 @@
+/* modal-user.css — modal de bienvenida (30-modal.css) */
+
+.lr-user-modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--overlay);
+  z-index: 14000;
+  padding: 20px;
+  -webkit-backdrop-filter: blur(6px) saturate(120%);
+  backdrop-filter: blur(6px) saturate(120%);
+}
+
+.lr-user-modal.hidden { display: none !important; pointer-events: none; }
+
+.lr-modal-card {
+  width: 100%;
+  max-width: 720px;
+  border-radius: 14px;
+  background: var(--modal-bg);
+  padding: 20px;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.55);
+  color: #fff;
+  transform-origin: center;
+  animation: lr-modal-in 260ms ease;
+  position: relative;
+  border: 1px solid rgba(255,255,255,0.03);
+}
+
+@keyframes lr-modal-in {
+  from { transform: translateY(8px) scale(.995); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+.lr-modal-close {
+  position: absolute;
+  right: 12px;
+  top: 10px;
+  background: transparent;
+  border: none;
+  color: rgba(255,255,255,0.9);
+  font-size: 1.45rem;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+}
+
+.lr-modal-title {
+  margin: 6px 0 8px 0;
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+.lr-modal-message {
+  margin: 0 0 14px 0;
+  font-size: 1rem;
+  color: rgba(255,255,255,0.85);
+  line-height: 1.45;
+}
+
+.lr-modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+.lr-btn {
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.06);
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  font-weight: 700;
+  min-height: 44px;
+}
+.lr-btn.primary {
+  background: linear-gradient(90deg, var(--accent-start), var(--accent-end));
+  color: #072032;
+  border: none;
+}
+
+@media (max-width:560px) {
+  .lr-modal-card { padding: 16px; max-width: 92%; border-radius: 12px; }
+  .lr-modal-title { font-size: 1.05rem; }
+  .lr-modal-message { font-size: 0.98rem; }
+  .lr-modal-actions { justify-content: center; gap: 8px; flex-wrap: wrap; }
+}
+
+.lr-btn:focus, .lr-modal-close:focus { outline: 3px solid rgba(255,209,102,0.2); outline-offset: 3px; }
