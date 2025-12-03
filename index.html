@@ -114,13 +114,27 @@
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', async () => {
         try {
-          // Ruta relativa para que GitHub Pages cargue sw.js desde el subdirectorio del repo
-          const reg = await navigator.serviceWorker.register('sw.js');
+          // Construir la URL del sw.js relativa a la página actual (evita '/' raíz accidental)
+          const swUrl = new URL('sw.js', location.href).href;
+
+          // Calcular scope: carpeta actual del path (ej. /llavero-respira/)
+          let scopePath = '/';
+          try {
+            const path = location.pathname || '/';
+            if (path.endsWith('/')) scopePath = path;
+            else scopePath = path.substring(0, path.lastIndexOf('/') + 1) || '/';
+          } catch (_) { scopePath = '/'; }
+
+          // Log para depuración: comprobar URL y scope que se intentan registrar
+          console.log('[sw] attempting to register', swUrl, 'scope=', scopePath);
+
+          // Registrar con scope explícito para forzar que quede bajo /<repo>/
+          const reg = await navigator.serviceWorker.register(swUrl, { scope: scopePath });
           console.log('[sw] registered', reg.scope);
 
           // Si hay un SW esperando, pedir skipWaiting
           if (reg.waiting) {
-            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+            try { reg.waiting.postMessage({ type: 'SKIP_WAITING' }); } catch (e) { /* ignore */ }
           }
 
           // Recargar cuando el nuevo SW tome el control
