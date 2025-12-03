@@ -1,0 +1,166 @@
+/* frase-card.css — componente tarjeta (10-card.css) */
+
+/* Card container — móvil primero, centrada y con prioridad visual */
+.frase-card {
+  width: min(96%, 920px);
+  max-width: 920px;
+  margin: 18px auto;
+  border-radius: var(--card-radius);
+  overflow: hidden;
+  position: relative;
+  box-shadow: var(--card-shadow);
+  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(255,255,255,0.96));
+  border: 1px solid rgba(7,20,34,0.03);
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+}
+
+/* Ensure card is visually prioritized on small screens by limiting height and enabling internal scrolling */
+.frase-card .frase-content {
+  width: 100%;
+  max-height: var(--card-max-height-mobile);
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Background image layer (covers entire card) */
+.frase-bg {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  filter: brightness(0.82) saturate(0.96);
+  transition: background 420ms ease, filter 420ms ease;
+  z-index: 0;
+}
+
+/* Layer overlay to ensure text contrast */
+.frase-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,0.0), rgba(6,8,12,0.12));
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Content area (above bg) */
+.frase-content {
+  position: relative;
+  padding: clamp(18px, 5.2vw, 36px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 220px;
+  z-index: 2;
+}
+
+/* The fragment text — prioridad visual */
+.frase-text {
+  font-size: var(--text-large-strong);
+  font-weight: 800;
+  line-height: 1.36;
+  color: #072032;
+  hyphens: auto;
+  word-break: break-word;
+  white-space: pre-wrap;
+  margin: 0;
+  padding: 0;
+  max-height: calc(var(--card-max-height-mobile) - 120px);
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 6px;
+}
+
+/* If background is dark (toggle .dark-bg on .frase-card), switch to light text */
+.frase-card.dark-bg .frase-text {
+  color: #fff;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.45);
+}
+
+/* Controls row (share, favorite, download, next) */
+.frase-controls {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  align-items: center;
+  margin-top: 6px;
+  z-index: 2;
+  flex-wrap: wrap;
+}
+
+/* Buttons */
+.control {
+  background: transparent;
+  border: 1px solid rgba(7,20,34,0.06);
+  color: #072032;
+  padding: 12px 14px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 800;
+  min-height: 46px;
+  min-width: 46px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: center;
+  transition: transform 140ms ease, background 180ms ease, box-shadow 180ms;
+  box-shadow: 0 6px 18px rgba(6,10,18,0.04);
+  touch-action: manipulation;
+}
+
+/* Make icons/text slightly larger on controls */
+.control > * { font-size: 1.05rem; }
+
+/* Primary (leer siguiente / favorita) */
+.control.primary {
+  background: var(--accent);
+  color: #072032;
+  border: none;
+}
+
+/* Hover / active affordance */
+.control:hover { transform: translateY(-2px); }
+.control:active { transform: translateY(0); box-shadow: 0 4px 12px rgba(6,10,18,0.06); }
+
+/* When dark bg: invert control colors for readability */
+.frase-card.dark-bg .control {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.06);
+  color: #fff;
+}
+.frase-card.dark-bg .control.primary {
+  background: var(--accent);
+  color: #072032;
+}
+
+/* Hide invite button on card explicitly (if present) */
+#inviteBtn, .control.invite { display: none !important; height: 0 !important; width: 0 !important; padding: 0 !important; border: 0 !important; }
+
+/* Small screens: prioritize text, larger paddings */
+@media (max-width:640px) {
+  .frase-card { width: 98%; margin: 10px auto; border-radius: 14px; }
+  .frase-content { padding: 18px; min-height: 180px; }
+  .frase-text { font-size: clamp(1rem, 4.6vw, 1.25rem); line-height: 1.45; font-weight: 800; max-height: calc(var(--card-max-height-mobile) - 130px); }
+  .frase-controls { justify-content: flex-end; gap: 10px; margin-top: 10px; }
+  .control { padding: 12px 14px; min-height: 48px; min-width: 48px; }
+}
+
+/* Large screens: more breathing room */
+@media (min-width: 1200px) {
+  .frase-content { padding: 40px 48px; min-height: 260px; }
+  .frase-text { font-size: clamp(1.3rem, 1.8vw, 1.9rem); line-height: 1.34; max-height: none; overflow: visible; }
+}
+
+/* Accessibility focus */
+.control:focus { outline: 3px solid rgba(94,193,255,0.2); outline-offset: 3px; }
+
+/* Utility: small footer note inside card for attribution / brand */
+.frase-brand-note {
+  font-size: 0.86rem;
+  color: var(--muted-on-card);
+  opacity: 0.95;
+  margin-top: 6px;
+  align-self: flex-start;
+}
