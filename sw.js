@@ -1,5 +1,5 @@
 // sw.js - Service Worker corrected - CACHE v3
-const CACHE_VERSION = 'v14';
+const CACHE_VERSION = 'v15';
 const CACHE_NAME = `llavero-respira-${CACHE_VERSION}`;
 const ASSETS = ['./','index.html','logo.png','helpers.js','manifest.json'];
 
