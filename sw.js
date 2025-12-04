@@ -1,40 +1,30 @@
-// sw.js - ejemplo con CACHE_NAME bump y SKIP_WAITING handler
-const CACHE_NAME = 'llavero-respira-v2'; // aumenta esta cadena cuando actualices assets
-const ASSETS_TO_CACHE = [
-  '/',
-  '/index.html',
-  '/css/global.css',
-  '/js/helpers.v2.js',
-  '/js/phrases.js',
-  '/js/ui-fixes.js',
-  '/js/load-user.js',
-  '/js/breath-sessions.js',
-  // añade otros assets que quieras cachear
+// Ejemplo: bump cache name y forzar activación (ajusta al contenido actual de tu sw.js)
+const CACHE_NAME = 'llavero-respira-v2'; // incrementar versión
+const ASSETS = [
+  '/', '/index.html', '/js/main.js', '/js/breath-sessions.js', '/css/global.css'
 ];
 
-self.addEventListener('install', (event) => {
+self.addEventListener('install', event => {
   self.skipWaiting();
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS_TO_CACHE))
+    caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS))
   );
 });
 
-self.addEventListener('activate', (event) => {
-  event.waitUntil((async () => {
-    const keys = await caches.keys();
-    await Promise.all(keys.map(k => { if (k !== CACHE_NAME) return caches.delete(k); }));
-    await self.clients.claim();
-  })());
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    (async () => {
+      // Limpiar caches antiguas
+      const keys = await caches.keys();
+      await Promise.all(keys.map(k => k !== CACHE_NAME ? caches.delete(k) : Promise.resolve()));
+      await self.clients.claim();
+    })()
+  );
 });
 
-self.addEventListener('fetch', (event) => {
-  const req = event.request;
-  if (req.method !== 'GET') return;
-  event.respondWith(caches.match(req).then(cached => cached || fetch(req)));
-});
-
-self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SKIP_WAITING') {
-    self.skipWaiting();
-  }
+self.addEventListener('fetch', event => {
+  // strategy simple: try cache first, fallback to network
+  event.respondWith(
+    caches.match(event.request).then(r => r || fetch(event.request))
+  );
 });
