@@ -1,21 +1,20 @@
-// Minimal sw.js: intenta instalar/activar y desregistrarse para evitar caching persistente
+// Minimal sw.js: no precache; al activarse intenta desregistrarse para eliminar versiones rotas previas
 self.addEventListener('install', event => {
-  // no precache; no op
   self.skipWaiting();
 });
 
 self.addEventListener('activate', event => {
   event.waitUntil((async () => {
     try {
-      // Intenta desregistrarse para eliminar versiones rotas previas
+      // Intenta desregistrarse para que clientes dejen de estar controlados
       await self.registration.unregister();
-      // claim clients so they reload without this SW controlling them further
-      const clients = await self.clients.matchAll({ includeUncontrolled: true });
-      for(const c of clients) {
-        try { await c.navigate(c.url); } catch(e){ /* ignore */ }
+      // Opcional: intentar forzar recarga de clientes controlados
+      const clientsList = await self.clients.matchAll({ includeUncontrolled: true });
+      for (const c of clientsList) {
+        try { c.navigate(c.url); } catch(e){ /* ignore */ }
       }
     } catch(e) {
-      // fallback: claim clients (if unregister fails)
+      // fallback: claim clients
       try { await self.clients.claim(); } catch(_) {}
     }
   })());
