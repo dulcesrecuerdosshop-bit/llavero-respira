@@ -1,11 +1,3 @@
-// breath-sessions.js (v2)
-// Añade sesiones con UI avanzada: temporizador (countdown), pausar/continuar, salir (stop) y editar configuración (abrir ajustes).
-// - Inserta UI de sesión en Modal Ajustes (no destructivo).
-// - Inserta panel de control de sesión cuando se inicia (countdown, pausa, editar, salir).
-// - Respeta y usa la API pública window.lr_helpers (startBreathFlow, stopAmbient, resumeAudio, setBreathPattern).
-// - Traduce/clarifica presets a Español en la sección de ajustes.
-// - No modifica helpers.v2.js; funciona como módulo no intrusivo.
-
 (function(){
   if (window._breath_sessions_v2_loaded) return;
   window._breath_sessions_v2_loaded = true;
