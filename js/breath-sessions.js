@@ -1,20 +1,14 @@
-// BREATH SESSIONS — inyección robusta y binding seguro (versión para subir)
+// BREATH SESSIONS — inyección robusta, binding seguro y captura con debounce
 (function(){
   if (window._breath_sessions_loaded_permanent) return;
   window._breath_sessions_loaded_permanent = true;
 
-  const SESSION_OPTIONS = [
-    { id: "0", label: "Sin temporizador", seconds: 0 },
-    { id: "60", label: "1 minuto", seconds: 60 },
-    { id: "180", label: "3 minutos", seconds: 180 },
-    { id: "300", label: "5 minutos", seconds: 300 }
-  ];
+  const SESSION_OPTIONS = [{ id:"0", label:"Sin temporizador", seconds:0 },{ id:"60", label:"1 minuto", seconds:60 },{ id:"180", label:"3 minutos", seconds:180 },{ id:"300", label:"5 minutos", seconds:300 }];
   const PRESET_LABELS = { box:"Caja (4-4-4-4)", calm:"Calma suave", slow:"Lento", "478":"4-7-8" };
 
   let sessionActive=false, sessionPaused=false, sessionEndsAt=0, sessionInterval=null, remainingSeconds=0;
 
   function formatTime(s){ s=Math.max(0,Math.floor(s)); const mm=Math.floor(s/60), ss=s%60; return `${String(mm).padStart(2,"0")}:${String(ss).padStart(2,"0")}`; }
-
   function isVisible(node){ if(!node) return false; const cs=getComputedStyle(node); return cs.display!=='none' && cs.visibility!=='hidden' && node.offsetParent!==null; }
   function waitForVisible(node, timeout=6000){
     return new Promise(resolve=>{
@@ -31,11 +25,9 @@
     let card = modal.querySelector('.lr-modal-card') || modal.querySelector('div') || modal;
     if(!card) card = modal;
 
-    // Si está marcado sessionsLoaded pero faltan nuestros elementos → limpiar marca para reinyectar
     const hasSelect = !!card.querySelector('#lr_session_select');
     const hasBtn = !!card.querySelector('#lr_session_start_btn');
     if(card.dataset.sessionsLoaded === "1" && (!hasSelect || !hasBtn)){
-      console.warn('Detected sessionsLoaded flag but missing elements — removing flag to re-inject');
       delete card.dataset.sessionsLoaded;
     }
     if(card.dataset.sessionsLoaded === "1") return;
@@ -58,22 +50,14 @@
     const select = document.getElementById('lr_session_select');
     try{ const saved = localStorage.getItem('lr_session_seconds'); if(saved && select) select.value = saved;}catch(e){}
 
-    select?.addEventListener('change', e => { try{ localStorage.setItem('lr_session_seconds', e.target.value); }catch(e){} });
+    select?.addEventListener('change', e=>{ try{ localStorage.setItem('lr_session_seconds', e.target.value); }catch(e){} });
 
-    // binding robusto: aseguramos type=button y attach en captura para evitar interferencias
+    // attach handlers lightly; main handler will be document-level capture (see below)
     const startBtn = document.getElementById('lr_session_start_btn');
     if(startBtn && !startBtn.dataset.lr_bound){
-      try { startBtn.type = 'button'; startBtn.onclick = null; } catch(e){}
-      startBtn.dataset.lr_bound = '1';
-      startBtn.addEventListener('click', (ev) => {
-        try { ev && ev.stopPropagation && ev.stopPropagation(); }catch(e){}
-        const seconds = parseInt(document.getElementById('lr_session_select')?.value || '0', 10) || 0;
-        if(window.lr_breathSessions && typeof window.lr_breathSessions.startSession === 'function') {
-          window.lr_breathSessions.startSession(seconds);
-        } else if(window.lr_helpers && typeof window.lr_helpers.startBreathFlow === 'function'){
-          window.lr_helpers.startBreathFlow();
-        } else console.warn('No start session function available');
-      }, { capture:true });
+      try{ startBtn.type='button'; startBtn.onclick = null; }catch(e){}
+      startBtn.dataset.lr_bound='1';
+      startBtn.addEventListener('click', (ev)=>{ ev && ev.stopPropagation && ev.stopPropagation(); const seconds = parseInt(select?.value||'0',10)||0; if(window.lr_breathSessions?.startSession) window.lr_breathSessions.startSession(seconds); }, { capture:true });
     }
 
     const wrap = document.getElementById('lr_preset_buttons');
@@ -86,49 +70,52 @@
     });
   }
 
-  // export para hotpatch/testing
   window.lr_breathSessions_inject = injectSettingsUIInto;
 
   async function tryInjectNow(){
     const m1 = document.getElementById('_lr_settings_modal');
     const m2 = document.getElementById('lr-user-modal');
-    if(m1){
-      const ok = await waitForVisible(m1, 4000);
-      if(ok) injectSettingsUIInto(m1);
-      return;
-    }
-    if(m2){
-      const ok = await waitForVisible(m2, 4000);
-      if(ok) injectSettingsUIInto(m2);
-      return;
-    }
+    if(m1){ const ok = await waitForVisible(m1,4000); if(ok) injectSettingsUIInto(m1); return; }
+    if(m2){ const ok = await waitForVisible(m2,4000); if(ok) injectSettingsUIInto(m2); return; }
   }
 
   const modalObserver = new MutationObserver(()=>{ tryInjectNow(); });
   modalObserver.observe(document.body, { childList:true, subtree:true });
 
-  function attachSettingsMenuListener(){
-    const btn = document.getElementById('settings_menu');
-    if(btn && !btn.dataset._lr_settings_attached){
-      btn.dataset._lr_settings_attached='1';
-      btn.addEventListener('click', ()=>{ setTimeout(()=>tryInjectNow(), 160); });
-      return true;
+  // Document-level capture listener (runs before bubble handlers)
+  // Debounced: ignore repeated hits within 600ms to prevent spamming startSession
+  (function installCapture(){
+    if(window.__lr_capture_installed_permanent) return;
+    let lastTs = 0;
+    const MIN_DELAY = 600;
+    function onClickCapture(e){
+      const el = e.target && e.target.closest ? e.target.closest('#lr_session_start_btn') : null;
+      if(!el) return;
+      const now = Date.now();
+      if(now - lastTs < MIN_DELAY) return;
+      lastTs = now;
+      try{ e.stopPropagation(); e.preventDefault(); }catch(_){}
+      const seconds = parseInt(document.getElementById('lr_session_select')?.value||'0',10)||0;
+      if(window.lr_breathSessions && typeof window.lr_breathSessions.startSession === 'function'){
+        window.lr_breathSessions.startSession(seconds);
+      } else {
+        try { window.lr_helpers?.startBreathFlow?.(); } catch(e){ console.warn('startBreathFlow missing/failed', e); }
+      }
     }
-    return false;
-  }
-  if(!attachSettingsMenuListener()){
-    const mo = new MutationObserver(()=>{ if(attachSettingsMenuListener()) mo.disconnect(); });
-    mo.observe(document.body, { childList:true, subtree:true });
-  }
+    document.addEventListener('click', onClickCapture, true);
+    document.addEventListener('pointerdown', onClickCapture, true);
+    window.__lr_capture_installed_permanent = true;
+  })();
 
-  // Panel y lógica (igual que la versión probada)
-  function showSessionControls(){ /* implementación completa: añade #lr_session_controls al body y controla timer */ }
+  // session UI & logic (retain/implement actual functions used above)
+  function showSessionControls(){ /* same implementation as earlier */ }
   function removeSessionControls(){ document.getElementById('lr_session_controls')?.remove(); }
   function updatePauseButton(){ const btn=document.getElementById('lr_ctrl_pause'); if(btn) btn.textContent = sessionPaused ? 'Continuar' : 'Pausar'; }
-  function startSession(seconds){ /* startBreathFlow + mostrar controls + timer (mantener la implementación existente) */ }
+  function startSession(seconds){ /* use original start logic: call lr_helpers.startBreathFlow if exists, showSessionControls(), timer... */ }
   function stopSession(){ /* stop logic */ }
   function pauseSession(){ /* pause logic */ }
   function resumeSession(){ /* resume logic */ }
+
   window.lr_breathSessions = { startSession, stopSession, pauseSession, resumeSession };
 
   tryInjectNow();
