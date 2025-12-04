@@ -1,0 +1,123 @@
+:root{
+  --bs-accent-1: #77c8ff;
+  --bs-accent-2: #a4e6c6;
+  --bs-warn-1: #ffd27a;
+  --bs-warn-2: #ffb86b;
+  --bs-danger-1: #ff8a8a;
+  --bs-danger-2: #ff5d5d;
+  --bs-bg: #ffffff;
+  --bs-ink: #04232a;
+  --bs-muted: #6b7280;
+  --bs-radius: 12px;
+  --bs-shadow: 0 10px 30px rgba(3,10,18,0.08);
+  --bs-transition: 220ms cubic-bezier(.2,.9,.3,1);
+}
+
+/* ---------- Modal insertion styles ---------- */
+#lr_session_select {
+  appearance: none;
+  -webkit-appearance: none;
+  background: linear-gradient(180deg, #fff, #fbfbfb);
+  box-shadow: inset 0 1px 0 rgba(0,0,0,0.02);
+  border: 1px solid rgba(2,6,23,0.06);
+  padding: 12px 14px;
+  font-size: 1rem;
+  color: var(--bs-ink);
+  border-radius: 10px;
+  transition: border-color var(--bs-transition);
+}
+#lr_session_select:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--bs-accent-1) 55%, #fff);
+  box-shadow: 0 6px 22px rgba(34,139,230,0.06);
+}
+
+/* Iniciar sesión button */
+#lr_session_start_btn {
+  display:block;
+  width:100%;
+  background: linear-gradient(90deg,var(--bs-accent-1),var(--bs-accent-2));
+  color: var(--bs-ink);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-weight: 800;
+  font-size: 1rem;
+  border: none;
+  box-shadow: var(--bs-shadow);
+  transition: transform var(--bs-transition), box-shadow var(--bs-transition), opacity var(--bs-transition);
+  cursor: pointer;
+}
+#lr_session_start_btn:hover { transform: translateY(-2px); }
+#lr_session_start_btn:active { transform: translateY(0); }
+#lr_session_start_btn:focus { outline: 3px solid rgba(34,139,230,0.12); }
+
+/* Preset buttons */
+#lr_preset_buttons { display:flex; gap:10px; flex-wrap:wrap; margin-top:6px; }
+#lr_preset_buttons button {
+  background: linear-gradient(180deg,#fff,#fafafa);
+  border: 1px solid rgba(2,6,23,0.06);
+  padding: 8px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight:700;
+  color: var(--bs-ink);
+  transition: transform var(--bs-transition), box-shadow var(--bs-transition);
+}
+#lr_preset_buttons button:hover { transform: translateY(-3px); box-shadow: 0 8px 18px rgba(2,6,23,0.06); }
+#lr_preset_buttons button:focus { outline: 3px solid rgba(255,190,90,0.12); }
+
+/* Subtle divider */
+#lr_session_select + button + hr { margin-top: 18px; }
+
+/* ---------- Floating controls (panel) ---------- */
+#lr_session_controls {
+  font-family: inherit;
+  color: var(--bs-ink);
+  border-radius: calc(var(--bs-radius) - 2px);
+  overflow: hidden;
+  backdrop-filter: blur(6px) saturate(120%);
+  min-width: 220px;
+}
+
+/* Timer */
+#lr_ctrl_timer { color: var(--bs-ink); letter-spacing: 0.4px; }
+
+/* Buttons within floating panel */
+#lr_ctrl_pause, #lr_ctrl_new, #lr_ctrl_stop {
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-weight:800;
+  cursor:pointer;
+  transition: transform var(--bs-transition), box-shadow var(--bs-transition);
+}
+#lr_ctrl_pause { background: #fff; border: 1px solid rgba(2,6,23,0.06); color:var(--bs-ink); }
+#lr_ctrl_new { background: linear-gradient(90deg,var(--bs-warn-1),var(--bs-warn-2)); border:none; color:#4a2d00; }
+#lr_ctrl_stop { background: linear-gradient(90deg,var(--bs-danger-1),var(--bs-danger-2)); border:none; color:#fff; }
+
+#lr_ctrl_pause:hover, #lr_ctrl_new:hover, #lr_ctrl_stop:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(2,6,23,0.06); }
+#lr_ctrl_pause:focus, #lr_ctrl_new:focus, #lr_ctrl_stop:focus { outline: 3px solid rgba(0,0,0,0.06); }
+
+/* Close icon */
+#lr_ctrl_close { color:var(--bs-muted); background: transparent; border: none; cursor:pointer; }
+#lr_ctrl_close:hover { color: var(--bs-ink); }
+
+/* Mobile: keep the panel reachable and smaller */
+@media (max-width:720px){
+  #lr_session_controls { right: 12px; bottom: 12px; min-width:160px; padding:10px; }
+  #lr_ctrl_timer { font-size:1.1rem; }
+  #lr_preset_buttons { gap:8px; }
+}
+
+/* Accessibility helpers */
+#lr_session_select[disabled], #lr_session_start_btn[disabled] { opacity: 0.6; cursor: not-allowed; }
+
+/* Optional progress ring (if later you add JS to update .progress) */
+.lr-progress {
+  width:64px; height:64px; border-radius:50%; display:inline-grid; place-items:center;
+  background: conic-gradient(var(--bs-accent-1) var(--p,0%), rgba(0,0,0,0.05) 0);
+  box-shadow: 0 8px 18px rgba(2,6,23,0.06);
+  color: var(--bs-ink); font-weight:800;
+}
+
+/* Small print for modal hints */
+.lr-session-note { font-size:0.85rem; color:var(--bs-muted); margin-top:10px; }
