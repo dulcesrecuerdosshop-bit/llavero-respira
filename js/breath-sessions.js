@@ -1,10 +1,10 @@
-/* BREATH SESSIONS — robust replacement
-   - evita ids estáticos / duplicados
+/* BREATH SESSIONS — versión final lista para reemplazar
+   - genera ids únicos
    - limpia flags stale (data-sessionsLoaded)
-   - expone API window.lr_breathSessions
-   - lr_breathSessions_inject(modal|card) para inyección forzada
-   - fallback UI (flotante) para sesiones si las APIs internas faltan
-   - evita errores de parse/plantilla (construcción DOM segura)
+   - inyección segura (createElement)
+   - expone API window.lr_breathSessions & window.lr_breathSessions_inject
+   - fallback hotfix UI (botón flotante)
+   - sin plantillas anidadas que provoquen errores de parse
 */
 (function(){
   if (window._lr_breath_sessions_loaded) return;
@@ -18,7 +18,7 @@
   ];
   const PRESET_LABELS = { box:"Caja (4-4-4-4)", calm:"Calma suave", slow:"Lento", "478":"4-7-8" };
 
-  // State
+  // Estado de sesión
   let sessionActive = false;
   let sessionPaused = false;
   let sessionEndsAt = 0;
@@ -32,11 +32,11 @@
 
   function showToast(msg){
     if(typeof window.lr_showToast === 'function'){ try { window.lr_showToast(msg); return; } catch(e){} }
-    // simple fallback
+    // fallback: console log
     console.log('Toast:', msg);
   }
 
-  // Session controls (floating)
+  // UI de control flotante
   function showSessionControls(){
     removeSessionControls();
     const box = document.createElement('div');
@@ -147,7 +147,7 @@
     if(el) el.textContent = remainingSeconds === Infinity ? '∞' : formatTime(remainingSeconds);
   }
 
-  // Session flow
+  // Lógica de sesión
   function startSession(seconds){
     try {
       sessionActive = true;
@@ -155,7 +155,6 @@
       if(window.lr_helpers && typeof window.lr_helpers.startBreathFlow === 'function'){
         try { window.lr_helpers.startBreathFlow(); } catch(e){ console.warn('lr_helpers.startBreathFlow error', e); }
       } else {
-        // no helpers: log toast
         showToast('Iniciando sesión (sin audio/guía)');
       }
 
@@ -224,11 +223,10 @@
 
   function newSessionFlow(){
     stopSession();
-    // open modal settings after a short delay
     setTimeout(()=>{ document.getElementById('settings_menu')?.click(); }, 200);
   }
 
-  // Injection into modal/card
+  // Inyección en modal / card
   function clearStaleFlag(card){
     if(!card) return;
     const hasSelect = !!card.querySelector('[data-lr="session-select"]');
@@ -239,7 +237,6 @@
   }
 
   function buildSettingsBlock(card){
-    // Create a container block and append - build DOM with createElement to avoid template escaping issues
     const container = document.createElement('div');
     container.style.marginTop = '16px';
 
@@ -289,13 +286,11 @@
       } else if(window.lr_helpers && typeof window.lr_helpers.startBreathFlow === 'function'){
         window.lr_helpers.startBreathFlow();
       } else {
-        // fallback: show small timer UI for seconds
         fallbackLocalSession(seconds);
       }
     }, { capture:true });
     container.appendChild(startBtn);
 
-    // presets
     const hr = document.createElement('hr');
     hr.style.margin = '18px 0';
     hr.style.opacity = '0.08';
@@ -326,36 +321,30 @@
 
     container.appendChild(wrap);
 
-    // expose ids for debugging
     return { container, selectId, startId, presetsId, uid };
   }
 
   function injectSettingsUIInto(target){
-    // target can be Modal element, card element or ShadowRoot
     try {
       const isShadow = (target && target instanceof ShadowRoot);
       const modal = target;
-      // find card within target if Element, else for ShadowRoot attempt querySelector there
       let card = null;
       if(isShadow){
         card = modal.querySelector('.lr-modal-card') || modal.querySelector('div');
       } else if(target instanceof Element){
         card = target.querySelector('.lr-modal-card') || target.querySelector('div');
       } else {
-        return;
+        return false;
       }
-      if(!card) card = target; // fallback
+      if(!card) card = target;
 
-      // clear stale flags if present
       clearStaleFlag(card);
 
-      // if already injected, skip
-      if(card.querySelector('[data-lr="session-select"]') || card.dataset.sessionsLoaded === "1") return;
+      if(card.querySelector('[data-lr="session-select"]') || card.dataset.sessionsLoaded === "1") return false;
 
       const built = buildSettingsBlock(card);
       card.appendChild(built.container);
       card.dataset.sessionsLoaded = "1";
-      // save last ids globally for debugging
       window.__lr_last_session_ids = { selectId: built.selectId, startId: built.startId, presetsId: built.presetsId, uid: built.uid };
       return true;
     } catch(e){
@@ -364,9 +353,8 @@
     }
   }
 
-  // fallback simple timer UI (no audio)
+  // Fallback timer simple (si falta lr_helpers)
   function fallbackLocalSession(seconds){
-    // if seconds <= 0, just start an indefinite UI
     const rem = seconds > 0 ? seconds : Infinity;
     const id = '__lr_fallback_timer_' + makeUid();
     if(document.getElementById(id)) return;
@@ -390,31 +378,27 @@
     }
   }
 
-  // tryInjectNow walker: find known modal ids and inject
+  // Intento de inyección automática
   async function tryInjectNow(){
     const modalIds = ['_lr_settings_modal', 'lr-user-modal', '_settings_modal', 'settings_modal'];
     for(const id of modalIds){
       const m = document.getElementById(id);
       if(m){
-        // wait until visible
         if(isVisible(m)){
           injectSettingsUIInto(m);
         } else {
-          // observe visibility briefly
           await waitForVisible(m, 3000);
           injectSettingsUIInto(m);
         }
         return;
       }
     }
-    // fallback: try global .lr-modal-card search
     const candidate = document.querySelector('.lr-modal-card');
     if(candidate){
       injectSettingsUIInto(candidate.parentElement || candidate);
     }
   }
 
-  // waitForVisible helper
   function waitForVisible(node, timeout=6000){
     return new Promise(resolve=>{
       if(!node) return resolve(false);
@@ -425,11 +409,10 @@
     });
   }
 
-  // Observe body for modal insertions
+  // Observadores
   const modalObserver = new MutationObserver(()=>{ tryInjectNow(); });
   modalObserver.observe(document.body, { childList:true, subtree:true });
 
-  // Attach listener for settings menu button if present
   function attachSettingsMenuListener(){
     const btn = document.getElementById('settings_menu');
     if(btn && !btn.dataset._lr_settings_attached){
@@ -444,7 +427,7 @@
     mo.observe(document.body, { childList:true, subtree:true });
   }
 
-  // Expose API
+  // API pública
   window.lr_breathSessions_inject = injectSettingsUIInto;
   window.lr_breathSessions = {
     startSession,
@@ -453,7 +436,7 @@
     resumeSession
   };
 
-  // Also create a floating hotfix button so users can start a session even if modal injection fails
+  // Hotfix flotante para iniciar sesiones aunque la inyección falle
   function ensureFloatingHotfix(){
     if(document.getElementById('__lr_hotfix_floating')) return;
     const wrap = document.createElement('div');
@@ -485,10 +468,7 @@
     document.body.appendChild(wrap);
   }
 
-  // Try to ensure hotfix exists (non-intrusive)
   try{ ensureFloatingHotfix(); }catch(e){}
-
-  // initial attempt
   tryInjectNow();
 
 })();
