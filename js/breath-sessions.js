@@ -1,13 +1,14 @@
-// breath-sessions.js
-// Módulo no intrusivo que añade "sesiones" y sincroniza duraciones para evitar cortes/mix.
-// - Añade UI de selector de sesión en el modal de Ajustes (inserción no destructiva).
-// - Calcula duración de ciclo y arranca la respiración con setBreathPattern/setCustomBreath.
-// - Para la sesión limpiamente cuando el tiempo finaliza.
-// - Usa la API pública window.lr_helpers (no modifica internals).
+// breath-sessions.js (v2)
+// Añade sesiones con UI avanzada: temporizador (countdown), pausar/continuar, salir (stop) y editar configuración (abrir ajustes).
+// - Inserta UI de sesión en Modal Ajustes (no destructivo).
+// - Inserta panel de control de sesión cuando se inicia (countdown, pausa, editar, salir).
+// - Respeta y usa la API pública window.lr_helpers (startBreathFlow, stopAmbient, resumeAudio, setBreathPattern).
+// - Traduce/clarifica presets a Español en la sección de ajustes.
+// - No modifica helpers.v2.js; funciona como módulo no intrusivo.
 
 (function(){
-  if (window._breath_sessions_loaded) return;
-  window._breath_sessions_loaded = true;
+  if (window._breath_sessions_v2_loaded) return;
+  window._breath_sessions_v2_loaded = true;
 
   const SESSIONS = [
     { id: '0', label: 'Sin temporizador', seconds: 0 },
@@ -16,9 +17,31 @@
     { id: '300', label: '5 minutos', seconds: 300 }
   ];
 
-  let _sessionTimeout = null;
-  let _sessionRunning = false;
+  // Spanish labels for presets (maps to lr_helpers.setBreathPattern keys)
+  const PRESET_LABELS_ES = {
+    box: 'Caja (4-4-4-4)',
+    calm: 'Calma',
+    slow: 'Lento',
+    '478': '4-7-8'
+  };
 
+  let _sessionTimeout = null;
+  let _sessionInterval = null;
+  let _sessionRunning = false;
+  let _sessionRemainingSeconds = 0;
+  let _sessionEndAt = 0;
+  let _sessionStartedAt = 0;
+  let _sessionPaused = false;
+
+  // Utility to format seconds to mm:ss
+  function fmtTime(s) {
+    s = Math.max(0, Math.floor(s));
+    const mm = Math.floor(s/60);
+    const ss = s % 60;
+    return `${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
+  }
+
+  // Insert session UI into settings modal (select + start/cancel) and add presets area with Spanish labels
   function insertSessionUI(modal) {
     if (!modal || modal.dataset._breathSessionsInjected) return;
     const wrap = document.createElement('div');
@@ -30,10 +53,37 @@
       <div style="display:flex;gap:8px;margin-top:8px">
         <button id="lr_session_start" style="flex:1;padding:8px;border-radius:8px;background:linear-gradient(90deg,#5ec1ff,#7bd389);border:none;color:#04232a;font-weight:700">Iniciar sesión</button>
         <button id="lr_session_cancel" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(0,0,0,0.06);background:white">Cancelar</button>
-      </div>`;
-    // place at the end of modal's content area
+      </div>
+      <hr style="margin:12px 0;opacity:0.06" />
+      <div style="font-weight:700;margin-bottom:6px">Presets de respiración</div>
+      <div id="lr_presets_spanish" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+    `;
+    // append near the end of modal's content
     const content = modal.querySelector('div') || modal;
     content.appendChild(wrap);
+
+    // Build presets area with Spanish labels and hook to lr_helpers.setBreathPattern
+    const presetContainer = document.getElementById('lr_presets_spanish');
+    const mapping = [{k:'box', label: PRESET_LABELS_ES.box}, {k:'calm', label: PRESET_LABELS_ES.calm}, {k:'slow', label: PRESET_LABELS_ES.slow}, {k:'478', label: PRESET_LABELS_ES['478']}];
+    mapping.forEach(p => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = '_lr_preset_btn_es';
+      btn.style.padding = '8px 10px';
+      btn.style.borderRadius = '8px';
+      btn.style.border = '1px solid rgba(0,0,0,0.06)';
+      btn.style.background = 'transparent';
+      btn.style.fontWeight = '700';
+      btn.textContent = p.label;
+      btn.dataset.preset = p.k;
+      btn.addEventListener('click', () => {
+        if (window.lr_helpers && typeof window.lr_helpers.setBreathPattern === 'function') {
+          window.lr_helpers.setBreathPattern(p.k);
+          showToast('Preset aplicado: ' + p.label);
+        }
+      });
+      presetContainer.appendChild(btn);
+    });
 
     const sel = document.getElementById('lr_session_select');
     const startBtn = document.getElementById('lr_session_start');
@@ -52,6 +102,8 @@
     startBtn && startBtn.addEventListener('click', ()=> {
       const seconds = parseInt(document.getElementById('lr_session_select').value || '0', 10);
       startSession(seconds);
+      // close settings modal if present
+      try { const m = document.getElementById('_lr_settings_modal'); if (m && m.parentNode) m.parentNode.removeChild(m); } catch(e){}
     });
 
     cancelBtn && cancelBtn.addEventListener('click', ()=> {
@@ -62,15 +114,74 @@
     modal.dataset._breathSessionsInjected = '1';
   }
 
-  // compute cycle duration in seconds using current durations
-  function getCycleDuration() {
-    const inh = Number(window.lr_helpers && window.lr_helpers.dumpState ? window.lr_helpers.dumpState().offsets.inhaleDurationSeconds : inhaleDurationSeconds) || inhaleDurationSeconds;
-    const h1 = Number(window.lr_helpers && window.lr_helpers.dumpState ? window.lr_helpers.dumpState().offsets.hold1DurationSeconds : hold1DurationSeconds) || hold1DurationSeconds;
-    const exh = Number(window.lr_helpers && window.lr_helpers.dumpState ? window.lr_helpers.dumpState().offsets.exhaleDurationSeconds : exhaleDurationSeconds) || exhaleDurationSeconds;
-    const h2 = Number(window.lr_helpers && window.lr_helpers.dumpState ? window.lr_helpers.dumpState().offsets.hold2DurationSeconds : hold2DurationSeconds) || hold2DurationSeconds;
-    return inh + h1 + exh + h2;
+  // Add floating session controls UI when a session is started
+  function createSessionControls() {
+    removeSessionControls();
+    const ctrl = document.createElement('div');
+    ctrl.id = '_lr_session_controls';
+    Object.assign(ctrl.style, {
+      position: 'fixed',
+      right: '18px',
+      bottom: '22px',
+      zIndex: 20000,
+      background: 'rgba(255,255,255,0.98)',
+      color: '#082032',
+      padding: '10px 12px',
+      borderRadius: '12px',
+      boxShadow: '0 8px 30px rgba(6,14,25,0.15)',
+      minWidth: '180px',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '8px',
+      alignItems: 'stretch'
+    });
+
+    ctrl.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <strong style="font-size:0.95rem">Sesión</strong>
+        <button id="_lr_session_close_panel" aria-label="Cerrar" style="background:transparent;border:none;font-size:1rem">✕</button>
+      </div>
+      <div style="font-size:1.05rem;text-align:center;font-weight:700" id="_lr_session_timer">--:--</div>
+      <div style="display:flex;gap:8px">
+        <button id="_lr_session_pause" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(0,0,0,0.06);background:white">Pausar</button>
+        <button id="_lr_session_edit" style="flex:1;padding:8px;border-radius:8px;background:linear-gradient(90deg,#ffd27a,#ffb86b);border:none;color:#082032;font-weight:700">Editar</button>
+      </div>
+      <button id="_lr_session_stop" style="width:100%;padding:8px;border-radius:8px;border:1px solid rgba(0,0,0,0.06);background:linear-gradient(90deg,#ff7a7a,#ffb0b0);color:#fff;font-weight:700">Salir</button>
+    `;
+    document.body.appendChild(ctrl);
+
+    document.getElementById('_lr_session_close_panel').addEventListener('click', () => { removeSessionControls(); });
+    document.getElementById('_lr_session_edit').addEventListener('click', () => { openSettingsModal(); });
+    document.getElementById('_lr_session_stop').addEventListener('click', () => { stopSession(); showToast('Sesión terminada'); });
+    document.getElementById('_lr_session_pause').addEventListener('click', (e) => {
+      if (!_sessionRunning) return;
+      if (!_sessionPaused) pauseSession();
+      else resumeSession();
+      updatePauseButton();
+    });
+
+    updatePauseButton();
   }
 
+  function updatePauseButton() {
+    const btn = document.getElementById('_lr_session_pause');
+    if (!btn) return;
+    btn.textContent = _sessionPaused ? 'Continuar' : 'Pausar';
+  }
+
+  function removeSessionControls() {
+    const el = document.getElementById('_lr_session_controls');
+    if (el && el.parentNode) el.parentNode.removeChild(el);
+  }
+
+  function updateTimerDisplay() {
+    const el = document.getElementById('_lr_session_timer');
+    if (!el) return;
+    const remaining = Math.max(0, Math.ceil((_sessionEndAt - Date.now())/1000));
+    el.textContent = fmtTime(remaining);
+  }
+
+  // Start a session of totalSeconds; if 0 then start indefinite breathing (no timer)
   function startSession(totalSeconds) {
     if (_sessionRunning) {
       showToast('Ya hay una sesión en curso');
@@ -80,65 +191,158 @@
       showToast('Funcionalidad de respiración no disponible');
       return;
     }
-    if (!totalSeconds || totalSeconds <= 0) {
-      // start indefinite
-      showToast('Iniciando respiración (sin temporizador)');
-      window.lr_helpers.startBreathFlow();
-      _sessionRunning = true;
-      return;
+
+    // Save selection
+    try { localStorage.setItem('lr_session_seconds', String(totalSeconds)); } catch(e){}
+
+    // prepare audio
+    try { window.lr_helpers.resumeAudio && window.lr_helpers.resumeAudio(); } catch(e){}
+
+    // start breath overlay
+    window.lr_helpers.startBreathFlow && window.lr_helpers.startBreathFlow();
+
+    _sessionRunning = true;
+    _sessionPaused = false;
+    _sessionStartedAt = Date.now();
+    if (totalSeconds && totalSeconds > 0) {
+      _sessionRemainingSeconds = totalSeconds;
+      _sessionEndAt = Date.now() + totalSeconds*1000;
+      // schedule final stop
+      if (_sessionTimeout) clearTimeout(_sessionTimeout);
+      _sessionTimeout = setTimeout(()=> {
+        try {
+          const overlay = window._lastBreathOverlay || document.getElementById('lr-breath-overlay');
+          if (overlay && typeof overlay._stop === 'function') overlay._stop();
+          window.lr_helpers.stopAmbient && window.lr_helpers.stopAmbient();
+        } catch(e){}
+        _sessionRunning = false;
+        _sessionTimeout = null;
+        _sessionEndAt = 0;
+        _sessionRemainingSeconds = 0;
+        removeSessionControls();
+        showToast('Sesión finalizada');
+      }, totalSeconds*1000);
+      // visual countdown interval (1s)
+      if (_sessionInterval) clearInterval(_sessionInterval);
+      _sessionInterval = setInterval(() => {
+        updateTimerDisplay();
+      }, 1000);
+    } else {
+      // indefinite session: show timer as 00:00
+      _sessionEndAt = Infinity;
+      _sessionRemainingSeconds = 0;
+      if (_sessionInterval) clearInterval(_sessionInterval);
+      _sessionInterval = setInterval(()=> updateTimerDisplay(), 1000);
     }
 
-    // Start a session: ensure audio unlocked and preload
-    window.lr_helpers.resumeAudio && window.lr_helpers.resumeAudio();
-    window.lr_helpers.preload && window.lr_helpers.preload();
-
-    // compute cycles and schedule end: we prefer stopping exactly at totalSeconds
-    const cycle = getCycleDuration();
-    // If cycle <= 0 fallback
-    const cyclesPossible = cycle > 0 ? Math.floor(totalSeconds / cycle) : 0;
-
-    // Start breath overlay
-    window.lr_helpers.startBreathFlow();
-
-    // schedule session stop exactly at totalSeconds to avoid abrupt half-phase behavior:
-    // We'll let current phase finish, but stop after totalSeconds to avoid mixing: implement using setTimeout
-    _sessionRunning = true;
-    if (_sessionTimeout) clearTimeout(_sessionTimeout);
-    _sessionTimeout = setTimeout(()=> {
-      try {
-        const overlay = window._lastBreathOverlay || document.getElementById('lr-breath-overlay');
-        if (overlay && typeof overlay._stop === 'function') overlay._stop();
-        // stop ambient too
-        window.lr_helpers.stopAmbient && window.lr_helpers.stopAmbient();
-      } catch(e){}
-      _sessionRunning = false;
-      _sessionTimeout = null;
-      showToast('Sesión finalizada');
-    }, totalSeconds * 1000);
-
-    showToast(`Sesión iniciada — ${Math.round(totalSeconds/60*100)/100} min`);
+    createSessionControls();
+    updateTimerDisplay();
+    showToast('Sesión iniciada' + (totalSeconds > 0 ? ` — ${Math.round(totalSeconds/60*100)/100} min` : ' (sin temporizador)'));
   }
 
   function stopSession() {
+    if (!_sessionRunning) return;
+    // clear timers
     if (_sessionTimeout) { clearTimeout(_sessionTimeout); _sessionTimeout = null; }
+    if (_sessionInterval) { clearInterval(_sessionInterval); _sessionInterval = null; }
+    // stop overlay
     try {
       const overlay = window._lastBreathOverlay || document.getElementById('lr-breath-overlay');
       if (overlay && typeof overlay._stop === 'function') overlay._stop();
-      window.lr_helpers.stopAmbient && window.lr_helpers.stopAmbient();
     } catch(e){}
+    // stop ambient
+    try { window.lr_helpers.stopAmbient && window.lr_helpers.stopAmbient(); } catch(e){}
     _sessionRunning = false;
+    _sessionPaused = false;
+    _sessionRemainingSeconds = 0;
+    _sessionEndAt = 0;
+    removeSessionControls();
   }
 
-  // Inject UI when settings modal opens (non-destructive)
+  // Pause: stop the overlay and timers but remember remaining seconds to resume later
+  function pauseSession() {
+    if (!_sessionRunning || _sessionPaused) return;
+    // compute remaining
+    if (_sessionEndAt && isFinite(_sessionEndAt)) {
+      _sessionRemainingSeconds = Math.max(0, Math.ceil((_sessionEndAt - Date.now())/1000));
+    } else {
+      _sessionRemainingSeconds = 0;
+    }
+
+    // stop timers
+    if (_sessionTimeout) { clearTimeout(_sessionTimeout); _sessionTimeout = null; }
+    if (_sessionInterval) { clearInterval(_sessionInterval); _sessionInterval = null; }
+
+    // stop overlay (this halts the visual/audio sequence)
+    try {
+      const overlay = window._lastBreathOverlay || document.getElementById('lr-breath-overlay');
+      if (overlay && typeof overlay._stop === 'function') overlay._stop();
+    } catch(e){}
+
+    // pause html audio elements to reduce sound (best-effort)
+    try { document.querySelectorAll('audio').forEach(a=>{ try{ a.pause(); }catch(e){} }); } catch(e){}
+
+    _sessionPaused = true;
+    updatePauseButton();
+    showToast('Sesión en pausa');
+    // keep session controls visible showing remaining time
+    // update timer once so UI shows remaining
+    if (_sessionRemainingSeconds) {
+      const el = document.getElementById('_lr_session_timer');
+      if (el) el.textContent = fmtTime(_sessionRemainingSeconds);
+    }
+  }
+
+  // Resume: start a new session for the remaining seconds
+  function resumeSession() {
+    if (!_sessionRunning || !_sessionPaused) return;
+    const rem = _sessionRemainingSeconds || 0;
+    _sessionPaused = false;
+    updatePauseButton();
+    // Start fresh for remaining seconds (if 0 -> indefinite)
+    startSession(rem);
+    showToast('Sesión reanudada');
+  }
+
+  // Open settings modal (reuse existing function if available)
+  function openSettingsModal() {
+    try {
+      // prefer existing function if window.lr_helpers.showSettings exists
+      if (typeof window.showSettingsModal === 'function') { window.showSettingsModal(); return; }
+      if (window.lr_helpers && typeof window.lr_helpers.showSettings === 'function') { window.lr_helpers.showSettings(); return; }
+      // fallback: trigger click on settings buttons if present
+      const b = document.getElementById('settingsBtn') || document.getElementById('settings') || document.querySelector('[data-action="settings"]');
+      if (b) { b.click(); return; }
+      // otherwise call the modal function name used in helpers: showSettingsModal
+      if (typeof showSettingsModal === 'function') { showSettingsModal(); return; }
+    } catch (e) { console.warn('openSettingsModal failed', e); }
+  }
+
+  // Observe DOM for settings modal creation and inject session UI & translate existing presets
   const bodyObserver = new MutationObserver(() => {
     const modal = document.getElementById('_lr_settings_modal');
-    if (modal) insertSessionUI(modal);
+    if (modal) {
+      insertSessionUI(modal);
+      // Translate existing preset buttons (if any) to Spanish labels for clarity
+      try {
+        const presetBtns = modal.querySelectorAll('._lr_preset_btn');
+        presetBtns.forEach(btn => {
+          const key = btn.getAttribute('data-preset');
+          if (key && PRESET_LABELS_ES[key]) btn.textContent = PRESET_LABELS_ES[key];
+        });
+      } catch(e){}
+    }
   });
   bodyObserver.observe(document.body, { childList: true, subtree: true });
 
-  // Expose minimal API
-  window._breath_sessions = {
-    startSession, stopSession, isRunning: () => _sessionRunning
-  };
+  // Also expose minimal API
+  window._breath_sessions = window._breath_sessions || {};
+  Object.assign(window._breath_sessions, {
+    startSession, stopSession, pauseSession, resumeSession, isRunning: () => _sessionRunning, isPaused: () => _sessionPaused
+  });
+
+  // Auto-inject a small "session status" if a session is resumed/reconnected (best-effort)
+  // If user hotloaded this script while a session is already running we cannot detect original timers reliably,
+  // but we keep UI creation deferred until startSession is called.
 
 })();
