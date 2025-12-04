@@ -1,24 +1,11 @@
-// ============================================================
-// BREATH SESSIONS v4 — Versión final adaptada a tu app real
-// ============================================================
-//
-// ✔ Inyección dentro de #lr-user-modal
-// ✔ Usa el botón real #settings_menu
-// ✔ No rompe nada existente
-// ✔ Control completo de sesiones
-// ✔ Temporizador funcional
-// ✔ Presets integrados
-// ✔ UI bonita y compatible con tu estilo
-//
-// ============================================================
+// BREATH SESSIONS v4 — Versión final adaptada a tu app real (corrección de inyección de UI)
+// Ahora la inyección busca tanto _lr_settings_modal (creado por helpers.v2.js) como lr-user-modal.
+// Si el modal real es _lr_settings_modal se incrusta ahí; sino usa #lr-user-modal como fallback.
 
 (function() {
     if (window._breath_sessions_v4_loaded) return;
     window._breath_sessions_v4_loaded = true;
 
-    // ------------------------------
-    // CONFIGURACIÓN
-    // ------------------------------
     const SESSION_OPTIONS = [
         { id: "0", label: "Sin temporizador", seconds: 0 },
         { id: "60", label: "1 minuto", seconds: 60 },
@@ -33,18 +20,12 @@
         "478": "4-7-8"
     };
 
-    // ------------------------------
-    // ESTADO
-    // ------------------------------
     let sessionActive = false;
     let sessionPaused = false;
     let sessionEndsAt = 0;
     let sessionInterval = null;
     let remainingSeconds = 0;
 
-    // ------------------------------
-    // UTILS
-    // ------------------------------
     function formatTime(s) {
         s = Math.max(0, Math.floor(s));
         const mm = Math.floor(s / 60);
@@ -52,24 +33,32 @@
         return `${String(mm).padStart(2,"0")}:${String(ss).padStart(2,"0")}`;
     }
 
-    // ============================================================
-    // UI EN AJUSTES (modal real: #lr-user-modal)
-    // ============================================================
-
+    // ---------- Inserción robusta de UI en Ajustes ----------
     function injectSettingsUI() {
-        const modal = document.getElementById("lr-user-modal");
+        // - Preferimos el modal real creado por helpers.v2.js: _lr_settings_modal
+        // - Si no existe, usamos el #lr-user-modal (antiguo fallback)
+        let modal = document.getElementById("_lr_settings_modal");
+        let usedModalId = '_lr_settings_modal';
+        if (!modal) {
+            modal = document.getElementById("lr-user-modal");
+            usedModalId = 'lr-user-modal';
+        }
         if (!modal) return;
 
-        const card = modal.querySelector(".lr-modal-card");
-        if (!card) return;
+        // Determinar el "card" o contenedor donde insertar:
+        // - En _lr_settings_modal el contenido útil suele ser el primer <div> (el box creado por helpers).
+        // - En lr-user-modal intentamos buscar .lr-modal-card.
+        let card = modal.querySelector(".lr-modal-card") || modal.querySelector("div");
+        if (!card) {
+            // Como último recurso, insertamos al final del modal
+            card = modal;
+        }
 
         // Evitar duplicado
         if (card.dataset.sessionsLoaded === "1") return;
 
-        // Crear contenedor
         const box = document.createElement("div");
         box.style.marginTop = "20px";
-
         box.innerHTML = `
             <h3 style="font-weight:700;margin-bottom:8px">Temporizador de sesión</h3>
 
@@ -105,7 +94,7 @@
         });
 
         document.getElementById("lr_session_start_btn")?.addEventListener("click", () => {
-            const seconds = parseInt(select.value, 10);
+            const seconds = parseInt(select.value, 10) || 0;
             startSession(seconds);
             closeSettings();
         });
@@ -127,19 +116,21 @@
         });
     }
 
-    // Abrir ajustes desde tu botón real
+    // Si el botón settings_menu existe lo escuchamos (funciona con tu UI actual)
     document.getElementById("settings_menu")?.addEventListener("click", () => {
-        setTimeout(() => injectSettingsUI(), 50);
+        // Pequeño timeout para dejar que helpers abra su modal primero
+        setTimeout(() => injectSettingsUI(), 120);
     });
 
     function closeSettings() {
+        // Intentamos cerrar el modal de helpers si existe
         document.querySelector(".lr-modal-close")?.click();
+        // y también el viejo if present
+        const m = document.getElementById("_lr_settings_modal");
+        if (m && m.parentNode) { try { m.remove(); } catch(e){} }
     }
 
-    // ============================================================
-    // PANEL DE CONTROL
-    // ============================================================
-
+    // Panel flotante de sesión
     function showSessionControls() {
         removeSessionControls();
 
@@ -183,7 +174,6 @@
         `;
         document.body.appendChild(box);
 
-        // Eventos
         document.getElementById("lr_ctrl_close").onclick = removeSessionControls;
         document.getElementById("lr_ctrl_stop").onclick = stopSession;
         document.getElementById("lr_ctrl_new").onclick = newSessionFlow;
@@ -192,27 +182,15 @@
         updatePauseButton();
     }
 
-    function removeSessionControls() {
-        document.getElementById("lr_session_controls")?.remove();
-    }
+    function removeSessionControls(){ document.getElementById("lr_session_controls")?.remove(); }
+    function updatePauseButton(){ const btn = document.getElementById("lr_ctrl_pause"); if (btn) btn.textContent = sessionPaused ? "Continuar" : "Pausar"; }
 
-    function updatePauseButton() {
-        const btn = document.getElementById("lr_ctrl_pause");
-        if (btn) btn.textContent = sessionPaused ? "Continuar" : "Pausar";
-    }
-
-    // ============================================================
-    // LÓGICA DE SESIÓN
-    // ============================================================
-
+    // Sesión
     function startSession(seconds) {
         sessionActive = true;
         sessionPaused = false;
 
-        if (!window.lr_helpers?.startBreathFlow) {
-            showToast("Respiración no disponible");
-            return;
-        }
+        if (!window.lr_helpers?.startBreathFlow) { showToast("Respiración no disponible"); return; }
 
         window.lr_helpers.startBreathFlow();
         showSessionControls();
@@ -221,14 +199,12 @@
             remainingSeconds = seconds;
             sessionEndsAt = Date.now() + seconds * 1000;
 
+            clearInterval(sessionInterval);
             sessionInterval = setInterval(() => {
                 if (!sessionActive) return;
                 remainingSeconds = Math.max(0, Math.ceil((sessionEndsAt - Date.now()) / 1000));
                 updateTimerDisplay();
-                if (remainingSeconds <= 0) {
-                    stopSession();
-                    showToast("Sesión completada");
-                }
+                if (remainingSeconds <= 0) { stopSession(); showToast("Sesión completada"); }
             }, 1000);
         } else {
             remainingSeconds = Infinity;
@@ -236,72 +212,48 @@
         }
     }
 
-    function updateTimerDisplay() {
+    function updateTimerDisplay(){
         const el = document.getElementById("lr_ctrl_timer");
         if (el) el.textContent = remainingSeconds === Infinity ? "∞" : formatTime(remainingSeconds);
     }
 
-    function pauseSession() {
+    function pauseSession(){
         sessionPaused = true;
         clearInterval(sessionInterval);
-        window.lr_helpers.stopBreathFlow();
-        window.lr_helpers.stopAmbient?.();
+        if (window.lr_helpers?.stopBreathFlow) window.lr_helpers.stopBreathFlow();
+        if (window.lr_helpers?.stopAmbient) window.lr_helpers.stopAmbient();
         showToast("Sesión pausada");
     }
 
-    function resumeSession() {
+    function resumeSession(){
         sessionPaused = false;
-        if (remainingSeconds !== Infinity) {
+        if (remainingSeconds !== Infinity){
             sessionEndsAt = Date.now() + remainingSeconds * 1000;
-            sessionInterval = setInterval(() => {
+            clearInterval(sessionInterval);
+            sessionInterval = setInterval(()=>{
                 remainingSeconds = Math.max(0, Math.ceil((sessionEndsAt - Date.now()) / 1000));
                 updateTimerDisplay();
                 if (remainingSeconds <= 0) stopSession();
-            }, 1000);
+            },1000);
         }
-        window.lr_helpers.startBreathFlow();
-        window.lr_helpers.resumeAudio?.();
+        if (window.lr_helpers?.startBreathFlow) window.lr_helpers.startBreathFlow();
+        if (window.lr_helpers?.resumeAudio) window.lr_helpers.resumeAudio();
         showToast("Sesión reanudada");
     }
 
-    function togglePauseButton() {
-        if (!sessionActive) return;
-        if (sessionPaused) resumeSession();
-        else pauseSession();
-        updatePauseButton();
-    }
-
-    function newSessionFlow() {
-        stopSession();
-        setTimeout(() => {
-            document.getElementById("settings_menu")?.click();
-        }, 200);
-    }
-
-    function stopSession() {
+    function togglePauseButton(){ if (!sessionActive) return; if (sessionPaused) resumeSession(); else pauseSession(); updatePauseButton(); }
+    function newSessionFlow(){ stopSession(); setTimeout(()=>{ document.getElementById("settings_menu")?.click(); },200); }
+    function stopSession(){
         sessionActive = false;
         sessionPaused = false;
         clearInterval(sessionInterval);
-        window.lr_helpers.stopBreathFlow?.();
-        window.lr_helpers.stopAmbient?.();
+        if (window.lr_helpers?.stopBreathFlow) window.lr_helpers.stopBreathFlow();
+        if (window.lr_helpers?.stopAmbient) window.lr_helpers.stopAmbient();
         removeSessionControls();
         showToast("Sesión detenida");
     }
 
-    // ============================================================
-    // TOAST
-    // ============================================================
-    function showToast(msg) {
-        if (window.lr_showToast) window.lr_showToast(msg);
-        else console.log("Toast:", msg);
-    }
+    function showToast(msg){ if (window.lr_showToast) window.lr_showToast(msg); else console.log("Toast:", msg); }
 
-    // ============================================================
-    // API
-    // ============================================================
-    window.lr_breathSessions = {
-        startSession,
-        stopSession
-    };
-
+    window.lr_breathSessions = { startSession, stopSession };
 })();
