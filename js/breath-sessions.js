@@ -1,20 +1,20 @@
 // ============================================================
-// BREATH SESSIONS v3 — Versión final bonita + funcional
+// BREATH SESSIONS v4 — Versión final adaptada a tu app real
 // ============================================================
 //
-// • No rompe nada existente
-// • Añade UI clara y moderna para seleccionar sesiones
-// • Añade panel de control durante la sesión
-// • Controles: Pausar / Continuar / Editar (nueva sesión) / Salir
-// • Temporizador real: 1, 3, 5 minutos + Sin límite
-// • Respeta completamente window.lr_helpers (APIs oficiales)
-// • Código ordenado, comentado y mantenible
+// ✔ Inyección dentro de #lr-user-modal
+// ✔ Usa el botón real #settings_menu
+// ✔ No rompe nada existente
+// ✔ Control completo de sesiones
+// ✔ Temporizador funcional
+// ✔ Presets integrados
+// ✔ UI bonita y compatible con tu estilo
 //
 // ============================================================
 
 (function() {
-    if (window._breath_sessions_v3_loaded) return;
-    window._breath_sessions_v3_loaded = true;
+    if (window._breath_sessions_v4_loaded) return;
+    window._breath_sessions_v4_loaded = true;
 
     // ------------------------------
     // CONFIGURACIÓN
@@ -34,7 +34,7 @@
     };
 
     // ------------------------------
-    // ESTADO DE SESIÓN
+    // ESTADO
     // ------------------------------
     let sessionActive = false;
     let sessionPaused = false;
@@ -43,24 +43,33 @@
     let remainingSeconds = 0;
 
     // ------------------------------
-    // UTIL: FORMATO DE TIEMPO
+    // UTILS
     // ------------------------------
     function formatTime(s) {
         s = Math.max(0, Math.floor(s));
         const mm = Math.floor(s / 60);
         const ss = s % 60;
-        return `${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
+        return `${String(mm).padStart(2,"0")}:${String(ss).padStart(2,"0")}`;
     }
 
     // ============================================================
-    // 1. UI EN AJUSTES — Selección de sesiones
+    // UI EN AJUSTES (modal real: #lr-user-modal)
     // ============================================================
-    function injectSessionSelector(modal) {
-        if (!modal || modal.dataset.sessionsLoaded) return;
 
-        const content = modal.querySelector(".lr-settings-content") || modal;
+    function injectSettingsUI() {
+        const modal = document.getElementById("lr-user-modal");
+        if (!modal) return;
+
+        const card = modal.querySelector(".lr-modal-card");
+        if (!card) return;
+
+        // Evitar duplicado
+        if (card.dataset.sessionsLoaded === "1") return;
+
+        // Crear contenedor
         const box = document.createElement("div");
         box.style.marginTop = "20px";
+
         box.innerHTML = `
             <h3 style="font-weight:700;margin-bottom:8px">Temporizador de sesión</h3>
 
@@ -79,16 +88,16 @@
 
             <hr style="margin:24px 0;opacity:0.1" />
 
-            <h3 style="font-weight:700;margin-bottom:8px">Presets respiración</h3>
+            <h3 style="font-weight:700;margin-bottom:8px">Presets de respiración</h3>
             <div id="lr_preset_buttons" style="display:flex;flex-wrap:wrap;gap:10px"></div>
         `;
-        content.appendChild(box);
 
-        modal.dataset.sessionsLoaded = "1";
+        card.appendChild(box);
+        card.dataset.sessionsLoaded = "1";
 
-        // Restaurar valor guardado
-        const saved = localStorage.getItem("lr_session_seconds");
+        // Restaurar valor
         const select = document.getElementById("lr_session_select");
+        const saved = localStorage.getItem("lr_session_seconds");
         if (saved && select) select.value = saved;
 
         select?.addEventListener("change", e => {
@@ -98,46 +107,39 @@
         document.getElementById("lr_session_start_btn")?.addEventListener("click", () => {
             const seconds = parseInt(select.value, 10);
             startSession(seconds);
-            closeSettingsModal();
+            closeSettings();
         });
 
         // Presets
-        const presetWrap = document.getElementById("lr_preset_buttons");
-        Object.keys(PRESET_LABELS).forEach(key => {
-            const b = document.createElement("button");
-            b.textContent = PRESET_LABELS[key];
-            b.style.cssText = `
+        const wrap = document.getElementById("lr_preset_buttons");
+        Object.keys(PRESET_LABELS).forEach(k => {
+            const btn = document.createElement("button");
+            btn.textContent = PRESET_LABELS[k];
+            btn.style.cssText = `
                 padding:8px 12px;border-radius:10px;font-weight:600;
                 background:white;border:1px solid rgba(0,0,0,0.1);
             `;
-            b.addEventListener("click", () => {
-                if (window.lr_helpers?.setBreathPattern) {
-                    window.lr_helpers.setBreathPattern(key);
-                    showToast("Preset aplicado: " + PRESET_LABELS[key]);
-                }
+            btn.addEventListener("click", () => {
+                window.lr_helpers?.setBreathPattern(k);
+                showToast("Preset aplicado: " + PRESET_LABELS[k]);
             });
-            presetWrap.appendChild(b);
+            wrap.appendChild(btn);
         });
     }
 
-    // Abrir ajustes
-    function openSettingsModal() {
-        if (window.lr_openSettingsModal) {
-            const modal = window.lr_openSettingsModal();
-            setTimeout(() => injectSessionSelector(modal), 50);
-        } else {
-            alert("Modal de ajustes no disponible.");
-        }
-    }
+    // Abrir ajustes desde tu botón real
+    document.getElementById("settings_menu")?.addEventListener("click", () => {
+        setTimeout(() => injectSettingsUI(), 50);
+    });
 
-    function closeSettingsModal() {
-        const m = document.getElementById("_lr_settings_modal");
-        if (m) m.remove();
+    function closeSettings() {
+        document.querySelector(".lr-modal-close")?.click();
     }
 
     // ============================================================
-    // 2. PANEL DE CONTROL DURANTE SESIÓN
+    // PANEL DE CONTROL
     // ============================================================
+
     function showSessionControls() {
         removeSessionControls();
 
@@ -191,42 +193,29 @@
     }
 
     function removeSessionControls() {
-        const el = document.getElementById("lr_session_controls");
-        el?.remove();
+        document.getElementById("lr_session_controls")?.remove();
     }
 
     function updatePauseButton() {
         const btn = document.getElementById("lr_ctrl_pause");
-        if (!btn) return;
-        btn.textContent = sessionPaused ? "Continuar" : "Pausar";
-    }
-
-    function togglePauseButton() {
-        if (!sessionActive) return;
-        if (sessionPaused) {
-            resumeSession();
-        } else {
-            pauseSession();
-        }
-        updatePauseButton();
+        if (btn) btn.textContent = sessionPaused ? "Continuar" : "Pausar";
     }
 
     // ============================================================
-    // 3. LÓGICA DE SESIONES
+    // LÓGICA DE SESIÓN
     // ============================================================
+
     function startSession(seconds) {
+        sessionActive = true;
+        sessionPaused = false;
+
         if (!window.lr_helpers?.startBreathFlow) {
             showToast("Respiración no disponible");
             return;
         }
 
-        sessionActive = true;
-        sessionPaused = false;
-        removeSessionControls();
-        showSessionControls();
-
-        // Arrancar respiración normal
         window.lr_helpers.startBreathFlow();
+        showSessionControls();
 
         if (seconds > 0) {
             remainingSeconds = seconds;
@@ -234,10 +223,8 @@
 
             sessionInterval = setInterval(() => {
                 if (!sessionActive) return;
-
                 remainingSeconds = Math.max(0, Math.ceil((sessionEndsAt - Date.now()) / 1000));
-                updateTimer();
-
+                updateTimerDisplay();
                 if (remainingSeconds <= 0) {
                     stopSession();
                     showToast("Sesión completada");
@@ -245,22 +232,18 @@
             }, 1000);
         } else {
             remainingSeconds = Infinity;
-            updateTimer();
+            updateTimerDisplay();
         }
-
-        showToast("Sesión iniciada");
     }
 
-    function updateTimer() {
+    function updateTimerDisplay() {
         const el = document.getElementById("lr_ctrl_timer");
-        if (!el) return;
-        el.textContent =
-            remainingSeconds === Infinity ? "∞" : formatTime(remainingSeconds);
+        if (el) el.textContent = remainingSeconds === Infinity ? "∞" : formatTime(remainingSeconds);
     }
 
     function pauseSession() {
         sessionPaused = true;
-        if (sessionInterval) clearInterval(sessionInterval);
+        clearInterval(sessionInterval);
         window.lr_helpers.stopBreathFlow();
         window.lr_helpers.stopAmbient?.();
         showToast("Sesión pausada");
@@ -272,7 +255,7 @@
             sessionEndsAt = Date.now() + remainingSeconds * 1000;
             sessionInterval = setInterval(() => {
                 remainingSeconds = Math.max(0, Math.ceil((sessionEndsAt - Date.now()) / 1000));
-                updateTimer();
+                updateTimerDisplay();
                 if (remainingSeconds <= 0) stopSession();
             }, 1000);
         }
@@ -281,41 +264,44 @@
         showToast("Sesión reanudada");
     }
 
+    function togglePauseButton() {
+        if (!sessionActive) return;
+        if (sessionPaused) resumeSession();
+        else pauseSession();
+        updatePauseButton();
+    }
+
     function newSessionFlow() {
         stopSession();
-        setTimeout(openSettingsModal, 200);
+        setTimeout(() => {
+            document.getElementById("settings_menu")?.click();
+        }, 200);
     }
 
     function stopSession() {
         sessionActive = false;
         sessionPaused = false;
-
-        if (sessionInterval) clearInterval(sessionInterval);
-
+        clearInterval(sessionInterval);
         window.lr_helpers.stopBreathFlow?.();
         window.lr_helpers.stopAmbient?.();
-
         removeSessionControls();
         showToast("Sesión detenida");
     }
 
     // ============================================================
-    // 4. Toast simple
+    // TOAST
     // ============================================================
     function showToast(msg) {
-        if (!window.lr_showToast) {
-            console.log("Toast:", msg);
-            return;
-        }
-        window.lr_showToast(msg);
+        if (window.lr_showToast) window.lr_showToast(msg);
+        else console.log("Toast:", msg);
     }
 
     // ============================================================
-    // 5. EXPONER API
+    // API
     // ============================================================
     window.lr_breathSessions = {
-        openSettingsModal,
         startSession,
         stopSession
     };
+
 })();
