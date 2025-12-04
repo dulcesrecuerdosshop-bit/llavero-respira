@@ -1,6 +1,7 @@
 // helpers.v2.js - Helpers completos (TTS, respiración, favoritos, compartir, descarga).
-// Modificación segura: se elimina cualquier fallback "breath" genérico que mezclaba audios en Exhala.
-// Mantiene toda la funcionalidad existente; solo se fuerza que Inhala use inhaleCue y Exhala use exhaleCue.
+// Ajuste realizado: forzar que playInhale/playExhale usen las duraciones de
+// inhaleDurationSeconds/exhaleDurationSeconds para evitar mezcla/cortes.
+// Mantiene toda la funcionalidad existente.
 
 (function () {
   'use strict';
@@ -228,12 +229,13 @@
     });
   }
 
-  // ---------- Breath flow players (strict mapping) ----------
+  // ---------- Breath flow players (strict mapping, schedules by session durations) ----------
   async function playInhale() {
     await preloadAssets();
     // Prefer inhaleCue (buffer), then htmlAudio.inhaleEl; DO NOT fallback to generic "breath"
+    // IMPORTANT: schedule using inhaleDurationSeconds (session-controlled) so audio never overruns the phase
     if (audioBuffers.inhaleCue) {
-      if (scheduleBufferPlay(audioBuffers.inhaleCue, 0, audioBuffers.inhaleCue.duration || inhaleDurationSeconds)) return;
+      if (scheduleBufferPlay(audioBuffers.inhaleCue, 0, inhaleDurationSeconds)) return;
     }
     if (htmlAudio.inhaleEl) {
       if (playHtml(htmlAudio.inhaleEl.src, 0, inhaleDurationSeconds)) return;
@@ -244,8 +246,9 @@
   async function playExhale() {
     await preloadAssets();
     // Prefer exhaleCue (buffer), then htmlAudio.exhaleEl; DO NOT fallback to generic "breath"
+    // IMPORTANT: schedule using exhaleDurationSeconds (session-controlled)
     if (audioBuffers.exhaleCue) {
-      if (scheduleBufferPlay(audioBuffers.exhaleCue, 0, audioBuffers.exhaleCue.duration || exhaleDurationSeconds)) return;
+      if (scheduleBufferPlay(audioBuffers.exhaleCue, 0, exhaleDurationSeconds)) return;
     }
     if (htmlAudio.exhaleEl) {
       if (playHtml(htmlAudio.exhaleEl.src, 0, exhaleDurationSeconds)) return;
