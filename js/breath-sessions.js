@@ -59,7 +59,12 @@
     content.appendChild(wrap);
 
     const presetContainer = document.getElementById('lr_presets_spanish');
-    const mapping = [{k:'box', label: PRESET_LABELS_ES.box}, {k:'calm', label: PRESET_LABELS_ES.calm}, {k:'slow', label: PRESET_LABELS_ES.slow}, {k:'478', label: PRESET_LABELS_ES['478']}];
+    const mapping = [
+      {k:'box', label: PRESET_LABELS_ES.box},
+      {k:'calm', label: PRESET_LABELS_ES.calm},
+      {k:'slow', label: PRESET_LABELS_ES.slow},
+      {k:'478', label: PRESET_LABELS_ES['478']}
+    ];
     mapping.forEach(p => {
       const btn = document.createElement('button');
       btn.type = 'button';
@@ -183,25 +188,3 @@
       showToast('Funcionalidad de respiración no disponible');
       return;
     }
-
-  los controles han dejado de abrir, no veo la programación.  
-
-What happened? They continue pasting truncated file. Need to respond: explain again that file is truncated, deliver final corrective steps with commands. Provide minimal checks and hotload corrected file; include the corrected full file content (we already provided earlier). Must be concise.
-
-I'll respond: explain cause, instruct to check fetch snippet, then give final corrected file and provide exact steps to replace file in repo via GitHub UI (or commands) and hotload to test. Offer to make PR.
-
-Let's produce final answer: Spanish, succinct.
-Ok — está pasando exactamente lo mismo: el archivo que tienes subido está truncado (tiene texto libre "los controles..." dentro del script). Eso impide que el navegador ejecute el módulo y por eso NO ves la UI y la consola no lanza nada útil.
-
-Sigue estos pasos exactos (rápido) para comprobar y arreglar:
-
-1) Comprobar qué archivo está sirviendo Pages (pega en la consola)
-```javascript
-(async()=>{
-  try{
-    const r = await fetch('./js/breath-sessions.js',{cache:'no-store'});
-    console.log('status', r.status, 'url', r.url);
-    const txt = await r.text();
-    console.log('SNIPPET (0..800):\n', txt.slice(0,800));
-  }catch(e){ console.error('fetch error', e); }
-})();
