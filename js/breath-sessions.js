@@ -48,7 +48,6 @@
     });
   }
 
-  // core injection routine
   function injectSettingsUIInto(modal) {
     if (!modal) return;
     let card = modal.querySelector('.lr-modal-card') || modal.querySelector('div') || modal;
@@ -80,14 +79,10 @@
       try { localStorage.setItem('lr_session_seconds', e.target.value); } catch(e){}
     });
 
-    // --- IMPORTANT: robust binding of "Iniciar sesión" button ---
     const startBtn = document.getElementById('lr_session_start_btn');
     if (startBtn && !startBtn.dataset.lr_bound) {
-      // remove inline handler if any
       try { startBtn.onclick = null; } catch(e){}
-      // mark bound to avoid duplicates
       startBtn.dataset.lr_bound = '1';
-      // handler that uses public API when available, else falls back to lr_helpers.startBreathFlow
       const handler = (ev) => {
         try { ev && ev.stopPropagation && ev.stopPropagation(); } catch(e){}
         const seconds = parseInt(document.getElementById('lr_session_select')?.value || '0', 10) || 0;
@@ -99,11 +94,9 @@
           console.warn('No startSession or startBreathFlow available');
         }
       };
-      // attach in capture phase to run before other bubble handlers that might stop propagation
       startBtn.addEventListener('click', handler, { capture: true });
     }
 
-    // presets
     const wrap = document.getElementById('lr_preset_buttons');
     Object.keys(PRESET_LABELS).forEach(k => {
       const btn = document.createElement('button');
@@ -117,7 +110,6 @@
     });
   }
 
-  // expose for hotpatch/testing
   window.lr_breathSessions_inject = injectSettingsUIInto;
 
   async function tryInjectNow(){
@@ -154,7 +146,6 @@
     menuObserver.observe(document.body, { childList: true, subtree: true });
   }
 
-  // ---------- Panel flotante y lógica de sesión (idéntica a la versión anterior, expuesta para brevity) ----------
   function showSessionControls(){
     removeSessionControls();
     const box = document.createElement('div');
