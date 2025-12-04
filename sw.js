@@ -1,5 +1,5 @@
 // Bump cache name to force clients to re-cache and use skipWaiting/claim
-const CACHE_NAME = 'llavero-respira-v2'; // bump if current is v1
+const CACHE_NAME = 'llavero-respira-v3'; // bump if current is v1
 const ASSETS = [
   '/', '/index.html', '/js/main.js', '/js/breath-sessions.js', '/css/global.css'
 ];
