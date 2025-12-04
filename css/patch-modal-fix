@@ -1,0 +1,17 @@
+/* Parche: forzar que modal de ajustes tenga prioridad y que botón reciba clicks */
+#_lr_settings_modal .lr-modal-card,
+#lr-user-modal .lr-modal-card,
+#_lr_settings_modal,
+#lr-user-modal {
+  pointer-events: auto !important;
+  z-index: 999999 !important;
+}
+
+#lr_session_start_btn {
+  pointer-events: auto !important;
+  position: relative !important;
+  z-index: 1000000 !important;
+  touch-action: manipulation !important;
+}
+
+#lr_session_select { pointer-events: auto !important; }
