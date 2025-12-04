@@ -1,22 +1,22 @@
-// Bump cache name to force clients to re-cache and use skipWaiting/claim
-const CACHE_NAME = 'llavero-respira-v3'; // bump if current is v1
-const ASSETS = [
-  '/', '/index.html', '/js/main.js', '/js/breath-sessions.js', '/css/global.css'
-];
-
+// Minimal sw.js: intenta instalar/activar y desregistrarse para evitar caching persistente
 self.addEventListener('install', event => {
+  // no precache; no op
   self.skipWaiting();
-  event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS)));
 });
 
 self.addEventListener('activate', event => {
-  event.waitUntil((async()=>{
-    const keys = await caches.keys();
-    await Promise.all(keys.map(k => k !== CACHE_NAME ? caches.delete(k) : Promise.resolve()));
-    await self.clients.claim();
+  event.waitUntil((async () => {
+    try {
+      // Intenta desregistrarse para eliminar versiones rotas previas
+      await self.registration.unregister();
+      // claim clients so they reload without this SW controlling them further
+      const clients = await self.clients.matchAll({ includeUncontrolled: true });
+      for(const c of clients) {
+        try { await c.navigate(c.url); } catch(e){ /* ignore */ }
+      }
+    } catch(e) {
+      // fallback: claim clients (if unregister fails)
+      try { await self.clients.claim(); } catch(_) {}
+    }
   })());
-});
-
-self.addEventListener('fetch', event => {
-  event.respondWith(caches.match(event.request).then(r => r || fetch(event.request)));
 });
