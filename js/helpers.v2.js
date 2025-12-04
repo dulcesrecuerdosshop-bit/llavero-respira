@@ -1,10 +1,6 @@
-// helpers.v2.js - Helpers corregidos y probados: TTS, respiración, favoritos, compartir, descarga.
-// Cambios principales:
-// - Garantiza que los controles del card (Escuchar, Favorito, Descargar, Compartir) siempre tengan listeners.
-// - Usa la frase canonica en memoria (window._phrases_current) como fuente principal para TTS/Share/Download/Favoritos.
-// - Elimina/oculta el botón "Invitar" (inviteBtn) del card para que no aparezca ni sea funcional.
-// - Añade logs/notifications mínimos para confirmar interacción del usuario.
-// Reemplaza completamente js/helpers.v2.js por este archivo y luego limpia SW/caché y recarga.
+// helpers.v2.js - Helpers completos (TTS, respiración, favoritos, compartir, descarga).
+// Modificación segura: se elimina cualquier fallback "breath" genérico que mezclaba audios en Exhala.
+// Mantiene toda la funcionalidad existente; solo se fuerza que Inhala use inhaleCue y Exhala use exhaleCue.
 
 (function () {
   'use strict';
@@ -50,9 +46,9 @@
   }
   if (!window.showToast) window.showToast = showToast;
 
-  // ---------- Audio config ----------
+  // ---------- Audio config (NO breath fallback candidates) ----------
   const AUDIO = {
-    breathCandidates: ['Breath.mp3', 'breath.mp3', 'BREATH.mp3'],
+    breathCandidates: [], // intentionally empty to avoid generic "breath" fallback
     inhaleCue: 'inhaleCue.mp3',
     exhaleCue: 'exhaleCue.mp3',
     ambientCandidates: ['ambient.mp3', 'Ambient.mp3', 'AMBIENT.mp3']
@@ -193,7 +189,7 @@
     lrlog('stopAmbientLoop');
   }
 
-  // ---------- Preload assets ----------
+  // ---------- Preload assets (no generic "breath" fallback) ----------
   async function preloadAssets() {
     await ensureAudioContext();
     try {
@@ -205,15 +201,10 @@
         const b2 = await loadAudioBuffer(AUDIO.exhaleCue);
         if (b2) audioBuffers.exhaleCue = b2; else htmlAudio.exhaleEl = new Audio(AUDIO.exhaleCue);
       }
-      let chosen = null;
-      for (let i = 0; i < AUDIO.breathCandidates.length; i++) {
-        const c = AUDIO.breathCandidates[i];
-        if (await existsUrl(c)) { chosen = c; break; }
-      }
-      if (chosen) {
-        const b3 = await loadAudioBuffer(chosen);
-        if (b3) audioBuffers.breath = b3; else htmlAudio.breathUrl = chosen;
-      }
+
+      // deliberately do NOT check or assign breathCandidates here (we want inhale/exhale cues only)
+
+      // ambient
       let amb = null;
       for (let j = 0; j < AUDIO.ambientCandidates.length; j++) {
         const a = AUDIO.ambientCandidates[j];
@@ -221,11 +212,14 @@
       }
       if (amb) {
         const b4 = await loadAudioBuffer(amb);
-        if (b4) audioBuffers.ambient = b4; else { htmlAudio.ambientEl = new Audio(amb); htmlAudio.ambientEl.loop = true; htmlAudio.ambientEl.volume = 0.12; }
+        if (b4) audioBuffers.ambient = b4;
+        else { htmlAudio.ambientEl = new Audio(amb); htmlAudio.ambientEl.loop = true; htmlAudio.ambientEl.volume = 0.12; }
       }
     } catch (e) {
       lrwarn('preloadAssets error', e);
     }
+    // Defensive: ensure no "breath" fallback remains in memory
+    try { audioBuffers.breath = null; htmlAudio.breathUrl = null; } catch (e) {}
     lrlog('preload results', {
       inhaleCue: !!audioBuffers.inhaleCue || !!htmlAudio.inhaleEl,
       exhaleCue: !!audioBuffers.exhaleCue || !!htmlAudio.exhaleEl,
@@ -234,23 +228,29 @@
     });
   }
 
-  // ---------- Breath flow players ----------
+  // ---------- Breath flow players (strict mapping) ----------
   async function playInhale() {
     await preloadAssets();
-    if (audioBuffers.inhaleCue) { if (scheduleBufferPlay(audioBuffers.inhaleCue, 0, audioBuffers.inhaleCue.duration || inhaleDurationSeconds)) return; }
-    if (htmlAudio.inhaleEl) { if (playHtml(htmlAudio.inhaleEl.src, 0, inhaleDurationSeconds)) return; }
-    if (audioBuffers.breath) { if (scheduleBufferPlay(audioBuffers.breath, inhaleOffsetSeconds, inhaleDurationSeconds)) return; }
-    if (htmlAudio.breathUrl) { if (playHtml(htmlAudio.breathUrl, inhaleOffsetSeconds, inhaleDurationSeconds)) return; }
-    lrlog('playInhale fallback: no audio');
+    // Prefer inhaleCue (buffer), then htmlAudio.inhaleEl; DO NOT fallback to generic "breath"
+    if (audioBuffers.inhaleCue) {
+      if (scheduleBufferPlay(audioBuffers.inhaleCue, 0, audioBuffers.inhaleCue.duration || inhaleDurationSeconds)) return;
+    }
+    if (htmlAudio.inhaleEl) {
+      if (playHtml(htmlAudio.inhaleEl.src, 0, inhaleDurationSeconds)) return;
+    }
+    lrlog('playInhale fallback: no inhaleCue available');
   }
 
   async function playExhale() {
     await preloadAssets();
-    if (audioBuffers.exhaleCue) { if (scheduleBufferPlay(audioBuffers.exhaleCue, 0, audioBuffers.exhaleCue.duration || exhaleDurationSeconds)) return; }
-    if (htmlAudio.exhaleEl) { if (playHtml(htmlAudio.exhaleEl.src, 0, exhaleDurationSeconds)) return; }
-    if (audioBuffers.breath) { if (scheduleBufferPlay(audioBuffers.breath, exhaleOffsetSeconds, exhaleDurationSeconds)) return; }
-    if (htmlAudio.breathUrl) { if (playHtml(htmlAudio.breathUrl, exhaleOffsetSeconds, exhaleDurationSeconds)) return; }
-    lrlog('playExhale fallback: no audio');
+    // Prefer exhaleCue (buffer), then htmlAudio.exhaleEl; DO NOT fallback to generic "breath"
+    if (audioBuffers.exhaleCue) {
+      if (scheduleBufferPlay(audioBuffers.exhaleCue, 0, audioBuffers.exhaleCue.duration || exhaleDurationSeconds)) return;
+    }
+    if (htmlAudio.exhaleEl) {
+      if (playHtml(htmlAudio.exhaleEl.src, 0, exhaleDurationSeconds)) return;
+    }
+    lrlog('playExhale fallback: no exhaleCue available');
   }
 
   // ---------- Breath overlay ----------
