@@ -17,7 +17,6 @@
     { id: '300', label: '5 minutos', seconds: 300 }
   ];
 
-  // Spanish labels for presets (maps to lr_helpers.setBreathPattern keys)
   const PRESET_LABELS_ES = {
     box: 'Caja (4-4-4-4)',
     calm: 'Calma',
@@ -33,7 +32,6 @@
   let _sessionStartedAt = 0;
   let _sessionPaused = false;
 
-  // Utility to format seconds to mm:ss
   function fmtTime(s) {
     s = Math.max(0, Math.floor(s));
     const mm = Math.floor(s/60);
@@ -41,7 +39,6 @@
     return `${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
   }
 
-  // Insert session UI into settings modal (select + start/cancel) and add presets area with Spanish labels
   function insertSessionUI(modal) {
     if (!modal || modal.dataset._breathSessionsInjected) return;
     const wrap = document.createElement('div');
@@ -58,11 +55,9 @@
       <div style="font-weight:700;margin-bottom:6px">Presets de respiración</div>
       <div id="lr_presets_spanish" style="display:flex;gap:8px;flex-wrap:wrap"></div>
     `;
-    // append near the end of modal's content
     const content = modal.querySelector('div') || modal;
     content.appendChild(wrap);
 
-    // Build presets area with Spanish labels and hook to lr_helpers.setBreathPattern
     const presetContainer = document.getElementById('lr_presets_spanish');
     const mapping = [{k:'box', label: PRESET_LABELS_ES.box}, {k:'calm', label: PRESET_LABELS_ES.calm}, {k:'slow', label: PRESET_LABELS_ES.slow}, {k:'478', label: PRESET_LABELS_ES['478']}];
     mapping.forEach(p => {
@@ -89,7 +84,6 @@
     const startBtn = document.getElementById('lr_session_start');
     const cancelBtn = document.getElementById('lr_session_cancel');
 
-    // restore saved selection
     try {
       const saved = localStorage.getItem('lr_session_seconds') || '0';
       if (sel) sel.value = saved;
@@ -102,7 +96,6 @@
     startBtn && startBtn.addEventListener('click', ()=> {
       const seconds = parseInt(document.getElementById('lr_session_select').value || '0', 10);
       startSession(seconds);
-      // close settings modal if present
       try { const m = document.getElementById('_lr_settings_modal'); if (m && m.parentNode) m.parentNode.removeChild(m); } catch(e){}
     });
 
@@ -114,7 +107,6 @@
     modal.dataset._breathSessionsInjected = '1';
   }
 
-  // Add floating session controls UI when a session is started
   function createSessionControls() {
     removeSessionControls();
     const ctrl = document.createElement('div');
@@ -192,15 +184,24 @@
       return;
     }
 
-  los controles han dejado de abrir, no veo la programación. What happened? The user says after replacing file, controls stopped opening; they included code but then wrote "los controles han dejado de abrir..." so maybe they pasted truncated code; their posted code seems cut mid-function. We must respond: explain that the file appears truncated or contains syntax errors; show how to check console for syntax errors; steps to fetch raw file to verify; provide corrected full file (we already gave earlier full code). But user already pasted code with "los controles..." inserted in middle breaking syntax. So instruct to remove stray text and ensure file ends with closing })(); Provide commands to check via console: fetch('./js/breath-sessions.js') to see content snippet; check console for syntax error messages; check if window._breath_sessions_v2_loaded true; check document.scripts include; hotload corrected file; give corrected file again (full). Provide minimal step list for fix: fix file content, commit, push, ensure script tag. Offer to prepare PR. Keep concise.
+  los controles han dejado de abrir, no veo la programación.  
 
-Let's produce Spanish reply pointing out likely cause: file truncated/syntax error due to inserted message; show how to detect (open console errors), show fetch command to inspect file, and give corrected file block (again) and steps to replace and test by hotloading script. Provide commands to check. Finish.
-Gracias — ya veo el problema: el código que pegaste está roto/truncado (tiene texto extra dentro del script: "los controles han dejado de abrir, no veo la programación."), por eso el navegador no ejecuta el módulo y por eso no aparece la UI. En resumen: hay un error de sintaxis en el fichero y eso impide que el script se cargue.
+What happened? They continue pasting truncated file. Need to respond: explain again that file is truncated, deliver final corrective steps with commands. Provide minimal checks and hotload corrected file; include the corrected full file content (we already provided earlier). Must be concise.
 
-Qué hacer ahora (rápido y seguro)
+I'll respond: explain cause, instruct to check fetch snippet, then give final corrected file and provide exact steps to replace file in repo via GitHub UI (or commands) and hotload to test. Offer to make PR.
 
-1) Comprobar si hay error de sintaxis en la consola
-Abre DevTools → Consola y busca errores en rojo. Puedes ejecutar este comando para ver los últimos errores asociados al origen:
+Let's produce final answer: Spanish, succinct.
+Ok — está pasando exactamente lo mismo: el archivo que tienes subido está truncado (tiene texto libre "los controles..." dentro del script). Eso impide que el navegador ejecute el módulo y por eso NO ves la UI y la consola no lanza nada útil.
+
+Sigue estos pasos exactos (rápido) para comprobar y arreglar:
+
+1) Comprobar qué archivo está sirviendo Pages (pega en la consola)
 ```javascript
-console.clear();
-console.log('Últimos errores (si los hay):');
+(async()=>{
+  try{
+    const r = await fetch('./js/breath-sessions.js',{cache:'no-store'});
+    console.log('status', r.status, 'url', r.url);
+    const txt = await r.text();
+    console.log('SNIPPET (0..800):\n', txt.slice(0,800));
+  }catch(e){ console.error('fetch error', e); }
+})();
