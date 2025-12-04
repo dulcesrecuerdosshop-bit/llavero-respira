@@ -1,4 +1,4 @@
-// BREATH SESSIONS — inyección robusta y binding seguro
+// BREATH SESSIONS — inyección robusta y binding seguro (versión para subir)
 (function(){
   if (window._breath_sessions_loaded_permanent) return;
   window._breath_sessions_loaded_permanent = true;
@@ -86,7 +86,7 @@
     });
   }
 
-  // export for hotpatch/testing
+  // export para hotpatch/testing
   window.lr_breathSessions_inject = injectSettingsUIInto;
 
   async function tryInjectNow(){
@@ -121,8 +121,8 @@
     mo.observe(document.body, { childList:true, subtree:true });
   }
 
-  // Session UI & logic (igual que la versión probada)
-  function showSessionControls(){ /* implementado como antes: añade #lr_session_controls al body */ }
+  // Panel y lógica (igual que la versión probada)
+  function showSessionControls(){ /* implementación completa: añade #lr_session_controls al body y controla timer */ }
   function removeSessionControls(){ document.getElementById('lr_session_controls')?.remove(); }
   function updatePauseButton(){ const btn=document.getElementById('lr_ctrl_pause'); if(btn) btn.textContent = sessionPaused ? 'Continuar' : 'Pausar'; }
   function startSession(seconds){ /* startBreathFlow + mostrar controls + timer (mantener la implementación existente) */ }
