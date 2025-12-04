@@ -32,24 +32,19 @@
 
   function injectSettingsUIInto(modal){
     if(!modal) return;
-    // Determinar card/container: en _lr_settings_modal suele haber un primer div, en lr-user-modal hay .lr-modal-card
+    // determinar container (card)
     let card = modal.querySelector('.lr-modal-card') || modal.querySelector('div') || modal;
     if(!card) card = modal;
 
-    // Si el card está marcado pero faltan elementos -> limpiar marca para reinyectar
-    const hasSelectInCard = !!card.querySelector('[data-lr="session-select"]');
-    const hasBtnInCard = !!card.querySelector('[data-lr="session-start"]');
-    if(card.dataset.sessionsLoaded === "1" && (!hasSelectInCard || !hasBtnInCard)){
-      delete card.dataset.sessionsLoaded;
-    }
-    if(card.dataset.sessionsLoaded === "1") return;
+    // si ya existe una inyección en este card, no volver a inyectar
+    if(card.querySelector('[data-lr="session-select"]') || card.dataset.sessionsLoaded === "1") return;
 
     const uid = makeUid();
     const selectId = `lr_session_select_${uid}`;
     const startId = `lr_session_start_btn_${uid}`;
     const presetsId = `lr_preset_buttons_${uid}`;
 
-    // Save last ids for diagnostics / debugging
+    // guardamos ids para debugging
     window.__lr_last_session_ids = { selectId, startId, presetsId, uid };
 
     const box = document.createElement('div');
@@ -67,7 +62,7 @@
     card.appendChild(box);
     card.dataset.sessionsLoaded = "1";
 
-    // references scoped to this injection
+    // scope references
     const select = card.querySelector(`#${selectId}`);
     try{ const saved = localStorage.getItem('lr_session_seconds'); if(saved && select) select.value = saved;}catch(e){}
     select?.addEventListener('change', e => { try{ localStorage.setItem('lr_session_seconds', e.target.value); }catch(e){} });
@@ -76,7 +71,6 @@
     if(startBtn && !startBtn.dataset.lr_bound){
       try{ startBtn.type = 'button'; startBtn.onclick = null; }catch(e){}
       startBtn.dataset.lr_bound = '1';
-      // bind using the scoped element reference (avoid global getElementById)
       startBtn.addEventListener('click', (ev) => {
         try{ ev && ev.stopPropagation && ev.stopPropagation(); }catch(e){}
         const seconds = parseInt(select?.value || '0', 10) || 0;
