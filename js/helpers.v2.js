@@ -1,7 +1,6 @@
 // helpers.v2.js - Helpers completos (TTS, respiración, favoritos, compartir, descarga).
-// Ajuste realizado: asegurar reproducción en móvil, tracking de WebAudio sources y parada segura de sesión.
-// Añadido: hotfix flotante reabrible (openBreathHotfix/closeBreathHotfix), integración con menú y preservación de presets.
-// Mantiene toda la funcionalidad existente y añade stopBreathFlowInternal + activeSources/activeTimers.
+// Versión modificada: se han movido los presets al hotfix reabrible, se ha eliminado el bloque de presets del modal Ajustes,
+// se asegura que el hotfix pueda reabrirse y se mantiene tracking y parada segura de WebAudio/HTMLAudio/timers.
 
 (function () {
   'use strict';
@@ -69,9 +68,9 @@
   let ambientSource = null, ambientGain = null;
   const htmlAudio = { inhaleEl: null, exhaleEl: null, ambientEl: null, breathUrl: null };
 
-  // NEW: active WebAudio sources tracking so we can stop them cleanly
+  // track active WebAudio sources so we can stop them cleanly
   const activeSources = [];
-  // NEW: active timer IDs so we can clear them
+  // track active timer IDs so we can clear them
   const activeTimers = [];
 
   const KEY_FAVORITOS = 'lr_favoritos_v1';
@@ -120,12 +119,11 @@
       const r = await fetch(url);
       if (!r.ok) throw new Error('fetch ' + r.status);
       const ab = await r.arrayBuffer();
-      // decodeAudioData may accept promise or callback; wrap to support both
+      // decodeAudioData compatibility: callback or promise
       const buf = await new Promise((resolve, reject) => {
         try {
           ctx.decodeAudioData(ab, resolve, reject);
         } catch (err) {
-          // Some browsers return a promise
           ctx.decodeAudioData(ab).then(resolve).catch(reject);
         }
       });
@@ -157,9 +155,7 @@
       src.connect(g).connect(audioCtx.destination);
 
       // Track active source so we can stop it externally
-      try {
-        activeSources.push(src);
-      } catch (e) {}
+      try { activeSources.push(src); } catch (e) {}
 
       // Ensure we remove from activeSources when finished
       src.onended = function () {
@@ -276,8 +272,6 @@
   // ---------- Breath flow players (strict mapping, schedules by session durations) ----------
   async function playInhale() {
     await preloadAssets();
-    // Prefer inhaleCue (buffer), then htmlAudio.inhaleEl; DO NOT fallback to generic "breath"
-    // IMPORTANT: schedule using inhaleDurationSeconds (session-controlled) so audio never overruns the phase
     if (audioBuffers.inhaleCue) {
       if (scheduleBufferPlay(audioBuffers.inhaleCue, 0, inhaleDurationSeconds)) return;
     }
@@ -289,8 +283,6 @@
 
   async function playExhale() {
     await preloadAssets();
-    // Prefer exhaleCue (buffer), then htmlAudio.exhaleEl; DO NOT fallback to generic "breath"
-    // IMPORTANT: schedule using exhaleDurationSeconds (session-controlled)
     if (audioBuffers.exhaleCue) {
       if (scheduleBufferPlay(audioBuffers.exhaleCue, 0, exhaleDurationSeconds)) return;
     }
@@ -302,16 +294,13 @@
 
   // ---------- Breath overlay ----------
   async function startBreathFlowInternal() {
-    // Ensure audio unlocked asap on user gesture
     await resumeAudio();
     await preloadAssets();
 
-    // If overlay already present, just return
     if (document.getElementById('lr-breath-overlay')) { lrlog('breath overlay already present'); return; }
 
     const overlay = document.createElement('div');
     overlay.id = 'lr-breath-overlay';
-    // Ensure overlay is visible on mobile: high z-index and pointer-events
     Object.assign(overlay.style, {
       position: 'fixed',
       inset: 0,
@@ -396,9 +385,7 @@
     // Extend overlay._stop to also stop active WebAudio sources, HTML audio, ambient and clear globals/timers
     overlay._stop = function () {
       running = false;
-      // clear overlay-specific timeout
       try { if (timeoutId) clearTimeout(timeoutId); } catch (e) {}
-      // clear any timers we registered
       try {
         while (activeTimers.length) {
           const tid = activeTimers.shift();
@@ -430,7 +417,6 @@
       lrlog('breath overlay removed');
     };
 
-    // stop on click/tap (mobile-friendly)
     function stopHandler(e) {
       try { if (overlay._stop) overlay._stop(); } catch (err) {}
       e && e.preventDefault && e.preventDefault();
@@ -442,18 +428,10 @@
     window._lastBreathOverlay = overlay;
   }
 
-  // ---------- NEW: hotfix floating UI (create / open / close) ----------
+  // ---------- hotfix floating UI (create / open / close) ----------
   function openBreathHotfix() {
     try {
-      // If a modal/session-control exists, don't insert hotfix (modal-based controls preferred)
-      if (document.querySelector('[data-lr="session-select"]')) {
-        // If already present and hidden, unhide
-        const existing = document.getElementById('__lr_hotfix_floating');
-        if (existing) { existing.style.display = ''; existing.removeAttribute('aria-hidden'); return existing; }
-        // else don't create hotfix if modal controls are present
-        return null;
-      }
-
+      // If a hotfix already exists, unhide and return it
       let wrap = document.getElementById('__lr_hotfix_floating');
       if (wrap) {
         wrap.style.display = '';
@@ -463,7 +441,7 @@
         return wrap;
       }
 
-      // Build hotfix container
+      // Build hotfix container (always allowed to create; presets removed from settings so no duplication)
       wrap = document.createElement('div');
       wrap.id = '__lr_hotfix_floating';
       wrap.setAttribute('role', 'region');
@@ -525,7 +503,7 @@
         } catch (e) { console.warn('hotfix start error', e); }
       }, { passive: true });
 
-      // hide/close button (hide instead of remove to allow reopen)
+      // hide/close button
       const closeBtn = document.createElement('button');
       closeBtn.type = 'button';
       closeBtn.id = '__lr_hotfix_close';
@@ -563,13 +541,11 @@
     try {
       const wrap = document.getElementById('__lr_hotfix_floating');
       if (!wrap) return;
-      // hide but keep in DOM to allow reopen
       wrap.style.display = 'none';
       wrap.setAttribute('aria-hidden', 'true');
     } catch (e) { lrwarn('closeBreathHotfix error', e); }
   }
 
-  // ensureFloatingHotfix kept for backwards compatibility: create if missing but show/hide controlled by open/close
   function ensureFloatingHotfix() {
     if (!document.getElementById('__lr_hotfix_floating')) openBreathHotfix();
   }
@@ -577,12 +553,11 @@
   // ---------- NEW: stopBreathFlowInternal ----------
   function stopBreathFlowInternal() {
     try {
-      // If overlay exists, call its _stop() (it will also stop audio and ambient)
       if (window._lastBreathOverlay && typeof window._lastBreathOverlay._stop === 'function') {
         try { window._lastBreathOverlay._stop(); } catch (e) { lrwarn('overlay._stop threw', e); }
       }
 
-      // Stop any remaining active WebAudio sources
+      // Stop remaining active WebAudio sources
       try {
         for (let i = 0; i < activeSources.length; i++) {
           try { activeSources[i].stop(); } catch (e) {}
@@ -590,15 +565,14 @@
         activeSources.length = 0;
       } catch (e) { lrwarn('stop activeSources error', e); }
 
-      // Pause and reset HTML audio elements safely
+      // Pause and reset HTML audio safely
       try { if (htmlAudio.inhaleEl) { htmlAudio.inhaleEl.pause(); try { htmlAudio.inhaleEl.currentTime = 0; } catch(e){} } } catch (e) {}
       try { if (htmlAudio.exhaleEl) { htmlAudio.exhaleEl.pause(); try { htmlAudio.exhaleEl.currentTime = 0; } catch(e){} } } catch (e) {}
       try { if (htmlAudio.ambientEl) { htmlAudio.ambientEl.pause(); try { htmlAudio.ambientEl.currentTime = 0; } catch(e){} } } catch (e) {}
 
-      // Stop ambient loop resources
       try { stopAmbientLoop(); } catch (e) {}
 
-      // Clear any timers we registered globally
+      // Clear any timers registered
       try {
         while (activeTimers.length) {
           const tid = activeTimers.shift();
@@ -606,7 +580,6 @@
         }
       } catch (e) {}
 
-      // Clear global overlay ref
       try { window._lastBreathOverlay = null; } catch (e) {}
 
       lrlog('stopBreathFlowInternal completed');
@@ -786,6 +759,8 @@
     Object.assign(modal.style, { position:'fixed', left:0, right:0, top:0, bottom:0, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,0.5)', zIndex:19000 });
     const box = document.createElement('div');
     Object.assign(box.style, { width:'min(720px,94%)', background:'#fff', color:'#042231', padding:'18px', borderRadius:'12px', boxShadow:'0 20px 60px rgba(3,10,18,0.12)' });
+
+    // NOTE: Presets moved to the hotfix quick control to avoid duplicate UI and to improve accessibility.
     box.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center">
         <strong>Ajustes</strong>
@@ -796,13 +771,8 @@
         <label><input type="checkbox" id="_lr_toggle_tts" /> Activar TTS (lectura de frases)</label>
         <label><input type="checkbox" id="_lr_toggle_ambient" /> Activar sonido ambiental al iniciar respirar</label>
         <div>
-          <div style="font-weight:700;margin-bottom:6px">Presets de respiración</div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button data-preset="box" class="_lr_preset_btn" style="padding:8px 10px;border-radius:8px">Box (4-4-4-4)</button>
-            <button data-preset="calm" class="_lr_preset_btn" style="padding:8px 10px;border-radius:8px">Calm</button>
-            <button data-preset="slow" class="_lr_preset_btn" style="padding:8px 10px;border-radius:8px">Slow</button>
-            <button data-preset="478" class="_lr_preset_btn" style="padding:8px 10px;border-radius:8px">4-7-8</button>
-          </div>
+          <div style="font-weight:700;margin-bottom:6px">Presets integrados</div>
+          <div style="color:rgba(0,0,0,0.55);font-size:0.95rem">Los presets de respiración están disponibles en el control rápido situado en la parte inferior de la pantalla.</div>
         </div>
       </div>
     `;
@@ -822,16 +792,6 @@
     if (ambientCheckbox) ambientCheckbox.addEventListener('change', () => {
       showToast('Ambient ' + (ambientCheckbox.checked ? 'activado' : 'desactivado'));
       window._lr_ambient_enabled = ambientCheckbox.checked;
-    });
-
-    box.querySelectorAll('._lr_preset_btn').forEach(b => {
-      b.addEventListener('click', () => {
-        const p = b.getAttribute('data-preset');
-        if (p && window.lr_helpers && typeof window.lr_helpers.setBreathPattern === 'function') {
-          window.lr_helpers.setBreathPattern(p);
-          showToast('Preset aplicado: ' + p);
-        }
-      });
     });
   }
 
@@ -895,7 +855,6 @@
 
   // ---------- Core action handler ----------
   function handleMenuAction(action, btn) {
-    // Prefer canonical in-memory phrase provided by phrases.js
     let phrase = '';
     try {
       if (window._phrases_current) phrase = window._phrases_current;
@@ -908,7 +867,6 @@
 
     switch (action) {
       case 'breath':
-        // Open the hotfix quick control (reopenable) rather than directly starting overlay
         try { openBreathHotfix(); } catch (e) { startBreathFlowInternal(); }
         break;
       case 'favorite': if (phrase) { const added = toggleFavorite(phrase); if (btn) btn.textContent = added ? '♥ Favorita' : '♡ Favorita'; showToast(added ? 'Añadido a favoritos' : 'Eliminado de favoritos'); } break;
@@ -1052,13 +1010,12 @@
       else showToast('No hay texto para compartir');
     });
 
-    // Also keep breath + ambient controls bound: breath button opens hotfix quick control
+    // breath + ambient controls: breath button opens hotfix quick control
     attachTouchClick(['breathBtn_menu','breathBtn'], function () { openBreathHotfix(); });
     attachTouchClick(['enableAudioBtn','enableAudio'], function () { resumeAudio().then(function () { showToast('Intentando activar audio'); }); });
     attachTouchClick(['startAmbientBtn'], function () { preloadAssets().then(function () { if (audioBuffers.ambient) startAmbientLoop(audioBuffers.ambient); else if (htmlAudio.ambientEl) try { htmlAudio.ambientEl.play().catch(()=>{}); } catch(e){} }); });
     attachTouchClick(['stopAmbientBtn'], function () { stopAmbientLoop(); });
 
-    // Feedback for debug
     lrlog('card controls attached (tts,fav,download,share,breath,ambient)');
   });
 
@@ -1098,7 +1055,6 @@
       htmlAudio: { inhale: !!htmlAudio.inhaleEl, exhale: !!htmlAudio.exhaleEl, ambient: !!htmlAudio.ambientEl },
       offsets: { inhaleOffsetSeconds, inhaleDurationSeconds, exhaleOffsetSeconds, exhaleDurationSeconds, hold1DurationSeconds, hold2DurationSeconds }
     }),
-    // NEW: allow external callers to stop any running breath flow (overlay + audio)
     stopBreathFlow: stopBreathFlowInternal
   });
 
