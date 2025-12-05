@@ -1,7 +1,6 @@
 // helpers.v2.js - Helpers completos (TTS, respiración, favoritos, compartir, descarga).
-// Ajuste realizado: forzar que playInhale/playExhale usen las duraciones de
-// inhaleDurationSeconds/exhaleDurationSeconds para evitar mezcla/cortes.
-// Mantiene toda la funcionalidad existente.
+// Ajuste realizado: asegurar reproducción en móvil, tracking de WebAudio sources y parada segura de sesión.
+// Mantiene toda la funcionalidad existente y añade stopBreathFlowInternal + activeSources/activeTimers.
 
 (function () {
   'use strict';
@@ -71,6 +70,8 @@
 
   // NEW: active WebAudio sources tracking so we can stop them cleanly
   const activeSources = [];
+  // NEW: active timer IDs so we can clear them
+  const activeTimers = [];
 
   const KEY_FAVORITOS = 'lr_favoritos_v1';
 
@@ -117,6 +118,7 @@
     }
   }
 
+  // scheduleBufferPlay: create buffer source, track it in activeSources, remove onended
   function scheduleBufferPlay(buffer, offset, duration, opts) {
     opts = opts || {};
     const gainVal = typeof opts.gain === 'number' ? opts.gain : 0.9;
@@ -135,7 +137,7 @@
       g.gain.linearRampToValueAtTime(0.0001, endAt);
       src.connect(g).connect(audioCtx.destination);
 
-      // Track active source so we can stop it externally if needed
+      // Track active source so we can stop it externally
       try {
         activeSources.push(src);
       } catch (e) {}
@@ -169,8 +171,11 @@
       else el = new Audio(url);
       try { el.currentTime = offset; } catch (e) {}
       el.volume = 0.95;
-      el.play().catch(e => lrwarn('playHtml play error', e));
-      setTimeout(() => { try { el.pause(); el.currentTime = 0; } catch (e) {} }, Math.max(400, Math.round(duration)));
+      const p = el.play();
+      if (p && p.catch) p.catch(e => lrwarn('playHtml play error', e));
+      // record timer to pause/reset later
+      const t = setTimeout(() => { try { el.pause(); el.currentTime = 0; } catch (e) {} }, Math.max(400, Math.round(duration)));
+      try { activeTimers.push(t); } catch (e) {}
       lrlog('playHtml', url);
       return true;
     } catch (e) {
@@ -196,7 +201,8 @@
     }
     if (url) {
       if (!htmlAudio.ambientEl) { htmlAudio.ambientEl = new Audio(url); htmlAudio.ambientEl.loop = true; htmlAudio.ambientEl.volume = 0.12; }
-      htmlAudio.ambientEl.play().catch(()=>{});
+      const p = htmlAudio.ambientEl.play();
+      if (p && p.catch) p.catch(()=>{});
       lrlog('startAmbientLoop (html audio)');
     }
   }
@@ -277,17 +283,30 @@
 
   // ---------- Breath overlay ----------
   async function startBreathFlowInternal() {
+    // Ensure audio unlocked asap on user gesture
     await resumeAudio();
     await preloadAssets();
 
+    // If overlay already present, just return
     if (document.getElementById('lr-breath-overlay')) { lrlog('breath overlay already present'); return; }
 
     const overlay = document.createElement('div');
     overlay.id = 'lr-breath-overlay';
-    Object.assign(overlay.style, { position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.55)', zIndex: 17000 });
+    // Ensure overlay is visible on mobile: high z-index and pointer-events
+    Object.assign(overlay.style, {
+      position: 'fixed',
+      inset: 0,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: 'rgba(0,0,0,0.55)',
+      zIndex: 2147483647,
+      WebkitTapHighlightColor: 'transparent',
+      touchAction: 'none'
+    });
 
     const container = document.createElement('div');
-    Object.assign(container.style, { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' });
+    Object.assign(container.style, { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', padding: '8px' });
 
     const circle = document.createElement('div');
     Object.assign(circle.style, {
@@ -303,6 +322,15 @@
     overlay.appendChild(container);
     document.body.appendChild(overlay);
 
+    // On mobile ensure first-touch resume if needed
+    if (('ontouchstart' in window) && audioCtx && audioCtx.state === 'suspended') {
+      const resumeOnTouch = async function () {
+        try { await resumeAudio(); } catch (e) {}
+        overlay.removeEventListener('touchstart', resumeOnTouch);
+      };
+      overlay.addEventListener('touchstart', resumeOnTouch, { passive: true });
+    }
+
     if (window._lr_ambient_enabled !== false) {
       if (audioBuffers.ambient) startAmbientLoop(audioBuffers.ambient);
       else if (htmlAudio.ambientEl) startAmbientLoop(null, htmlAudio.ambientEl.src);
@@ -316,6 +344,14 @@
     ];
 
     let idx = 0, timeoutId = null, running = true;
+
+    // helper to push timeout ids to activeTimers for global clear
+    function setActiveTimeout(fn, ms) {
+      const id = setTimeout(fn, ms);
+      try { activeTimers.push(id); } catch (e) {}
+      return id;
+    }
+
     async function loopStep() {
       if (!running) return;
       const s = steps[idx];
@@ -328,46 +364,62 @@
         const scaleFrom = s.label === 'Exhala' ? 1 : 0.6;
         const scaleTo = s.label === 'Exhala' ? 0.6 : 1.0;
         if (circle.animate) {
-          circle.animate([{ transform: 'scale(' + scaleFrom + ')', opacity: 0.75 }, { transform: 'scale(' + scaleTo + ')', opacity: 1 }], { duration: s.duration * 1000, easing: 'ease-in-out', fill: 'f[...]
+          circle.animate([{ transform: 'scale(' + scaleFrom + ')', opacity: 0.75 }, { transform: 'scale(' + scaleTo + ')', opacity: 1 }], { duration: s.duration * 1000, easing: 'ease-in-out', fill: 'forwards' });
         } else {
           circle.style.transition = 'transform ' + s.duration + 's ease-in-out';
           circle.style.transform = 'scale(' + scaleTo + ')';
         }
       } catch (e) {}
-      timeoutId = setTimeout(function () { idx = (idx + 1) % steps.length; loopStep(); }, Math.round(s.duration * 1000));
+      timeoutId = setActiveTimeout(function () { idx = (idx + 1) % steps.length; loopStep(); }, Math.round(s.duration * 1000));
     }
     loopStep();
 
-    // Extend overlay._stop to also stop active WebAudio sources, HTML audio, ambient and clear globals
+    // Extend overlay._stop to also stop active WebAudio sources, HTML audio, ambient and clear globals/timers
     overlay._stop = function () {
       running = false;
-      if (timeoutId) clearTimeout(timeoutId);
+      // clear overlay-specific timeout
+      try { if (timeoutId) clearTimeout(timeoutId); } catch (e) {}
+      // clear any timers we registered
       try {
-        // Stop active WebAudio buffer sources
-        try {
-          for (let i = 0; i < activeSources.length; i++) {
-            try { activeSources[i].stop(); } catch (e) {}
-          }
-        } catch (e) {}
-        // Clear activeSources array
-        try { activeSources.length = 0; } catch (e) {}
-
-        // Pause/reset HTML audio elements if present
-        try { if (htmlAudio.inhaleEl) { htmlAudio.inhaleEl.pause(); try { htmlAudio.inhaleEl.currentTime = 0; } catch(e){} } } catch (e) {}
-        try { if (htmlAudio.exhaleEl) { htmlAudio.exhaleEl.pause(); try { htmlAudio.exhaleEl.currentTime = 0; } catch(e){} } } catch (e) {}
-        try { if (htmlAudio.ambientEl) { htmlAudio.ambientEl.pause(); try { htmlAudio.ambientEl.currentTime = 0; } catch(e){} } } catch (e) {}
-
-        // Stop ambient loop (webaudio or html)
-        try { stopAmbientLoop(); } catch (e) {}
-
-        // Remove overlay dom
-        try { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); } catch (e) {}
+        while (activeTimers.length) {
+          const tid = activeTimers.shift();
+          try { clearTimeout(tid); } catch (e) {}
+        }
       } catch (e) {}
+
+      // Stop active WebAudio buffer sources
+      try {
+        for (let i = 0; i < activeSources.length; i++) {
+          try { activeSources[i].stop(); } catch (e) {}
+        }
+        activeSources.length = 0;
+      } catch (e) {}
+
+      // Pause/reset HTML audio elements if present
+      try { if (htmlAudio.inhaleEl) { htmlAudio.inhaleEl.pause(); try { htmlAudio.inhaleEl.currentTime = 0; } catch(e){} } } catch (e) {}
+      try { if (htmlAudio.exhaleEl) { htmlAudio.exhaleEl.pause(); try { htmlAudio.exhaleEl.currentTime = 0; } catch(e){} } } catch (e) {}
+      try { if (htmlAudio.ambientEl) { htmlAudio.ambientEl.pause(); try { htmlAudio.ambientEl.currentTime = 0; } catch(e){} } } catch (e) {}
+
+      // Stop ambient loop (webaudio or html)
+      try { stopAmbientLoop(); } catch (e) {}
+
+      // Remove overlay dom
+      try { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); } catch (e) {}
+
       // Clear global ref
       try { window._lastBreathOverlay = null; } catch (e) {}
       lrlog('breath overlay removed');
     };
-    overlay.addEventListener('click', () => { if (overlay._stop) overlay._stop(); });
+
+    // stop on click/tap (mobile-friendly)
+    function stopHandler(e) {
+      try { if (overlay._stop) overlay._stop(); } catch (err) {}
+      e && e.preventDefault && e.preventDefault();
+      e && e.stopPropagation && e.stopPropagation();
+    }
+    overlay.addEventListener('click', stopHandler, { passive: false });
+    overlay.addEventListener('touchend', stopHandler, { passive: false });
+
     window._lastBreathOverlay = overlay;
   }
 
@@ -394,6 +446,14 @@
 
       // Stop ambient loop resources
       try { stopAmbientLoop(); } catch (e) {}
+
+      // Clear any timers we registered globally
+      try {
+        while (activeTimers.length) {
+          const tid = activeTimers.shift();
+          try { clearTimeout(tid); } catch (e) {}
+        }
+      } catch (e) {}
 
       // Clear global overlay ref
       try { window._lastBreathOverlay = null; } catch (e) {}
@@ -465,11 +525,11 @@
       const modal = document.createElement('div'); modal.id = '_lr_enable_audio_modal';
       Object.assign(modal.style, { position:'fixed', inset:0, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,0.45)', zIndex:17000 });
       const box = document.createElement('div');
-      Object.assign(box.style, { background:'#fff', color:'#061226', padding:'18px', borderRadius:'12px', maxWidth:'420px', width:'92%', textAlign:'center', boxShadow:'0 20px 60px rgba(3,10,18,0.12)' [...]
+      Object.assign(box.style, { background:'#fff', color:'#061226', padding:'18px', borderRadius:'12px', maxWidth:'420px', width:'92%', textAlign:'center', boxShadow:'0 20px 60px rgba(3,10,18,0.12)' });
       box.innerHTML = `<div style="font-weight:700;margin-bottom:8px">Activar audio</div>
                        <div style="color:#374151;margin-bottom:14px">Pulsa el botón para activar el audio (permiso local del navegador).</div>
                        <div style="display:flex;gap:8px;justify-content:center">
-                         <button id="_lr_enable_audio_btn" style="padding:10px 14px;border-radius:8px;border:none;background:linear-gradient(90deg,#7bd389,#5ec1ff);color:#04232a;font-weight:700">Activ[...]
+                         <button id="_lr_enable_audio_btn" style="padding:10px 14px;border-radius:8px;border:none;background:linear-gradient(90deg,#7bd389,#5ec1ff);color:#04232a;font-weight:700">Activar audio</button>
                          <button id="_lr_enable_audio_cancel" style="padding:10px 14px;border-radius:8px;border:1px solid #cbd5e1;background:transparent;color:#04232a">Cancelar</button>
                        </div>`;
       modal.appendChild(box); document.body.appendChild(modal);
@@ -555,8 +615,8 @@
     const modal = document.getElementById('_lr_fav_modal') || document.createElement('div'); modal.id = '_lr_fav_modal';
     Object.assign(modal.style, { position:'fixed', left:0, right:0, top:0, bottom:0, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,0.6)', zIndex:19000 });
     const box = document.createElement('div');
-    Object.assign(box.style, { maxWidth:'720px', width:'92%', maxHeight:'70vh', overflow:'auto', background:'#fff', color:'#042231', padding:'18px', borderRadius:'12px', boxShadow:'0 20px 60px rgba(3,[...]
-    let inner = '<div style="display:flex;justify-content:space-between;align-items:center"><strong>Favoritos</strong><button id="_lr_close_fav" style="background:transparent;border:1px solid rgba(0,0[...]
+    Object.assign(box.style, { maxWidth:'720px', width:'92%', maxHeight:'70vh', overflow:'auto', background:'#fff', color:'#042231', padding:'18px', borderRadius:'12px', boxShadow:'0 20px 60px rgba(3,10,18,0.12)' });
+    let inner = '<div style="display:flex;justify-content:space-between;align-items:center"><strong>Favoritos</strong><button id="_lr_close_fav" style="background:transparent;border:1px solid rgba(0,0,0,0.06);padding:6px;border-radius:8px">Cerrar</button></div><hr style="margin:10px 0;opacity:0.06" />';
     if (favs && favs.length) inner += favs.map(f => `<div style="margin:10px 0;line-height:1.3;color:#022">${escapeHtml(f)}</div>`).join('');
     else inner += '<div style="color:rgba(7,16,28,0.8)">No hay favoritos</div>';
     box.innerHTML = inner;
@@ -697,11 +757,11 @@
 
     switch (action) {
       case 'breath': startBreathFlowInternal(); break;
-      case 'favorite': if (phrase) { const added = toggleFavorite(phrase); if (btn) btn.textContent = added ? '♥ Favorita' : '♡ Favorita'; showToast(added ? 'Añadido a favoritos' : 'Eliminado de [...]');
+      case 'favorite': if (phrase) { const added = toggleFavorite(phrase); if (btn) btn.textContent = added ? '♥ Favorita' : '♡ Favorita'; showToast(added ? 'Añadido a favoritos' : 'Eliminado de favoritos'); } break;
       case 'copy': if (phrase) { copyToClipboard(phrase); } break;
       case 'share': if (phrase) sharePhrase({ title: 'Frase', text: phrase, url: location.href }); break;
       case 'tts': if (phrase && window._lr_tts_enabled !== false) { playTTS(phrase); } else showToast('No hay texto para leer'); break;
-      case 'ambient-start': preloadAssets().then(() => { if (audioBuffers.ambient) startAmbientLoop(audioBuffers.ambient); else if (htmlAudio.ambientEl) htmlAudio.ambientEl.play().catch(()=>{}); }); break;
+      case 'ambient-start': preloadAssets().then(() => { if (audioBuffers.ambient) startAmbientLoop(audioBuffers.ambient); else if (htmlAudio.ambientEl) { try { htmlAudio.ambientEl.play().catch(()=>{}); } catch(e){} } }); break;
       case 'ambient-stop': stopAmbientLoop(); break;
       case 'download': {
         const el = document.querySelector('.frase-card') || document.body;
@@ -774,16 +834,16 @@
     // Always attach direct handlers to main card controls so they respond
     attachTouchClick(['ttsBtn_menu','ttsBtn'], function () {
       let t = '';
-      try { if (window._phrases_current) t = window._phrases_current; else if (typeof window._phrases_currentIndex === 'number' && Array.isArray(window._phrases_list)) t = window._phrases_list[window.[...]
+      try { if (window._phrases_current) t = window._phrases_current; else if (typeof window._phrases_currentIndex === 'number' && Array.isArray(window._phrases_list)) t = window._phrases_list[window._phrases_currentIndex] || ''; } catch (e) { t = ''; }
       if (!t) t = (document.getElementById('frase-text') && document.getElementById('frase-text').textContent) || '';
       if (t) { lrlog('tts requested'); playTTS(t); } else showToast('No hay texto para leer');
     });
 
     attachTouchClick(['favBtn_menu','favBtn'], function () {
       let t = '';
-      try { if (window._phrases_current) t = window._phrases_current; else if (typeof window._phrases_currentIndex === 'number' && Array.isArray(window._phrases_list)) t = window._phrases_list[window.[...]
+      try { if (window._phrases_current) t = window._phrases_current; else if (typeof window._phrases_currentIndex === 'number' && Array.isArray(window._phrases_list)) t = window._phrases_list[window._phrases_currentIndex] || ''; } catch (e) { t = ''; }
       if (!t) t = (document.getElementById('frase-text') && document.getElementById('frase-text').textContent) || '';
-      if (t) { const added = toggleFavorite(t); const el = document.getElementById('favBtn_menu') || document.getElementById('favBtn'); if (el) el.textContent = added ? '♥ Favorita' : '♡ Favorita'[...]
+      if (t) { const added = toggleFavorite(t); const el = document.getElementById('favBtn_menu') || document.getElementById('favBtn'); if (el) el.textContent = added ? '♥ Favorita' : '♡ Favorita'; showToast(added ? 'Añadido a favoritos' : 'Eliminado de favoritos'); }
     });
 
     attachTouchClick(['downloadBtn','downloadBtn_menu'], function () {
@@ -802,7 +862,7 @@
 
     attachTouchClick(['shareBtn','shareBtn_menu'], function () {
       let t = '';
-      try { if (window._phrases_current) t = window._phrases_current; else if (typeof window._phrases_currentIndex === 'number' && Array.isArray(window._phrases_list)) t = window._phrases_list[window.[...]
+      try { if (window._phrases_current) t = window._phrases_current; else if (typeof window._phrases_currentIndex === 'number' && Array.isArray(window._phrases_list)) t = window._phrases_list[window._phrases_currentIndex] || ''; } catch (e) { t = ''; }
       if (!t) t = (document.getElementById('frase-text') && document.getElementById('frase-text').textContent) || '';
       if (t) { sharePhrase({ title: 'Frase', text: t, url: location.href }); }
       else showToast('No hay texto para compartir');
@@ -811,7 +871,7 @@
     // Also keep breath + ambient controls bound
     attachTouchClick(['breathBtn_menu','breathBtn'], function () { startBreathFlowInternal(); });
     attachTouchClick(['enableAudioBtn','enableAudio'], function () { resumeAudio().then(function () { showToast('Intentando activar audio'); }); });
-    attachTouchClick(['startAmbientBtn'], function () { preloadAssets().then(function () { if (audioBuffers.ambient) startAmbientLoop(audioBuffers.ambient); else if (htmlAudio.ambientEl) htmlAudio.amb[...]
+    attachTouchClick(['startAmbientBtn'], function () { preloadAssets().then(function () { if (audioBuffers.ambient) startAmbientLoop(audioBuffers.ambient); else if (htmlAudio.ambientEl) try { htmlAudio.ambientEl.play().catch(()=>{}); } catch(e){} }); });
     attachTouchClick(['stopAmbientBtn'], function () { stopAmbientLoop(); });
 
     // Feedback for debug
@@ -832,7 +892,7 @@
     downloadImageFallback: downloadImageFallback,
     sharePhrase: sharePhrase,
     copyToClipboard: copyToClipboard,
-    startAmbient: async () => { await preloadAssets(); if (audioBuffers.ambient) startAmbientLoop(audioBuffers.ambient); else if (htmlAudio.ambientEl) htmlAudio.ambientEl.play().catch(()=>{}); },
+    startAmbient: async () => { await preloadAssets(); if (audioBuffers.ambient) startAmbientLoop(audioBuffers.ambient); else if (htmlAudio.ambientEl) try { htmlAudio.ambientEl.play().catch(()=>{}); } catch(e){} },
     stopAmbient: stopAmbientLoop,
     setBreathPattern: (name) => {
       const PRE = { box:{inh:4,h1:4,exh:4,h2:4}, calm:{inh:4,h1:4,exh:6,h2:1}, slow:{inh:5,h1:5,exh:7,h2:1}, '478':{inh:4,h1:7,exh:8,h2:1} };
