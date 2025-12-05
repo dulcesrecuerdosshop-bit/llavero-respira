@@ -1,14 +1,16 @@
-// BREATH SESSIONS — implementación completa, robusta y sin duplicados
-// - Genera ids únicos
-// - Evita reinyecciones duplicadas (check global)
-// - Limpia flags stale (data-sessionsLoaded)
-// - Expon API window.lr_breathSessions y lr_breathSessions_inject
-// - Hotfix flotante opcional si la inyección en modal falla
-(function(){
-  if (window._lr_breath_sessions_loaded_permanent) return;
-  window._lr_breath_sessions_loaded_permanent = true;
+// ============================================================
+// BREATH SESSIONS — final (persistente, reinyectable, robusto)
+// Basado en la implementación original (corrige desapariciones y race conditions).
+// ============================================================
 
-  // Config / opciones
+(function(){
+  if (window._lr_breath_sessions_final_loaded) {
+    console.log('[breath-sessions] already loaded (final)');
+    return;
+  }
+  window._lr_breath_sessions_final_loaded = true;
+
+  /* ---------------- CONFIG ---------------- */
   const SESSION_OPTIONS = [
     { id: "0", label: "Sin temporizador", seconds: 0 },
     { id: "60", label: "1 minuto", seconds: 60 },
@@ -17,42 +19,33 @@
   ];
   const PRESET_LABELS = { box:"Caja (4-4-4-4)", calm:"Calma suave", slow:"Lento", "478":"4-7-8" };
 
-  // Estado de sesión
+  /* ---------------- ESTADO ---------------- */
   let sessionActive = false;
   let sessionPaused = false;
   let sessionEndsAt = 0;
   let sessionInterval = null;
   let remainingSeconds = Infinity;
 
-  // Utilidades
-  function makeUid(){
-    return Date.now().toString(36) + Math.floor(Math.random()*1000).toString(36);
-  }
-  function formatTime(s){
-    s = Math.max(0, Math.floor(s));
-    const mm = Math.floor(s/60), ss = s%60;
-    return `${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
-  }
-  function isVisible(node){
-    if(!node) return false;
-    try {
-      const cs = getComputedStyle(node);
-      return cs && cs.display !== 'none' && cs.visibility !== 'hidden' && node.offsetParent !== null;
-    } catch(e) { return false; }
+  /* ---------------- UTIL ---------------- */
+  function makeUid(){ return Date.now().toString(36) + Math.floor(Math.random()*1000).toString(36); }
+  function formatTime(s){ s = Math.max(0, Math.floor(s)); const mm = Math.floor(s/60), ss = s%60; return `${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`; }
+  function safeLog(){ try { console.log.apply(console, ['[breath-sessions]', ...arguments]); } catch(e){} }
+  function isVisible(node){ if(!node) return false; try{ const cs = getComputedStyle(node); return cs && cs.display !== 'none' && cs.visibility !== 'hidden' && node.offsetParent !== null; } catch(e){ return false; } }
+  function showToast(msg){ if(typeof window.lr_showToast === 'function'){ try{ window.lr_showToast(msg); return; }catch(e){} } console.log('[breath-sessions toast]', msg); }
+
+  /* ---------------- SESSION CONTROLS (floating) ---------------- */
+  function styleButton(btn, highlight){
+    btn.style.padding = '8px';
+    btn.style.borderRadius = '8px';
+    btn.style.border = highlight ? 'none' : '1px solid rgba(0,0,0,0.08)';
+    btn.style.background = highlight ? 'linear-gradient(90deg,#ffe7a8,#ffc37d)' : 'white';
+    btn.style.fontWeight = '700';
+    btn.style.cursor = 'pointer';
+    if(highlight) btn.style.color = '#4a2d00';
   }
 
-  function showToast(msg){
-    if(typeof window.lr_showToast === 'function'){
-      try { window.lr_showToast(msg); return; } catch(e){}
-    }
-    // fallback simple
-    console.log('Toast:', msg);
-  }
-
-  // --- CONTROLES DE SESIÓN (UI flotante) ---
   function showSessionControls(){
     removeSessionControls();
-
     const box = document.createElement('div');
     box.id = 'lr_session_controls';
     box.style.cssText = [
@@ -86,7 +79,6 @@
     closeBtn.style.cursor = 'pointer';
     closeBtn.onclick = removeSessionControls;
     header.appendChild(closeBtn);
-
     box.appendChild(header);
 
     const timerEl = document.createElement('div');
@@ -101,6 +93,7 @@
     const controls = document.createElement('div');
     controls.style.display = 'flex';
     controls.style.gap = '8px';
+    controls.style.marginTop = '6px';
 
     const pauseBtn = document.createElement('button');
     pauseBtn.id = 'lr_ctrl_pause';
@@ -138,36 +131,15 @@
     updateTimerDisplay();
   }
 
-  function styleButton(btn, highlight){
-    btn.style.padding = '8px';
-    btn.style.borderRadius = '8px';
-    btn.style.border = highlight ? 'none' : '1px solid rgba(0,0,0,0.08)';
-    btn.style.background = highlight ? 'linear-gradient(90deg,#ffe7a8,#ffc37d)' : 'white';
-    btn.style.fontWeight = '700';
-    btn.style.cursor = 'pointer';
-    if(highlight) btn.style.color = '#4a2d00';
-  }
+  function removeSessionControls(){ const el = document.getElementById('lr_session_controls'); if(el) el.remove(); }
+  function updatePauseButton(){ const btn = document.getElementById('lr_ctrl_pause'); if(!btn) return; btn.textContent = sessionPaused ? 'Continuar' : 'Pausar'; }
+  function updateTimerDisplay(){ const el = document.getElementById('lr_ctrl_timer'); if(el) el.textContent = remainingSeconds === Infinity ? '∞' : formatTime(remainingSeconds); }
 
-  function removeSessionControls(){
-    const el = document.getElementById('lr_session_controls');
-    if(el) el.remove();
-  }
-  function updatePauseButton(){
-    const btn = document.getElementById('lr_ctrl_pause');
-    if(!btn) return;
-    btn.textContent = sessionPaused ? 'Continuar' : 'Pausar';
-  }
-  function updateTimerDisplay(){
-    const el = document.getElementById('lr_ctrl_timer');
-    if(el) el.textContent = remainingSeconds === Infinity ? '∞' : formatTime(remainingSeconds);
-  }
-
-  // --- LÓGICA DE SESIÓN ---
+  /* ---------------- SESSION LOGIC ---------------- */
   function startSession(seconds){
     try {
       sessionActive = true;
       sessionPaused = false;
-
       if(window.lr_helpers && typeof window.lr_helpers.startBreathFlow === 'function'){
         try { window.lr_helpers.startBreathFlow(); } catch(e){ console.warn('lr_helpers.startBreathFlow error', e); }
       } else {
@@ -190,203 +162,206 @@
       } else {
         updateTimerDisplay();
       }
-
       showSessionControls();
     } catch(e){
-      console.error('startSession error', e);
+      console.error('[breath-sessions] startSession error', e);
     }
   }
 
-  function pauseSession(){
-    if(!sessionActive) return;
-    sessionPaused = true;
-    clearInterval(sessionInterval);
-    try { window.lr_helpers?.stopBreathFlow?.(); window.lr_helpers?.stopAmbient?.(); } catch(e){}
-    showToast('Sesión pausada');
-    updatePauseButton();
-  }
-
-  function resumeSession(){
-    if(!sessionActive) return;
-    sessionPaused = false;
-    if(remainingSeconds !== Infinity){
-      sessionEndsAt = Date.now() + remainingSeconds * 1000;
-      clearInterval(sessionInterval);
-      sessionInterval = setInterval(function(){
-        if(!sessionActive || sessionPaused) return;
-        remainingSeconds = Math.max(0, Math.ceil((sessionEndsAt - Date.now())/1000));
-        updateTimerDisplay();
-        if(remainingSeconds <= 0){
-          stopSession();
-          showToast('Sesión completada');
-        }
-      }, 1000);
-    }
-    try { window.lr_helpers?.startBreathFlow?.(); window.lr_helpers?.resumeAudio?.(); } catch(e){}
-    showToast('Sesión reanudada');
-    updatePauseButton();
-  }
-
+  function pauseSession(){ if(!sessionActive) return; sessionPaused = true; clearInterval(sessionInterval); try{ window.lr_helpers?.stopBreathFlow?.(); window.lr_helpers?.stopAmbient?.(); }catch(e){} showToast('Sesión pausada'); updatePauseButton(); }
+  function resumeSession(){ if(!sessionActive) return; sessionPaused = false; if(remainingSeconds !== Infinity){ sessionEndsAt = Date.now() + remainingSeconds * 1000; clearInterval(sessionInterval); sessionInterval = setInterval(function(){ if(!sessionActive || sessionPaused) return; remainingSeconds = Math.max(0, Math.ceil((sessionEndsAt - Date.now())/1000)); updateTimerDisplay(); if(remainingSeconds <= 0){ stopSession(); showToast('Sesión completada'); } }, 1000); } try{ window.lr_helpers?.startBreathFlow?.(); window.lr_helpers?.resumeAudio?.(); }catch(e){} showToast('Sesión reanudada'); updatePauseButton(); }
   function togglePause(){ if(sessionPaused) resumeSession(); else pauseSession(); }
+  function stopSession(){ sessionActive = false; sessionPaused = false; clearInterval(sessionInterval); sessionInterval = null; remainingSeconds = Infinity; try{ window.lr_helpers?.stopBreathFlow?.(); window.lr_helpers?.stopAmbient?.(); }catch(e){} removeSessionControls(); showToast('Sesión detenida'); }
+  function newSessionFlow(){ stopSession(); setTimeout(function(){ document.getElementById('settings_menu')?.click(); }, 200); }
 
-  function stopSession(){
-    sessionActive = false;
-    sessionPaused = false;
-    clearInterval(sessionInterval);
-    try { window.lr_helpers?.stopBreathFlow?.(); window.lr_helpers?.stopAmbient?.(); } catch(e){}
-    removeSessionControls();
-    showToast('Sesión detenida');
-  }
-
-  function newSessionFlow(){
-    stopSession();
-    setTimeout(function(){ document.getElementById('settings_menu')?.click(); }, 200);
-  }
-
-  // --- INYECCIÓN EN MODAL / CARD ---
-  function clearStaleFlag(card){
-    if(!card) return;
-    const hasSelect = !!card.querySelector('[data-lr="session-select"]');
-    const hasBtn = !!card.querySelector('[data-lr="session-start"]') || !!card.querySelector('[id^="lr_session_start_btn_"]');
-    if(card.dataset.sessionsLoaded === "1" && (!hasSelect || !hasBtn)){
-      try { delete card.dataset.sessionsLoaded; } catch(e){ try { card.removeAttribute('data-sessions-loaded'); } catch(err){} }
-    }
-  }
-
-  function buildSettingsBlock(card){
-    // Construcción segura del DOM (sin plantillas complejas)
+  /* ---------------- BUILD SETTINGS BLOCK ---------------- */
+  function buildSettingsBlock(){
     const container = document.createElement('div');
-    container.style.marginTop = '16px';
+    container.style.marginTop = '12px';
+    const uid = makeUid();
 
-    const h3 = document.createElement('h3');
-    h3.style.fontWeight = '700';
-    h3.style.marginBottom = '8px';
-    h3.textContent = 'Temporizador de sesión';
+    const h3 = document.createElement('h3'); h3.style.fontWeight='700'; h3.style.marginBottom='8px'; h3.textContent = 'Temporizador de sesión';
     container.appendChild(h3);
 
-    const select = document.createElement('select');
-    const uid = makeUid();
-    const selectId = 'lr_session_select_' + uid;
-    const startId = 'lr_session_start_btn_' + uid;
-    const presetsId = 'lr_preset_buttons_' + uid;
-
-    select.id = selectId;
-    select.dataset.lr = 'session-select';
+    const select = document.createElement('select'); select.dataset.lr = 'session-select';
     select.style.cssText = 'width:100%;padding:10px;border-radius:10px;border:1px solid rgba(0,0,0,0.1);font-size:1rem';
-    SESSION_OPTIONS.forEach(function(opt){
-      const o = document.createElement('option');
-      o.value = String(opt.seconds);
-      o.textContent = opt.label;
-      select.appendChild(o);
-    });
-    try {
-      const saved = localStorage.getItem('lr_session_seconds');
-      if(saved) select.value = saved;
-    } catch(e){}
+    SESSION_OPTIONS.forEach(opt => { const o = document.createElement('option'); o.value = String(opt.seconds); o.textContent = opt.label; select.appendChild(o); });
 
-    select.addEventListener('change', function(e){
-      try { localStorage.setItem('lr_session_seconds', e.target.value); } catch(e){}
-    });
+    try { const saved = localStorage.getItem('lr_session_seconds'); if(saved) select.value = saved; } catch(e){}
+    select.addEventListener('change', function(e){ try{ localStorage.setItem('lr_session_seconds', e.target.value); }catch(err){} });
 
     container.appendChild(select);
 
     const startBtn = document.createElement('button');
-    startBtn.id = startId;
     startBtn.dataset.lr = 'session-start';
     startBtn.type = 'button';
     startBtn.style.cssText = 'width:100%;margin-top:12px;padding:10px;border:none;border-radius:10px;font-weight:700;font-size:1rem;background:linear-gradient(90deg,#77c8ff,#a4e6c6);color:#012e3a;cursor:pointer';
     startBtn.textContent = 'Iniciar sesión';
     startBtn.addEventListener('click', function(ev){
-      try { ev.stopPropagation && ev.stopPropagation(); } catch(e){}
+      try { if(ev && ev.preventDefault) ev.preventDefault(); if(ev && ev.stopPropagation) ev.stopPropagation(); } catch(e){}
+      // focus to avoid accidental modal-close handlers triggered by blur
+      startBtn.focus();
       const seconds = parseInt(select.value || '0', 10) || 0;
+      // ensure API call use existing helpers
       if(window.lr_breathSessions && typeof window.lr_breathSessions.startSession === 'function'){
         window.lr_breathSessions.startSession(seconds);
       } else if(window.lr_helpers && typeof window.lr_helpers.startBreathFlow === 'function'){
         window.lr_helpers.startBreathFlow();
       } else {
+        // fallback
         fallbackLocalSession(seconds);
       }
-    }, { capture:true });
+    }, { capture:false });
     container.appendChild(startBtn);
 
-    const hr = document.createElement('hr');
-    hr.style.margin = '18px 0';
-    hr.style.opacity = '0.08';
-    container.appendChild(hr);
+    const hr = document.createElement('hr'); hr.style.margin = '14px 0'; hr.style.opacity='0.08'; container.appendChild(hr);
 
-    const h3p = document.createElement('h3');
-    h3p.style.fontWeight = '700';
-    h3p.style.marginBottom = '8px';
-    h3p.textContent = 'Presets de respiración';
-    container.appendChild(h3p);
+    const h3p = document.createElement('h3'); h3p.style.fontWeight='700'; h3p.style.marginBottom='8px'; h3p.textContent='Presets de respiración'; container.appendChild(h3p);
 
-    const wrap = document.createElement('div');
-    wrap.id = presetsId;
-    wrap.dataset.lr = 'preset-wrap';
-    wrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:10px';
-
-    Object.keys(PRESET_LABELS).forEach(function(k){
+    const wrap = document.createElement('div'); wrap.dataset.lr = 'preset-wrap'; wrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:10px';
+    Object.keys(PRESET_LABELS).forEach(k => {
       const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.textContent = PRESET_LABELS[k];
+      btn.type='button'; btn.textContent = PRESET_LABELS[k];
       btn.style.cssText = 'padding:8px 12px;border-radius:10px;font-weight:600;background:white;border:1px solid rgba(0,0,0,0.08);cursor:pointer';
-      btn.addEventListener('click', function(){
-        try { window.lr_helpers?.setBreathPattern && window.lr_helpers.setBreathPattern(k); } catch(e){}
-        try { window.lr_showToast && window.lr_showToast('Preset aplicado: ' + PRESET_LABELS[k]); } catch(e){}
-      });
+      btn.addEventListener('click', function(ev){ try{ window.lr_helpers?.setBreathPattern?.(k); showToast('Preset aplicado: ' + PRESET_LABELS[k]); }catch(e){} });
       wrap.appendChild(btn);
     });
-
     container.appendChild(wrap);
 
-    return {
-      container: container,
-      selectId: selectId,
-      startId: startId,
-      presetsId: presetsId,
-      uid: uid
-    };
+    return container;
   }
 
-  function injectSettingsUIInto(target){
-    // target puede ser modal Element, card Element o ShadowRoot
+  /* ---------------- INJECTION (resiliente) ---------------- */
+  function injectIntoCard(card){
     try {
-      // Prevención global: si ya existe un control en la página evitamos crear otro
-      const alreadyGlobal = document.querySelector('[data-lr="session-select"]');
-      if(alreadyGlobal){
-        // Si ya está dentro del mismo target, no duplicar; si no, evitamos crear otra
-        if(target && (target instanceof Element) && target.contains(alreadyGlobal)) return false;
-        return false;
-      }
-
-      let card = null;
-      if(target instanceof ShadowRoot){
-        card = target.querySelector('.lr-modal-card') || target.querySelector('div');
-      } else if(target instanceof Element){
-        card = target.querySelector('.lr-modal-card') || target.querySelector('div');
+      if(!card || !(card instanceof Element)) return false;
+      // prevent duplicates: if container already there, keep it
+      if(card.querySelector('[data-lr="session-select"]')) return false;
+      const block = buildSettingsBlock();
+      // append at the end but before actions if possible
+      const actions = card.querySelector('.lr-modal-actions') || card.querySelector('div');
+      if(actions && actions.parentElement === card){
+        card.insertBefore(block, actions);
       } else {
-        return false;
+        card.appendChild(block);
       }
-      if(!card) card = target;
-
-      clearStaleFlag(card);
-
-      if(card.querySelector('[data-lr="session-select"]') || card.dataset.sessionsLoaded === "1") return false;
-
-      const built = buildSettingsBlock(card);
-      card.appendChild(built.container);
-      try { card.dataset.sessionsLoaded = "1"; } catch(e){ card.setAttribute('data-sessions-loaded','1'); }
-      // remove floating hotfix if present
-      const hf = document.getElementById('__lr_hotfix_floating'); if(hf) hf.remove();
-      window.__lr_last_session_ids = { selectId: built.selectId, startId: built.startId, presetsId: built.presetsId, uid: built.uid };
+      // attach an observer on this card so if it gets replaced we re-inject
+      observeCardForReplacement(card);
+      safeLog('Injected session UI into card');
       return true;
     } catch(e){
-      console.error('injectSettingsUIInto error', e);
+      console.error('[breath-sessions] injectIntoCard error', e);
       return false;
     }
   }
 
-  // --- FALLBACK SIMPLE (si faltan helpers) ---
+  // observe specific card to re-inject if it is emptied/replaced
+  const cardObservers = new WeakMap();
+  function observeCardForReplacement(card){
+    try {
+      if(cardObservers.has(card)) return;
+      const mo = new MutationObserver(function(muts){
+        // if the select disappears, re-inject (some SPA frameworks replace innerHTML)
+        if(!card.querySelector('[data-lr="session-select"]')){
+          // small delay to let framework finish its render
+          setTimeout(function(){ injectIntoCard(card); }, 80);
+        }
+      });
+      mo.observe(card, { childList:true, subtree:true, attributes:true });
+      cardObservers.set(card, mo);
+    } catch(e){
+      safeLog('observeCardForReplacement failed', e);
+    }
+  }
+
+  // fallback hotfix (persistent unless user closes it)
+  function ensureHotfixFloating(){
+    if(document.querySelector('[data-lr="session-select"]')) return;
+    if(document.getElementById('__lr_hotfix_floating')) return;
+    const wrap = document.createElement('div');
+    wrap.id = '__lr_hotfix_floating';
+    wrap.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:2147483646;pointer-events:auto;display:flex;gap:8px;align-items:center;background:transparent';
+    const sel = document.createElement('select'); sel.style.cssText='padding:6px;border-radius:8px;border:1px solid rgba(0,0,0,0.08);background:white';
+    SESSION_OPTIONS.forEach(o => { const opt = document.createElement('option'); opt.value = String(o.seconds); opt.textContent = o.label; sel.appendChild(opt); });
+    const btn = document.createElement('button'); btn.textContent='Iniciar sesión (hotfix)'; btn.style.cssText='padding:10px;border-radius:8px;border:none;background:#56c0ff;color:#00303a;font-weight:700;cursor:pointer';
+    btn.onclick = function(){ const s = parseInt(sel.value||'0',10) || 0; if(window.lr_breathSessions && typeof window.lr_breathSessions.startSession==='function'){ window.lr_breathSessions.startSession(s); } else { fallbackLocalSession(s); } };
+    const close = document.createElement('button'); close.textContent='Cerrar'; close.style.cssText='padding:6px;border-radius:8px;border:1px solid rgba(0,0,0,0.06);background:white;cursor:pointer';
+    close.onclick = function(){ wrap.remove(); };
+    wrap.appendChild(sel); wrap.appendChild(btn); wrap.appendChild(close);
+    document.body.appendChild(wrap);
+  }
+
+  /* ---------------- TRY INJECT NOW ---------------- */
+  async function tryInjectNow(){
+    // prefer specific modal #lr-user-modal
+    const modal = document.getElementById('lr-user-modal');
+    if(modal){
+      const card = modal.querySelector('.lr-modal-card');
+      if(card){
+        // if modal hidden, wait a bit until visible
+        if(!isVisible(modal)){
+          await waitForVisible(modal, 4000);
+        }
+        injectIntoCard(card);
+        return;
+      }
+    }
+    // fallback search for any .lr-modal-card in DOM
+    const candidate = document.querySelector('.lr-modal-card');
+    if(candidate){
+      injectIntoCard(candidate);
+      return;
+    }
+    // If nothing found, ensure hotfix
+    ensureHotfixFloating();
+  }
+
+  function waitForVisible(node, timeout){
+    timeout = timeout || 6000;
+    return new Promise(function(resolve){
+      if(!node) return resolve(false);
+      if(isVisible(node)) return resolve(true);
+      const mo = new MutationObserver(function(){
+        if(isVisible(node)){ try{ mo.disconnect(); }catch(e){}; resolve(true); }
+      });
+      mo.observe(node, { attributes:true, attributeFilter:['class','style'], subtree:false });
+      setTimeout(function(){ try{ mo.disconnect(); }catch(e){}; resolve(false); }, timeout);
+    });
+  }
+
+  /* ---------------- GLOBAL MUTATION WATCHER ---------------- */
+  const globalObserver = new MutationObserver(function(muts){
+    // if a modal node is added, try inject
+    for(const m of muts){
+      for(const n of m.addedNodes){
+        if(!(n instanceof HTMLElement)) continue;
+        if(n.id === 'lr-user-modal' || n.classList.contains('lr-modal-card') || n.classList.contains('lr-modal')) {
+          setTimeout(tryInjectNow, 60);
+          return;
+        }
+      }
+    }
+  });
+  try { globalObserver.observe(document.body, { childList:true, subtree:true }); } catch(e){ safeLog('globalObserver failed', e); }
+
+  /* ---------------- ATTACH SETTINGS MENU LISTENER (robust) ---------------- */
+  function attachSettingsListener(){
+    const btn = document.getElementById('settings_menu');
+    if(btn && !btn.dataset._lr_attached){
+      btn.dataset._lr_attached = '1';
+      btn.addEventListener('click', function(){ setTimeout(tryInjectNow, 120); }, { capture:false, passive:true });
+      return true;
+    }
+    return false;
+  }
+  if(!attachSettingsListener()){
+    const moBtn = new MutationObserver(function(){
+      if(attachSettingsListener()) moBtn.disconnect();
+    });
+    try { moBtn.observe(document.body, { childList:true, subtree:true }); } catch(e){}
+  }
+
+  /* ---------------- FALLBACK LOCAL SESSION ---------------- */
   function fallbackLocalSession(seconds){
     const rem = seconds > 0 ? seconds : Infinity;
     const id = '__lr_fallback_timer_' + makeUid();
@@ -415,120 +390,23 @@
     }
   }
 
-  // --- INTENTO AUTOMÁTICO DE INYECCIÓN ---
-  async function tryInjectNow(){
-    const modalIds = ['_lr_settings_modal', 'lr-user-modal', '_settings_modal', 'settings_modal'];
-    for(let i=0;i<modalIds.length;i++){
-      const id = modalIds[i];
-      const m = document.getElementById(id);
-      if(m){
-        if(isVisible(m)){
-          injectSettingsUIInto(m);
-        } else {
-          await waitForVisible(m, 3000);
-          injectSettingsUIInto(m);
-        }
-        return;
-      }
-    }
-    // fallback: intentar .lr-modal-card global
-    const candidate = document.querySelector('.lr-modal-card');
-    if(candidate){
-      injectSettingsUIInto(candidate.parentElement || candidate);
-    }
-  }
-
-  function waitForVisible(node, timeout){
-    timeout = timeout || 6000;
-    return new Promise(function(resolve){
-      if(!node) return resolve(false);
-      if(isVisible(node)) return resolve(true);
-      const mo = new MutationObserver(function(){
-        if(isVisible(node)){ mo.disconnect(); clearTimeout(t); resolve(true); }
-      });
-      mo.observe(node, { attributes:true, attributeFilter:['class','style'], subtree:false });
-      const t = setTimeout(function(){ try{ mo.disconnect(); }catch(e){}; resolve(false); }, timeout);
-    });
-  }
-
-  // Observador global para detectar inserción de modales
-  const modalObserver = new MutationObserver(function(){ tryInjectNow(); });
-  modalObserver.observe(document.body, { childList:true, subtree:true });
-
-  function attachSettingsMenuListener(){
-    const btn = document.getElementById('settings_menu');
-    if(btn && !btn.dataset._lr_settings_attached){
-      btn.dataset._lr_settings_attached = '1';
-      btn.addEventListener('click', function(){ setTimeout(function(){ tryInjectNow(); }, 160); });
-      return true;
-    }
-    return false;
-  }
-  if(!attachSettingsMenuListener()){
-    const mo = new MutationObserver(function(){
-      if(attachSettingsMenuListener()) mo.disconnect();
-    });
-    mo.observe(document.body, { childList:true, subtree:true });
-  }
-
-  // --- HOTFIX FLOTANTE (solo si NO hay un control de sesión ya) ---
-  function ensureFloatingHotfix(){
-    // si ya hay un control en la página, no crear hotfix
-    if(document.querySelector('[data-lr="session-select"]')) return;
-    if(document.getElementById('__lr_hotfix_floating')) return;
-
-    const wrap = document.createElement('div');
-    wrap.id = '__lr_hotfix_floating';
-    wrap.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:2147483646;pointer-events:auto;display:flex;gap:8px;align-items:center;background:transparent';
-
-    const sel = document.createElement('select');
-    SESSION_OPTIONS.forEach(function(o){
-      const opt = document.createElement('option');
-      opt.value = String(o.seconds);
-      opt.textContent = o.label;
-      sel.appendChild(opt);
-    });
-    sel.style.cssText = 'padding:6px;border-radius:8px;border:1px solid rgba(0,0,0,0.08);background:white';
-
-    const btn = document.createElement('button');
-    btn.textContent = 'Iniciar sesión (hotfix)';
-    btn.style.cssText = 'padding:10px;border-radius:8px;border:none;background:#56c0ff;color:#00303a;font-weight:700;cursor:pointer';
-    btn.onclick = function(){
-      const s = parseInt(sel.value||'0',10) || 0;
-      if(window.lr_breathSessions && typeof window.lr_breathSessions.startSession === 'function'){
-        window.lr_breathSessions.startSession(s);
-      } else {
-        fallbackLocalSession(s);
-      }
-    };
-
-    const close = document.createElement('button');
-    close.textContent = 'Cerrar';
-    close.style.cssText = 'padding:6px;border-radius:8px;border:1px solid rgba(0,0,0,0.06);background:white;cursor:pointer';
-    close.onclick = function(){ wrap.remove(); };
-
-    wrap.appendChild(sel);
-    wrap.appendChild(btn);
-    wrap.appendChild(close);
-
-    document.body.appendChild(wrap);
-  }
-
-  // Exponer API global
-  window.lr_breathSessions_inject = injectSettingsUIInto;
+  /* ---------------- PUBLIC API ---------------- */
   window.lr_breathSessions = {
     startSession: startSession,
     stopSession: stopSession,
     pauseSession: pauseSession,
-    resumeSession: resumeSession
+    resumeSession: resumeSession,
+    tryInjectNow: tryInjectNow
   };
 
-  // Intentos iniciales
-  try{
-    ensureFloatingHotfix();
-  }catch(e){}
-  try{
-    tryInjectNow();
-  }catch(e){}
+  /* ---------------- INITIALIZE ---------------- */
+  try { ensureInit(); } catch(e){ /* no-op */ }
 
-})(); 
+  // small helper to initialize: try immediate injection and ensure hotfix exists
+  function ensureInit(){
+    tryInjectNow();
+    ensureHotfixFloating();
+    safeLog('breath-sessions final initialized');
+  }
+
+})();
