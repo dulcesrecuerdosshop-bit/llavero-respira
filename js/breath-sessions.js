@@ -283,7 +283,7 @@
     wrap.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:2147483646;pointer-events:auto;display:flex;gap:8px;align-items:center;background:transparent';
     const sel = document.createElement('select'); sel.style.cssText='padding:6px;border-radius:8px;border:1px solid rgba(0,0,0,0.08);background:white';
     SESSION_OPTIONS.forEach(o => { const opt = document.createElement('option'); opt.value = String(o.seconds); opt.textContent = o.label; sel.appendChild(opt); });
-    const btn = document.createElement('button'); btn.textContent='Iniciar sesión (hotfix)'; btn.style.cssText='padding:10px;border-radius:8px;border:none;background:#56c0ff;color:#00303a;font-weight:700;cursor:pointer';
+    const btn = document.createElement('button'); btn.textContent='Iniciar sesión'; btn.style.cssText='padding:10px;border-radius:8px;border:none;background:#56c0ff;color:#00303a;font-weight:700;cursor:pointer';
     btn.onclick = function(){ const s = parseInt(sel.value||'0',10) || 0; if(window.lr_breathSessions && typeof window.lr_breathSessions.startSession==='function'){ window.lr_breathSessions.startSession(s); } else { fallbackLocalSession(s); } };
     const close = document.createElement('button'); close.textContent='Cerrar'; close.style.cssText='padding:6px;border-radius:8px;border:1px solid rgba(0,0,0,0.06);background:white;cursor:pointer';
     close.onclick = function(){ wrap.remove(); };
