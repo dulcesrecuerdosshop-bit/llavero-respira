@@ -741,9 +741,9 @@
   function showFavoritesModal() {
     const favs = getFavoritos();
     const modal = document.getElementById('_lr_fav_modal') || document.createElement('div'); modal.id = '_lr_fav_modal';
-    Object.assign(modal.style, { position:'fixed', left:0, right:0, top:0, bottom:0, display:'flex', align-items:'center', justify-content:'center', background:'rgba(0,0,0,0.6)', zIndex:19000 });
+    Object.assign(modal.style, { position:'fixed', left:0, right:0, top:0, bottom:0, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,0.6)', zIndex:19000 });
     const box = document.createElement('div');
-    Object.assign(box.style, { maxWidth:'720px', width:'92%', max-height:'70vh', overflow:'auto', background:'#fff', color:'#042231', padding:'18px', borderRadius:'12px', boxShadow:'0 20px 60px rgba(3,10,18,0.12)' });
+    Object.assign(box.style, { maxWidth:'720px', width:'92%', maxHeight:'70vh', overflow:'auto', background:'#fff', color:'#042231', padding:'18px', borderRadius:'12px', boxShadow:'0 20px 60px rgba(3,10,18,0.12)' });
     let inner = '<div style="display:flex;justify-content:space-between;align-items:center"><strong>Favoritos</strong><button id="_lr_close_fav" style="background:transparent;border:1px solid rgba(0,0,0,0.06);padding:6px;border-radius:8px">Cerrar</button></div><hr style="margin:10px 0;opacity:0.06" />';
     if (favs && favs.length) inner += favs.map(f => `<div style="margin:10px 0;line-height:1.3;color:#022">${escapeHtml(f)}</div>`).join('');
     else inner += '<div style="color:rgba(7,16,28,0.8)">No hay favoritos</div>';
@@ -873,7 +873,7 @@
       case 'breath':
         try { openBreathHotfix(); } catch (e) { startBreathFlowInternal(); }
         break;
-      case 'favorite': if (phrase) { const added = toggleFavorite(phrase); if (btn) btn.textContent = added ? '♥ Favorita' : '♡ Favorita'; showToast(added ? 'Añadido a favoritos' : 'Eliminado de favoritos'); } break;
+      case 'favorite': if (phrase) { const added = toggleFavorite(phrase); if (btn) btn.textContent = added ? '♥ Favorita' : '♡ Favorita'; showToast(added ? 'Añadido a favoritos' : 'Eliminad[...]
       case 'copy': if (phrase) { copyToClipboard(phrase); } break;
       case 'share': if (phrase) sharePhrase({ title: 'Frase', text: phrase, url: location.href }); break;
       case 'tts': if (phrase && window._lr_tts_enabled !== false) { playTTS(phrase); } else showToast('No hay texto para leer'); break;
@@ -905,8 +905,6 @@
       if (!el) continue;
       try {
         el.addEventListener('click', fn);
-        // use non-passive so preventDefault in handler is allowed if needed;
-        // handler uses conditional preventDefault (checks e.cancelable)
         el.addEventListener('touchend', function (e) { try { if (e && typeof e.preventDefault === 'function' && e.cancelable) e.preventDefault(); if (e && typeof e.stopPropagation === 'function') e.stopPropagation(); } catch(_){}; fn.call(this, e); }, { passive: false });
       } catch (e) { lrwarn('attach error', ids[i], e); }
     }
@@ -923,16 +921,14 @@
       try {
         const target = (e.target && e.target.closest && e.target.closest('button, [role="menuitem"], [data-action]')) || e.target;
         if (!target || !panel.contains(target)) return;
-        // only preventDefault if cancelable to avoid passive listener error
-        try { if (e && typeof e.preventDefault === 'function' && e.cancelable) e.preventDefault(); } catch (err) {}
-        try { if (e && typeof e.stopPropagation === 'function') e.stopPropagation(); } catch (err) {}
+        if (e.type === 'touchend') e.preventDefault();
+        e.stopPropagation();
         const action = detectActionFromButton(target);
         if (action) handleMenuAction(action, target);
         setTimeout(() => { panel.style.display = 'none'; const tgl = document.getElementById('menuToggle'); if (tgl) tgl.setAttribute('aria-expanded', 'false'); }, 80);
       } catch (err) { lrwarn('delegation onPointer error', err); }
     }
     panel.addEventListener('click', onPointer);
-    // attach touchend as non-passive so we can preventDefault when needed; handler checks cancelable before calling preventDefault
     panel.addEventListener('touchend', onPointer, { passive: false });
     lrlog('menu delegation activated');
     return true;
@@ -964,7 +960,6 @@
           el.style.cssText = 'display:block;padding:10px;border:none;background:transparent;text-align:left;width:100%';
           panel.insertBefore(el, panel.firstChild);
         }
-        // use touchend/click handlers that do conditional preventDefault internally
         el.addEventListener('click', (e)=>{
           try { if (e && typeof e.preventDefault === 'function' && e.cancelable) e.preventDefault(); } catch (_) {}
           e.stopPropagation && e.stopPropagation();
@@ -993,16 +988,16 @@
     // Always attach direct handlers to main card controls so they respond
     attachTouchClick(['ttsBtn_menu','ttsBtn'], function () {
       let t = '';
-      try { if (window._phrases_current) t = window._phrases_current; else if (typeof window._phrases_currentIndex === 'number' && Array.isArray(window._phrases_list)) t = window._phrases_list[window._phrases_currentIndex] || ''; } catch (e) { t = ''; }
+      try { if (window._phrases_current) t = window._phrases_current; else if (typeof window._phrases_currentIndex === 'number' && Array.isArray(window._phrases_list)) t = window._phrases_list[wi[...]
       if (!t) t = (document.getElementById('frase-text') && document.getElementById('frase-text').textContent) || '';
       if (t) { lrlog('tts requested'); playTTS(t); } else showToast('No hay texto para leer');
     });
 
     attachTouchClick(['favBtn_menu','favBtn'], function () {
       let t = '';
-      try { if (window._phrases_current) t = window._phrases_current; else if (typeof window._phrases_currentIndex === 'number' && Array.isArray(window._phrases_list)) t = window._phrases_list[window._phrases_currentIndex] || ''; } catch (e) { t = ''; }
+      try { if (window._phrases_current) t = window._phrases_current; else if (typeof window._phrases_currentIndex === 'number' && Array.isArray(window._phrases_list)) t = window._phrases_list[w[...]
       if (!t) t = (document.getElementById('frase-text') && document.getElementById('frase-text').textContent) || '';
-      if (t) { const added = toggleFavorite(t); const el = document.getElementById('favBtn_menu') || document.getElementById('favBtn'); if (el) el.textContent = added ? '♥ Favorita' : '♡ Favorita'; showToast(added ? 'Añadido a favoritos' : 'Eliminado de favoritos'); }
+      if (t) { const added = toggleFavorite(t); const el = document.getElementById('favBtn_menu') || document.getElementById('favBtn'); if (el) el.textContent = added ? '♥ Favorita' : '♡ Fav[...]
     });
 
     attachTouchClick(['downloadBtn','downloadBtn_menu'], function () {
@@ -1021,7 +1016,7 @@
 
     attachTouchClick(['shareBtn','shareBtn_menu'], function () {
       let t = '';
-      try { if (window._phrases_current) t = window._phrases_current; else if (typeof window._phrases_currentIndex === 'number' && Array.isArray(window._phrases_list)) t = window._phrases_list[window._phrases_currentIndex] || ''; } catch (e) { t = ''; }
+      try { if (window._phrases_current) t = window._phrases_current; else if (typeof window._phrases_currentIndex === 'number' && Array.isArray(window._phrases_list)) t = window._phrases_list[...]
       if (!t) t = (document.getElementById('frase-text') && document.getElementById('frase-text').textContent) || '';
       if (t) { sharePhrase({ title: 'Frase', text: t, url: location.href }); }
       else showToast('No hay texto para compartir');
