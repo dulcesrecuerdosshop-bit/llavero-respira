@@ -1,5 +1,6 @@
 // helpers.v2.js - Helpers completos (TTS, respiración, favoritos, compartir, descarga).
 // Ajuste realizado: asegurar reproducción en móvil, tracking de WebAudio sources y parada segura de sesión.
+// Añadido: hotfix flotante reabrible (openBreathHotfix/closeBreathHotfix), integración con menú y preservación de presets.
 // Mantiene toda la funcionalidad existente y añade stopBreathFlowInternal + activeSources/activeTimers.
 
 (function () {
@@ -75,6 +76,16 @@
 
   const KEY_FAVORITOS = 'lr_favoritos_v1';
 
+  // Hotfix session options (used in floating UI)
+  const HOTFIX_SESSION_OPTIONS = [
+    { id: "0", label: "Sin temporizador", seconds: 0 },
+    { id: "60", label: "1 minuto", seconds: 60 },
+    { id: "180", label: "3 minutos", seconds: 180 },
+    { id: "300", label: "5 minutos", seconds: 300 }
+  ];
+
+  const PRESET_MAP = { box: 'Caja (4-4-4-4)', calm: 'Calma suave', slow: 'Lento', '478': '4-7-8' };
+
   // ---------- Utilities ----------
   async function existsUrl(url) {
     if (!url) return false;
@@ -109,7 +120,15 @@
       const r = await fetch(url);
       if (!r.ok) throw new Error('fetch ' + r.status);
       const ab = await r.arrayBuffer();
-      const buf = await ctx.decodeAudioData(ab);
+      // decodeAudioData may accept promise or callback; wrap to support both
+      const buf = await new Promise((resolve, reject) => {
+        try {
+          ctx.decodeAudioData(ab, resolve, reject);
+        } catch (err) {
+          // Some browsers return a promise
+          ctx.decodeAudioData(ab).then(resolve).catch(reject);
+        }
+      });
       lrlog('decoded buffer', url);
       return buf;
     } catch (e) {
@@ -421,6 +440,138 @@
     overlay.addEventListener('touchend', stopHandler, { passive: false });
 
     window._lastBreathOverlay = overlay;
+  }
+
+  // ---------- NEW: hotfix floating UI (create / open / close) ----------
+  function openBreathHotfix() {
+    try {
+      // If a modal/session-control exists, don't insert hotfix (modal-based controls preferred)
+      if (document.querySelector('[data-lr="session-select"]')) {
+        // If already present and hidden, unhide
+        const existing = document.getElementById('__lr_hotfix_floating');
+        if (existing) { existing.style.display = ''; existing.removeAttribute('aria-hidden'); return existing; }
+        // else don't create hotfix if modal controls are present
+        return null;
+      }
+
+      let wrap = document.getElementById('__lr_hotfix_floating');
+      if (wrap) {
+        wrap.style.display = '';
+        wrap.removeAttribute('aria-hidden');
+        const start = wrap.querySelector('#__lr_hotfix_start');
+        if (start) try { start.focus(); } catch (_) {}
+        return wrap;
+      }
+
+      // Build hotfix container
+      wrap = document.createElement('div');
+      wrap.id = '__lr_hotfix_floating';
+      wrap.setAttribute('role', 'region');
+      wrap.setAttribute('aria-label', 'Control rápido respiración');
+      wrap.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:14px;z-index:2147483646;pointer-events:auto;display:flex;align-items:center;gap:8px;padding:8px;box-shadow:0 8px 24px rgba(0,0,0,0.12);border-radius:12px;background:rgba(255,255,255,0.98);max-width:calc(100% - 24px);flex-wrap:wrap';
+
+      // duration selector
+      const sel = document.createElement('select');
+      sel.id = '__lr_hotfix_select';
+      sel.setAttribute('aria-label', 'Temporizador de sesión');
+      HOTFIX_SESSION_OPTIONS.forEach(o => {
+        const opt = document.createElement('option');
+        opt.value = String(o.seconds);
+        opt.textContent = o.label;
+        sel.appendChild(opt);
+      });
+      sel.style.cssText = 'padding:8px;border-radius:8px;border:1px solid rgba(0,0,0,0.08);background:white';
+      try { const saved = localStorage.getItem('lr_session_seconds'); if (saved) sel.value = saved; } catch (e) {}
+      sel.addEventListener('change', (e) => { try { localStorage.setItem('lr_session_seconds', e.target.value); } catch (e) {} });
+
+      // presets container
+      const presetsWrap = document.createElement('div');
+      presetsWrap.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;align-items:center';
+      presetsWrap.setAttribute('role', 'toolbar');
+      presetsWrap.setAttribute('aria-label', 'Presets de respiración');
+
+      Object.keys(PRESET_MAP).forEach(k => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = '__lr_hot_preset';
+        b.dataset.preset = k;
+        b.textContent = PRESET_MAP[k];
+        b.style.cssText = 'padding:8px 10px;border-radius:8px;border:1px solid rgba(0,0,0,0.08);background:white;cursor:pointer;font-weight:600';
+        b.addEventListener('click', () => {
+          try { if (window.lr_helpers && typeof window.lr_helpers.setBreathPattern === 'function') window.lr_helpers.setBreathPattern(k); } catch (e) {}
+          Array.from(presetsWrap.querySelectorAll('button')).forEach(x => x.style.boxShadow = 'none');
+          b.style.boxShadow = 'inset 0 0 0 2px rgba(34,197,94,0.12)';
+          showToast('Preset: ' + PRESET_MAP[k]);
+        }, { passive: true });
+        presetsWrap.appendChild(b);
+      });
+
+      // start button
+      const startBtn = document.createElement('button');
+      startBtn.id = '__lr_hotfix_start';
+      startBtn.type = 'button';
+      startBtn.textContent = 'Iniciar sesión (hotfix)';
+      startBtn.style.cssText = 'padding:10px 14px;border-radius:8px;border:none;background:linear-gradient(90deg,#56c0ff,#8ee7c8);font-weight:700;cursor:pointer';
+      startBtn.addEventListener('click', () => {
+        const seconds = parseInt(document.getElementById('__lr_hotfix_select')?.value || '0', 10) || 0;
+        try {
+          if (window.lr_breathSessions && typeof window.lr_breathSessions.startSession === 'function') {
+            window.lr_breathSessions.startSession(seconds);
+          } else if (window.lr_helpers && typeof window.lr_helpers.startBreathFlow === 'function') {
+            window.lr_helpers.startBreathFlow();
+          } else {
+            showToast('Función de inicio no disponible');
+          }
+        } catch (e) { console.warn('hotfix start error', e); }
+      }, { passive: true });
+
+      // hide/close button (hide instead of remove to allow reopen)
+      const closeBtn = document.createElement('button');
+      closeBtn.type = 'button';
+      closeBtn.id = '__lr_hotfix_close';
+      closeBtn.textContent = 'Cerrar';
+      closeBtn.setAttribute('aria-label', 'Cerrar control rápido');
+      closeBtn.style.cssText = 'padding:8px;border-radius:8px;border:1px solid rgba(0,0,0,0.06);background:white;cursor:pointer';
+      closeBtn.addEventListener('click', () => { closeBreathHotfix(); });
+
+      // layout assemble
+      const left = document.createElement('div');
+      left.style.display = 'flex'; left.style.flexDirection = 'column'; left.style.gap = '6px'; left.appendChild(presetsWrap);
+
+      const right = document.createElement('div');
+      right.style.display = 'flex'; right.style.alignItems = 'center'; right.style.gap = '8px';
+      right.appendChild(sel); right.appendChild(startBtn); right.appendChild(closeBtn);
+
+      wrap.appendChild(left);
+      wrap.appendChild(right);
+
+      document.body.appendChild(wrap);
+
+      // keyboard accessibility
+      try {
+        wrap.querySelectorAll('button,select').forEach((el, i) => { el.tabIndex = 0; });
+      } catch (e) { }
+
+      return wrap;
+    } catch (e) {
+      lrwarn('openBreathHotfix error', e);
+      return null;
+    }
+  }
+
+  function closeBreathHotfix() {
+    try {
+      const wrap = document.getElementById('__lr_hotfix_floating');
+      if (!wrap) return;
+      // hide but keep in DOM to allow reopen
+      wrap.style.display = 'none';
+      wrap.setAttribute('aria-hidden', 'true');
+    } catch (e) { lrwarn('closeBreathHotfix error', e); }
+  }
+
+  // ensureFloatingHotfix kept for backwards compatibility: create if missing but show/hide controlled by open/close
+  function ensureFloatingHotfix() {
+    if (!document.getElementById('__lr_hotfix_floating')) openBreathHotfix();
   }
 
   // ---------- NEW: stopBreathFlowInternal ----------
@@ -756,7 +907,10 @@
     }
 
     switch (action) {
-      case 'breath': startBreathFlowInternal(); break;
+      case 'breath':
+        // Open the hotfix quick control (reopenable) rather than directly starting overlay
+        try { openBreathHotfix(); } catch (e) { startBreathFlowInternal(); }
+        break;
       case 'favorite': if (phrase) { const added = toggleFavorite(phrase); if (btn) btn.textContent = added ? '♥ Favorita' : '♡ Favorita'; showToast(added ? 'Añadido a favoritos' : 'Eliminado de favoritos'); } break;
       case 'copy': if (phrase) { copyToClipboard(phrase); } break;
       case 'share': if (phrase) sharePhrase({ title: 'Frase', text: phrase, url: location.href }); break;
@@ -823,6 +977,36 @@
     annotateMenuButtonsOnce();
     initMenuDelegation();
 
+    // Ensure hotfix exists (create if missing) but keep it visible for quick access
+    try { ensureFloatingHotfix(); } catch (e) { lrwarn('ensureFloatingHotfix failed', e); }
+
+    // Also ensure menu contains entry to open hotfix if not present
+    try {
+      (function ensureMenuBreathEntry(){
+        const panel = document.getElementById('menuPanel');
+        if (!panel) return;
+        let el = Array.from(panel.querySelectorAll('button, [role="menuitem"], [data-action]')).find(x=>{
+          const a = x.dataset && x.dataset.action;
+          const txt = (x.textContent||'').toLowerCase();
+          return (a === 'breath') || txt.includes('respira') || txt.includes('comenzar sesión');
+        });
+        if (!el) {
+          el = document.createElement('button');
+          el.type = 'button';
+          el.dataset.action = 'breath';
+          el.textContent = 'Comenzar sesión de respiración';
+          el.style.cssText = 'display:block;padding:10px;border:none;background:transparent;text-align:left;width:100%';
+          panel.insertBefore(el, panel.firstChild);
+        }
+        el.addEventListener('click', (e)=>{
+          e.preventDefault(); e.stopPropagation();
+          openBreathHotfix();
+          const wrap = document.getElementById('__lr_hotfix_floating');
+          if (wrap) { wrap.style.display = ''; wrap.removeAttribute('aria-hidden'); }
+        }, { passive: true });
+      })();
+    } catch(e){ lrwarn('ensureMenuBreathEntry failed', e); }
+
     // Remove invite button from card (hidden / removed) as requested
     try {
       const inviteBtn = document.getElementById('inviteBtn');
@@ -868,8 +1052,8 @@
       else showToast('No hay texto para compartir');
     });
 
-    // Also keep breath + ambient controls bound
-    attachTouchClick(['breathBtn_menu','breathBtn'], function () { startBreathFlowInternal(); });
+    // Also keep breath + ambient controls bound: breath button opens hotfix quick control
+    attachTouchClick(['breathBtn_menu','breathBtn'], function () { openBreathHotfix(); });
     attachTouchClick(['enableAudioBtn','enableAudio'], function () { resumeAudio().then(function () { showToast('Intentando activar audio'); }); });
     attachTouchClick(['startAmbientBtn'], function () { preloadAssets().then(function () { if (audioBuffers.ambient) startAmbientLoop(audioBuffers.ambient); else if (htmlAudio.ambientEl) try { htmlAudio.ambientEl.play().catch(()=>{}); } catch(e){} }); });
     attachTouchClick(['stopAmbientBtn'], function () { stopAmbientLoop(); });
