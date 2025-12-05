@@ -1,6 +1,8 @@
 // helpers.v2.js - Helpers completos (TTS, respiración, favoritos, compartir, descarga).
-// Versión modificada: se han movido los presets al hotfix reabrible, se ha eliminado el bloque de presets del modal Ajustes,
-// se asegura que el hotfix pueda reabrirse y se mantiene tracking y parada segura de WebAudio/HTMLAudio/timers.
+// Versión ajustada: corrige error "Unable to preventDefault inside passive event listener invocation"
+// y asegura que el hotfix pueda reabrirse. No se eliminan funciones existentes; sólo se ajustan
+// los handlers táctiles para llamar a preventDefault sólo si el evento es cancelable,
+// evitando el error que interrumpía la apertura del hotfix en móviles.
 
 (function () {
   'use strict';
@@ -418,9 +420,11 @@
     };
 
     function stopHandler(e) {
+      try {
+        if (e && typeof e.preventDefault === 'function' && e.cancelable) e.preventDefault();
+        if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+      } catch (err) {}
       try { if (overlay._stop) overlay._stop(); } catch (err) {}
-      e && e.preventDefault && e.preventDefault();
-      e && e.stopPropagation && e.stopPropagation();
     }
     overlay.addEventListener('click', stopHandler, { passive: false });
     overlay.addEventListener('touchend', stopHandler, { passive: false });
@@ -737,9 +741,9 @@
   function showFavoritesModal() {
     const favs = getFavoritos();
     const modal = document.getElementById('_lr_fav_modal') || document.createElement('div'); modal.id = '_lr_fav_modal';
-    Object.assign(modal.style, { position:'fixed', left:0, right:0, top:0, bottom:0, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,0.6)', zIndex:19000 });
+    Object.assign(modal.style, { position:'fixed', left:0, right:0, top:0, bottom:0, display:'flex', align-items:'center', justify-content:'center', background:'rgba(0,0,0,0.6)', zIndex:19000 });
     const box = document.createElement('div');
-    Object.assign(box.style, { maxWidth:'720px', width:'92%', maxHeight:'70vh', overflow:'auto', background:'#fff', color:'#042231', padding:'18px', borderRadius:'12px', boxShadow:'0 20px 60px rgba(3,10,18,0.12)' });
+    Object.assign(box.style, { maxWidth:'720px', width:'92%', max-height:'70vh', overflow:'auto', background:'#fff', color:'#042231', padding:'18px', borderRadius:'12px', boxShadow:'0 20px 60px rgba(3,10,18,0.12)' });
     let inner = '<div style="display:flex;justify-content:space-between;align-items:center"><strong>Favoritos</strong><button id="_lr_close_fav" style="background:transparent;border:1px solid rgba(0,0,0,0.06);padding:6px;border-radius:8px">Cerrar</button></div><hr style="margin:10px 0;opacity:0.06" />';
     if (favs && favs.length) inner += favs.map(f => `<div style="margin:10px 0;line-height:1.3;color:#022">${escapeHtml(f)}</div>`).join('');
     else inner += '<div style="color:rgba(7,16,28,0.8)">No hay favoritos</div>';
@@ -901,7 +905,9 @@
       if (!el) continue;
       try {
         el.addEventListener('click', fn);
-        el.addEventListener('touchend', function (e) { e.preventDefault(); e.stopPropagation(); fn.call(this, e); }, { passive: false });
+        // use non-passive so preventDefault in handler is allowed if needed;
+        // handler uses conditional preventDefault (checks e.cancelable)
+        el.addEventListener('touchend', function (e) { try { if (e && typeof e.preventDefault === 'function' && e.cancelable) e.preventDefault(); if (e && typeof e.stopPropagation === 'function') e.stopPropagation(); } catch(_){}; fn.call(this, e); }, { passive: false });
       } catch (e) { lrwarn('attach error', ids[i], e); }
     }
   }
@@ -917,14 +923,16 @@
       try {
         const target = (e.target && e.target.closest && e.target.closest('button, [role="menuitem"], [data-action]')) || e.target;
         if (!target || !panel.contains(target)) return;
-        if (e.type === 'touchend') e.preventDefault();
-        e.stopPropagation();
+        // only preventDefault if cancelable to avoid passive listener error
+        try { if (e && typeof e.preventDefault === 'function' && e.cancelable) e.preventDefault(); } catch (err) {}
+        try { if (e && typeof e.stopPropagation === 'function') e.stopPropagation(); } catch (err) {}
         const action = detectActionFromButton(target);
         if (action) handleMenuAction(action, target);
         setTimeout(() => { panel.style.display = 'none'; const tgl = document.getElementById('menuToggle'); if (tgl) tgl.setAttribute('aria-expanded', 'false'); }, 80);
       } catch (err) { lrwarn('delegation onPointer error', err); }
     }
     panel.addEventListener('click', onPointer);
+    // attach touchend as non-passive so we can preventDefault when needed; handler checks cancelable before calling preventDefault
     panel.addEventListener('touchend', onPointer, { passive: false });
     lrlog('menu delegation activated');
     return true;
@@ -956,12 +964,21 @@
           el.style.cssText = 'display:block;padding:10px;border:none;background:transparent;text-align:left;width:100%';
           panel.insertBefore(el, panel.firstChild);
         }
+        // use touchend/click handlers that do conditional preventDefault internally
         el.addEventListener('click', (e)=>{
-          e.preventDefault(); e.stopPropagation();
+          try { if (e && typeof e.preventDefault === 'function' && e.cancelable) e.preventDefault(); } catch (_) {}
+          e.stopPropagation && e.stopPropagation();
           openBreathHotfix();
           const wrap = document.getElementById('__lr_hotfix_floating');
           if (wrap) { wrap.style.display = ''; wrap.removeAttribute('aria-hidden'); }
         }, { passive: true });
+        el.addEventListener('touchend', (e)=>{
+          try { if (e && typeof e.preventDefault === 'function' && e.cancelable) e.preventDefault(); } catch(_) {}
+          try { if (e && typeof e.stopPropagation === 'function') e.stopPropagation(); } catch(_) {}
+          openBreathHotfix();
+          const wrap = document.getElementById('__lr_hotfix_floating');
+          if (wrap) { wrap.style.display = ''; wrap.removeAttribute('aria-hidden'); }
+        }, { passive: false });
       })();
     } catch(e){ lrwarn('ensureMenuBreathEntry failed', e); }
 
