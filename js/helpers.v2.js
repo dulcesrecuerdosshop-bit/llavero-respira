@@ -1,8 +1,6 @@
 // helpers.v2.js - Helpers completos (TTS, respiración, favoritos, compartir, descarga).
-// Versión ajustada: corrige error "Unable to preventDefault inside passive event listener invocation"
-// y asegura que el hotfix pueda reabrirse. No se eliminan funciones existentes; sólo se ajustan
-// los handlers táctiles para llamar a preventDefault sólo si el evento es cancelable,
-// evitando el error que interrumpía la apertura del hotfix en móviles.
+// Versión modificada: se han movido los presets al hotfix reabrible, se ha eliminado el bloque de presets del modal Ajustes,
+// se asegura que el hotfix pueda reabrirse y se mantiene tracking y parada segura de WebAudio/HTMLAudio/timers.
 
 (function () {
   'use strict';
@@ -420,11 +418,9 @@
     };
 
     function stopHandler(e) {
-      try {
-        if (e && typeof e.preventDefault === 'function' && e.cancelable) e.preventDefault();
-        if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
-      } catch (err) {}
       try { if (overlay._stop) overlay._stop(); } catch (err) {}
+      e && e.preventDefault && e.preventDefault();
+      e && e.stopPropagation && e.stopPropagation();
     }
     overlay.addEventListener('click', stopHandler, { passive: false });
     overlay.addEventListener('touchend', stopHandler, { passive: false });
@@ -627,25 +623,23 @@
   }
 
   // ---------- Resume audio (unlock) ----------
-  function resumeAudio() {
-    return (async function(){
-      await ensureAudioContext();
-      if (audioCtx && audioCtx.state === 'suspended') {
-        try { await audioCtx.resume(); lrlog('audioCtx resumed'); } catch (e) { lrwarn(e); }
+  async function resumeAudio() {
+    await ensureAudioContext();
+    if (audioCtx && audioCtx.state === 'suspended') {
+      try { await audioCtx.resume(); lrlog('audioCtx resumed'); } catch (e) { lrwarn(e); }
+    }
+    try {
+      if (audioCtx) {
+        const buf = audioCtx.createBuffer(1, 1, audioCtx.sampleRate);
+        const src = audioCtx.createBufferSource();
+        src.buffer = buf;
+        src.connect(audioCtx.destination);
+        src.start(0);
+        src.stop(0.05);
+        lrlog('resumeAudio silent buffer played');
       }
-      try {
-        if (audioCtx) {
-          const buf = audioCtx.createBuffer(1, 1, audioCtx.sampleRate);
-          const src = audioCtx.createBufferSource();
-          src.buffer = buf;
-          src.connect(audioCtx.destination);
-          src.start(0);
-          src.stop(0.05);
-          lrlog('resumeAudio silent buffer played');
-        }
-      } catch (e) { lrwarn('resumeAudio fallback failed', e); }
-      return audioCtx ? audioCtx.state : 'no-audioctx';
-    })();
+    } catch (e) { lrwarn('resumeAudio fallback failed', e); }
+    return audioCtx ? audioCtx.state : 'no-audioctx';
   }
 
   // ---------- Audio enable prompt ----------
@@ -875,7 +869,7 @@
       case 'breath':
         try { openBreathHotfix(); } catch (e) { startBreathFlowInternal(); }
         break;
-      case 'favorite': if (phrase) { const added = toggleFavorite(phrase); if (btn) btn.textContent = added ? '♥ Favorita' : '♡ Favorita'; showToast(added ? 'Añadido a favoritos' : 'Eliminad[...]'); break;
+      case 'favorite': if (phrase) { const added = toggleFavorite(phrase); if (btn) btn.textContent = added ? '♥ Favorita' : '♡ Favorita'; showToast(added ? 'Añadido a favoritos' : 'Eliminado de favoritos'); } break;
       case 'copy': if (phrase) { copyToClipboard(phrase); } break;
       case 'share': if (phrase) sharePhrase({ title: 'Frase', text: phrase, url: location.href }); break;
       case 'tts': if (phrase && window._lr_tts_enabled !== false) { playTTS(phrase); } else showToast('No hay texto para leer'); break;
@@ -899,7 +893,171 @@
     }
   }
 
-  // (el resto del fichero es idéntico al original en el repo; IIFE termina correctamente)
+  // ---------- Fallback attach helper ----------
+  function attachTouchClick(ids, fn) {
+    if (!Array.isArray(ids)) ids = [ids];
+    for (let i = 0; i < ids.length; i++) {
+      const el = document.getElementById(ids[i]);
+      if (!el) continue;
+      try {
+        el.addEventListener('click', fn);
+        el.addEventListener('touchend', function (e) { e.preventDefault(); e.stopPropagation(); fn.call(this, e); }, { passive: false });
+      } catch (e) { lrwarn('attach error', ids[i], e); }
+    }
+  }
+
+  // ---------- Delegation ----------
+  function initMenuDelegation() {
+    const panel = document.getElementById('menuPanel');
+    if (!panel) {
+      lrlog('menuPanel not found — skip delegation');
+      return false;
+    }
+    function onPointer(e) {
+      try {
+        const target = (e.target && e.target.closest && e.target.closest('button, [role="menuitem"], [data-action]')) || e.target;
+        if (!target || !panel.contains(target)) return;
+        if (e.type === 'touchend') e.preventDefault();
+        e.stopPropagation();
+        const action = detectActionFromButton(target);
+        if (action) handleMenuAction(action, target);
+        setTimeout(() => { panel.style.display = 'none'; const tgl = document.getElementById('menuToggle'); if (tgl) tgl.setAttribute('aria-expanded', 'false'); }, 80);
+      } catch (err) { lrwarn('delegation onPointer error', err); }
+    }
+    panel.addEventListener('click', onPointer);
+    panel.addEventListener('touchend', onPointer, { passive: false });
+    lrlog('menu delegation activated');
+    return true;
+  }
+
+  // ---------- Init bindings ----------
+  document.addEventListener('DOMContentLoaded', function () {
+    annotateMenuButtonsOnce();
+    initMenuDelegation();
+
+    // Ensure hotfix exists (create if missing) but keep it visible for quick access
+    try { ensureFloatingHotfix(); } catch (e) { lrwarn('ensureFloatingHotfix failed', e); }
+
+    // Also ensure menu contains entry to open hotfix if not present
+    try {
+      (function ensureMenuBreathEntry(){
+        const panel = document.getElementById('menuPanel');
+        if (!panel) return;
+        let el = Array.from(panel.querySelectorAll('button, [role="menuitem"], [data-action]')).find(x=>{
+          const a = x.dataset && x.dataset.action;
+          const txt = (x.textContent||'').toLowerCase();
+          return (a === 'breath') || txt.includes('respira') || txt.includes('comenzar sesión');
+        });
+        if (!el) {
+          el = document.createElement('button');
+          el.type = 'button';
+          el.dataset.action = 'breath';
+          el.textContent = 'Comenzar sesión de respiración';
+          el.style.cssText = 'display:block;padding:10px;border:none;background:transparent;text-align:left;width:100%';
+          panel.insertBefore(el, panel.firstChild);
+        }
+        el.addEventListener('click', (e)=>{
+          e.preventDefault(); e.stopPropagation();
+          openBreathHotfix();
+          const wrap = document.getElementById('__lr_hotfix_floating');
+          if (wrap) { wrap.style.display = ''; wrap.removeAttribute('aria-hidden'); }
+        }, { passive: true });
+      })();
+    } catch(e){ lrwarn('ensureMenuBreathEntry failed', e); }
+
+    // Remove invite button from card (hidden / removed) as requested
+    try {
+      const inviteBtn = document.getElementById('inviteBtn');
+      if (inviteBtn && inviteBtn.parentNode) inviteBtn.parentNode.removeChild(inviteBtn);
+      const inviteMenu = document.getElementById('invite_menu');
+      if (inviteMenu && inviteMenu.parentNode) { /* keep menu invite if present */ }
+    } catch (e) { lrwarn('could not remove inviteBtn', e); }
+
+    // Always attach direct handlers to main card controls so they respond
+    attachTouchClick(['ttsBtn_menu','ttsBtn'], function () {
+      let t = '';
+      try { if (window._phrases_current) t = window._phrases_current; else if (typeof window._phrases_currentIndex === 'number' && Array.isArray(window._phrases_list)) t = window._phrases_list[window._phrases_currentIndex] || ''; } catch (e) { t = ''; }
+      if (!t) t = (document.getElementById('frase-text') && document.getElementById('frase-text').textContent) || '';
+      if (t) { lrlog('tts requested'); playTTS(t); } else showToast('No hay texto para leer');
+    });
+
+    attachTouchClick(['favBtn_menu','favBtn'], function () {
+      let t = '';
+      try { if (window._phrases_current) t = window._phrases_current; else if (typeof window._phrases_currentIndex === 'number' && Array.isArray(window._phrases_list)) t = window._phrases_list[window._phrases_currentIndex] || ''; } catch (e) { t = ''; }
+      if (!t) t = (document.getElementById('frase-text') && document.getElementById('frase-text').textContent) || '';
+      if (t) { const added = toggleFavorite(t); const el = document.getElementById('favBtn_menu') || document.getElementById('favBtn'); if (el) el.textContent = added ? '♥ Favorita' : '♡ Favorita'; showToast(added ? 'Añadido a favoritos' : 'Eliminado de favoritos'); }
+    });
+
+    attachTouchClick(['downloadBtn','downloadBtn_menu'], function () {
+      const el = document.querySelector('.frase-card') || document.querySelector('.card') || document.body;
+      let t = '';
+      try { if (window._phrases_current) t = window._phrases_current; } catch (e) { t = ''; }
+      // temporarily ensure DOM contains full phrase for capture
+      let backup;
+      try {
+        const fEl = document.getElementById('frase-text');
+        if (fEl) { backup = fEl.textContent; if (t) fEl.textContent = t; }
+      } catch (e) {}
+      downloadPhraseImage(el);
+      try { const fEl = document.getElementById('frase-text'); if (fEl && typeof backup === 'string') fEl.textContent = backup; } catch (e) {}
+    });
+
+    attachTouchClick(['shareBtn','shareBtn_menu'], function () {
+      let t = '';
+      try { if (window._phrases_current) t = window._phrases_current; else if (typeof window._phrases_currentIndex === 'number' && Array.isArray(window._phrases_list)) t = window._phrases_list[window._phrases_currentIndex] || ''; } catch (e) { t = ''; }
+      if (!t) t = (document.getElementById('frase-text') && document.getElementById('frase-text').textContent) || '';
+      if (t) { sharePhrase({ title: 'Frase', text: t, url: location.href }); }
+      else showToast('No hay texto para compartir');
+    });
+
+    // breath + ambient controls: breath button opens hotfix quick control
+    attachTouchClick(['breathBtn_menu','breathBtn'], function () { openBreathHotfix(); });
+    attachTouchClick(['enableAudioBtn','enableAudio'], function () { resumeAudio().then(function () { showToast('Intentando activar audio'); }); });
+    attachTouchClick(['startAmbientBtn'], function () { preloadAssets().then(function () { if (audioBuffers.ambient) startAmbientLoop(audioBuffers.ambient); else if (htmlAudio.ambientEl) try { htmlAudio.ambientEl.play().catch(()=>{}); } catch(e){} }); });
+    attachTouchClick(['stopAmbientBtn'], function () { stopAmbientLoop(); });
+
+    lrlog('card controls attached (tts,fav,download,share,breath,ambient)');
+  });
+
+  // ---------- Public API ----------
+  window.lr_helpers = window.lr_helpers || {};
+  Object.assign(window.lr_helpers, {
+    preload: preloadAssets,
+    resumeAudio: resumeAudio,
+    startBreathFlow: startBreathFlowInternal,
+    playTTS: playTTS,
+    getFavorites: getFavoritos,
+    toggleFavorite: toggleFavorite,
+    showFavorites: showFavoritesModal,
+    downloadPhraseImage: downloadPhraseImage,
+    downloadImageFallback: downloadImageFallback,
+    sharePhrase: sharePhrase,
+    copyToClipboard: copyToClipboard,
+    startAmbient: async () => { await preloadAssets(); if (audioBuffers.ambient) startAmbientLoop(audioBuffers.ambient); else if (htmlAudio.ambientEl) try { htmlAudio.ambientEl.play().catch(()=>{}); } catch(e){} },
+    stopAmbient: stopAmbientLoop,
+    setBreathPattern: (name) => {
+      const PRE = { box:{inh:4,h1:4,exh:4,h2:4}, calm:{inh:4,h1:4,exh:6,h2:1}, slow:{inh:5,h1:5,exh:7,h2:1}, '478':{inh:4,h1:7,exh:8,h2:1} };
+      const p = PRE[name];
+      if (!p) { lrwarn('preset not found', name); return; }
+      inhaleDurationSeconds = p.inh; hold1DurationSeconds = p.h1; exhaleDurationSeconds = p.exh; hold2DurationSeconds = p.h2;
+      lrlog('preset applied', name);
+    },
+    setCustomBreath: (inh,h1,exh,h2) => {
+      inhaleDurationSeconds = Number(inh)||inhaleDurationSeconds;
+      hold1DurationSeconds = Number(h1)||hold1DurationSeconds;
+      exhaleDurationSeconds = Number(exh)||exhaleDurationSeconds;
+      hold2DurationSeconds = Number(h2)||hold2DurationSeconds;
+      lrlog('custom breath set', { inhaleDurationSeconds, hold1DurationSeconds, exhaleDurationSeconds, hold2DurationSeconds });
+    },
+    dumpState: () => ({
+      audioCtxState: audioCtx ? audioCtx.state : 'no-audioctx',
+      buffers: { inhaleCue: !!audioBuffers.inhaleCue, exhaleCue: !!audioBuffers.exhaleCue, breath: !!audioBuffers.breath, ambient: !!audioBuffers.ambient },
+      htmlAudio: { inhale: !!htmlAudio.inhaleEl, exhale: !!htmlAudio.exhaleEl, ambient: !!htmlAudio.ambientEl },
+      offsets: { inhaleOffsetSeconds, inhaleDurationSeconds, exhaleOffsetSeconds, exhaleDurationSeconds, hold1DurationSeconds, hold2DurationSeconds }
+    }),
+    stopBreathFlow: stopBreathFlowInternal
+  });
+
   // autopreload (no blocking)
   preloadAssets().catch(e => lrwarn('preload error', e));
 
