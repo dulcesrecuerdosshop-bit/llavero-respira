@@ -69,6 +69,9 @@
   let ambientSource = null, ambientGain = null;
   const htmlAudio = { inhaleEl: null, exhaleEl: null, ambientEl: null, breathUrl: null };
 
+  // NEW: active WebAudio sources tracking so we can stop them cleanly
+  const activeSources = [];
+
   const KEY_FAVORITOS = 'lr_favoritos_v1';
 
   // ---------- Utilities ----------
@@ -131,6 +134,22 @@
       g.gain.setValueAtTime(gainVal, endAt - fade);
       g.gain.linearRampToValueAtTime(0.0001, endAt);
       src.connect(g).connect(audioCtx.destination);
+
+      // Track active source so we can stop it externally if needed
+      try {
+        activeSources.push(src);
+      } catch (e) {}
+
+      // Ensure we remove from activeSources when finished
+      src.onended = function () {
+        try {
+          const idx = activeSources.indexOf(src);
+          if (idx !== -1) activeSources.splice(idx, 1);
+        } catch (e) {}
+        try { src.disconnect(); } catch (e) {}
+        try { g.disconnect(); } catch (e) {}
+      };
+
       src.start(now, offset, playDuration);
       src.stop(endAt + 0.05);
       lrlog('scheduledBufferPlay', { offset, playDuration });
@@ -309,7 +328,7 @@
         const scaleFrom = s.label === 'Exhala' ? 1 : 0.6;
         const scaleTo = s.label === 'Exhala' ? 0.6 : 1.0;
         if (circle.animate) {
-          circle.animate([{ transform: 'scale(' + scaleFrom + ')', opacity: 0.75 }, { transform: 'scale(' + scaleTo + ')', opacity: 1 }], { duration: s.duration * 1000, easing: 'ease-in-out', fill: 'forwards' });
+          circle.animate([{ transform: 'scale(' + scaleFrom + ')', opacity: 0.75 }, { transform: 'scale(' + scaleTo + ')', opacity: 1 }], { duration: s.duration * 1000, easing: 'ease-in-out', fill: 'f[...]
         } else {
           circle.style.transition = 'transform ' + s.duration + 's ease-in-out';
           circle.style.transform = 'scale(' + scaleTo + ')';
@@ -319,14 +338,70 @@
     }
     loopStep();
 
+    // Extend overlay._stop to also stop active WebAudio sources, HTML audio, ambient and clear globals
     overlay._stop = function () {
       running = false;
       if (timeoutId) clearTimeout(timeoutId);
-      try { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); } catch (e) {}
+      try {
+        // Stop active WebAudio buffer sources
+        try {
+          for (let i = 0; i < activeSources.length; i++) {
+            try { activeSources[i].stop(); } catch (e) {}
+          }
+        } catch (e) {}
+        // Clear activeSources array
+        try { activeSources.length = 0; } catch (e) {}
+
+        // Pause/reset HTML audio elements if present
+        try { if (htmlAudio.inhaleEl) { htmlAudio.inhaleEl.pause(); try { htmlAudio.inhaleEl.currentTime = 0; } catch(e){} } } catch (e) {}
+        try { if (htmlAudio.exhaleEl) { htmlAudio.exhaleEl.pause(); try { htmlAudio.exhaleEl.currentTime = 0; } catch(e){} } } catch (e) {}
+        try { if (htmlAudio.ambientEl) { htmlAudio.ambientEl.pause(); try { htmlAudio.ambientEl.currentTime = 0; } catch(e){} } } catch (e) {}
+
+        // Stop ambient loop (webaudio or html)
+        try { stopAmbientLoop(); } catch (e) {}
+
+        // Remove overlay dom
+        try { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); } catch (e) {}
+      } catch (e) {}
+      // Clear global ref
+      try { window._lastBreathOverlay = null; } catch (e) {}
       lrlog('breath overlay removed');
     };
     overlay.addEventListener('click', () => { if (overlay._stop) overlay._stop(); });
     window._lastBreathOverlay = overlay;
+  }
+
+  // ---------- NEW: stopBreathFlowInternal ----------
+  function stopBreathFlowInternal() {
+    try {
+      // If overlay exists, call its _stop() (it will also stop audio and ambient)
+      if (window._lastBreathOverlay && typeof window._lastBreathOverlay._stop === 'function') {
+        try { window._lastBreathOverlay._stop(); } catch (e) { lrwarn('overlay._stop threw', e); }
+      }
+
+      // Stop any remaining active WebAudio sources
+      try {
+        for (let i = 0; i < activeSources.length; i++) {
+          try { activeSources[i].stop(); } catch (e) {}
+        }
+        activeSources.length = 0;
+      } catch (e) { lrwarn('stop activeSources error', e); }
+
+      // Pause and reset HTML audio elements safely
+      try { if (htmlAudio.inhaleEl) { htmlAudio.inhaleEl.pause(); try { htmlAudio.inhaleEl.currentTime = 0; } catch(e){} } } catch (e) {}
+      try { if (htmlAudio.exhaleEl) { htmlAudio.exhaleEl.pause(); try { htmlAudio.exhaleEl.currentTime = 0; } catch(e){} } } catch (e) {}
+      try { if (htmlAudio.ambientEl) { htmlAudio.ambientEl.pause(); try { htmlAudio.ambientEl.currentTime = 0; } catch(e){} } } catch (e) {}
+
+      // Stop ambient loop resources
+      try { stopAmbientLoop(); } catch (e) {}
+
+      // Clear global overlay ref
+      try { window._lastBreathOverlay = null; } catch (e) {}
+
+      lrlog('stopBreathFlowInternal completed');
+    } catch (e) {
+      lrwarn('stopBreathFlowInternal error', e);
+    }
   }
 
   // ---------- TTS ----------
@@ -390,11 +465,11 @@
       const modal = document.createElement('div'); modal.id = '_lr_enable_audio_modal';
       Object.assign(modal.style, { position:'fixed', inset:0, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,0.45)', zIndex:17000 });
       const box = document.createElement('div');
-      Object.assign(box.style, { background:'#fff', color:'#061226', padding:'18px', borderRadius:'12px', maxWidth:'420px', width:'92%', textAlign:'center', boxShadow:'0 20px 60px rgba(3,10,18,0.12)' });
+      Object.assign(box.style, { background:'#fff', color:'#061226', padding:'18px', borderRadius:'12px', maxWidth:'420px', width:'92%', textAlign:'center', boxShadow:'0 20px 60px rgba(3,10,18,0.12)' [...]
       box.innerHTML = `<div style="font-weight:700;margin-bottom:8px">Activar audio</div>
                        <div style="color:#374151;margin-bottom:14px">Pulsa el botón para activar el audio (permiso local del navegador).</div>
                        <div style="display:flex;gap:8px;justify-content:center">
-                         <button id="_lr_enable_audio_btn" style="padding:10px 14px;border-radius:8px;border:none;background:linear-gradient(90deg,#7bd389,#5ec1ff);color:#04232a;font-weight:700">Activar sonido</button>
+                         <button id="_lr_enable_audio_btn" style="padding:10px 14px;border-radius:8px;border:none;background:linear-gradient(90deg,#7bd389,#5ec1ff);color:#04232a;font-weight:700">Activ[...]
                          <button id="_lr_enable_audio_cancel" style="padding:10px 14px;border-radius:8px;border:1px solid #cbd5e1;background:transparent;color:#04232a">Cancelar</button>
                        </div>`;
       modal.appendChild(box); document.body.appendChild(modal);
@@ -480,8 +555,8 @@
     const modal = document.getElementById('_lr_fav_modal') || document.createElement('div'); modal.id = '_lr_fav_modal';
     Object.assign(modal.style, { position:'fixed', left:0, right:0, top:0, bottom:0, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,0.6)', zIndex:19000 });
     const box = document.createElement('div');
-    Object.assign(box.style, { maxWidth:'720px', width:'92%', maxHeight:'70vh', overflow:'auto', background:'#fff', color:'#042231', padding:'18px', borderRadius:'12px', boxShadow:'0 20px 60px rgba(3,10,18,0.12)' });
-    let inner = '<div style="display:flex;justify-content:space-between;align-items:center"><strong>Favoritos</strong><button id="_lr_close_fav" style="background:transparent;border:1px solid rgba(0,0,0,0.06);padding:6px;border-radius:8px">Cerrar</button></div><hr style="margin:10px 0;opacity:0.06"/>';
+    Object.assign(box.style, { maxWidth:'720px', width:'92%', maxHeight:'70vh', overflow:'auto', background:'#fff', color:'#042231', padding:'18px', borderRadius:'12px', boxShadow:'0 20px 60px rgba(3,[...]
+    let inner = '<div style="display:flex;justify-content:space-between;align-items:center"><strong>Favoritos</strong><button id="_lr_close_fav" style="background:transparent;border:1px solid rgba(0,0[...]
     if (favs && favs.length) inner += favs.map(f => `<div style="margin:10px 0;line-height:1.3;color:#022">${escapeHtml(f)}</div>`).join('');
     else inner += '<div style="color:rgba(7,16,28,0.8)">No hay favoritos</div>';
     box.innerHTML = inner;
@@ -622,7 +697,7 @@
 
     switch (action) {
       case 'breath': startBreathFlowInternal(); break;
-      case 'favorite': if (phrase) { const added = toggleFavorite(phrase); if (btn) btn.textContent = added ? '♥ Favorita' : '♡ Favorita'; showToast(added ? 'Añadido a favoritos' : 'Eliminado de favoritos'); } break;
+      case 'favorite': if (phrase) { const added = toggleFavorite(phrase); if (btn) btn.textContent = added ? '♥ Favorita' : '♡ Favorita'; showToast(added ? 'Añadido a favoritos' : 'Eliminado de [...]');
       case 'copy': if (phrase) { copyToClipboard(phrase); } break;
       case 'share': if (phrase) sharePhrase({ title: 'Frase', text: phrase, url: location.href }); break;
       case 'tts': if (phrase && window._lr_tts_enabled !== false) { playTTS(phrase); } else showToast('No hay texto para leer'); break;
@@ -699,16 +774,16 @@
     // Always attach direct handlers to main card controls so they respond
     attachTouchClick(['ttsBtn_menu','ttsBtn'], function () {
       let t = '';
-      try { if (window._phrases_current) t = window._phrases_current; else if (typeof window._phrases_currentIndex === 'number' && Array.isArray(window._phrases_list)) t = window._phrases_list[window._phrases_currentIndex] || ''; } catch (e) { t = ''; }
+      try { if (window._phrases_current) t = window._phrases_current; else if (typeof window._phrases_currentIndex === 'number' && Array.isArray(window._phrases_list)) t = window._phrases_list[window.[...]
       if (!t) t = (document.getElementById('frase-text') && document.getElementById('frase-text').textContent) || '';
       if (t) { lrlog('tts requested'); playTTS(t); } else showToast('No hay texto para leer');
     });
 
     attachTouchClick(['favBtn_menu','favBtn'], function () {
       let t = '';
-      try { if (window._phrases_current) t = window._phrases_current; else if (typeof window._phrases_currentIndex === 'number' && Array.isArray(window._phrases_list)) t = window._phrases_list[window._phrases_currentIndex] || ''; } catch (e) { t = ''; }
+      try { if (window._phrases_current) t = window._phrases_current; else if (typeof window._phrases_currentIndex === 'number' && Array.isArray(window._phrases_list)) t = window._phrases_list[window.[...]
       if (!t) t = (document.getElementById('frase-text') && document.getElementById('frase-text').textContent) || '';
-      if (t) { const added = toggleFavorite(t); const el = document.getElementById('favBtn_menu') || document.getElementById('favBtn'); if (el) el.textContent = added ? '♥ Favorita' : '♡ Favorita'; showToast(added ? 'Añadido a favoritos' : 'Eliminado de favoritos'); }
+      if (t) { const added = toggleFavorite(t); const el = document.getElementById('favBtn_menu') || document.getElementById('favBtn'); if (el) el.textContent = added ? '♥ Favorita' : '♡ Favorita'[...]
     });
 
     attachTouchClick(['downloadBtn','downloadBtn_menu'], function () {
@@ -727,7 +802,7 @@
 
     attachTouchClick(['shareBtn','shareBtn_menu'], function () {
       let t = '';
-      try { if (window._phrases_current) t = window._phrases_current; else if (typeof window._phrases_currentIndex === 'number' && Array.isArray(window._phrases_list)) t = window._phrases_list[window._phrases_currentIndex] || ''; } catch(e){ t = ''; }
+      try { if (window._phrases_current) t = window._phrases_current; else if (typeof window._phrases_currentIndex === 'number' && Array.isArray(window._phrases_list)) t = window._phrases_list[window.[...]
       if (!t) t = (document.getElementById('frase-text') && document.getElementById('frase-text').textContent) || '';
       if (t) { sharePhrase({ title: 'Frase', text: t, url: location.href }); }
       else showToast('No hay texto para compartir');
@@ -736,7 +811,7 @@
     // Also keep breath + ambient controls bound
     attachTouchClick(['breathBtn_menu','breathBtn'], function () { startBreathFlowInternal(); });
     attachTouchClick(['enableAudioBtn','enableAudio'], function () { resumeAudio().then(function () { showToast('Intentando activar audio'); }); });
-    attachTouchClick(['startAmbientBtn'], function () { preloadAssets().then(function () { if (audioBuffers.ambient) startAmbientLoop(audioBuffers.ambient); else if (htmlAudio.ambientEl) htmlAudio.ambientEl.play().catch(()=>{}); }); });
+    attachTouchClick(['startAmbientBtn'], function () { preloadAssets().then(function () { if (audioBuffers.ambient) startAmbientLoop(audioBuffers.ambient); else if (htmlAudio.ambientEl) htmlAudio.amb[...]
     attachTouchClick(['stopAmbientBtn'], function () { stopAmbientLoop(); });
 
     // Feedback for debug
@@ -778,7 +853,9 @@
       buffers: { inhaleCue: !!audioBuffers.inhaleCue, exhaleCue: !!audioBuffers.exhaleCue, breath: !!audioBuffers.breath, ambient: !!audioBuffers.ambient },
       htmlAudio: { inhale: !!htmlAudio.inhaleEl, exhale: !!htmlAudio.exhaleEl, ambient: !!htmlAudio.ambientEl },
       offsets: { inhaleOffsetSeconds, inhaleDurationSeconds, exhaleOffsetSeconds, exhaleDurationSeconds, hold1DurationSeconds, hold2DurationSeconds }
-    })
+    }),
+    // NEW: allow external callers to stop any running breath flow (overlay + audio)
+    stopBreathFlow: stopBreathFlowInternal
   });
 
   // autopreload (no blocking)
