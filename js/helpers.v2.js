@@ -469,21 +469,45 @@
       presetsWrap.setAttribute('aria-label', 'Presets de respiración');
 
       Object.keys(PRESET_MAP).forEach(k => {
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.className = '__lr_hot_preset';
-        b.dataset.preset = k;
-        b.textContent = PRESET_MAP[k];
-        b.style.cssText = 'padding:8px 10px;border-radius:8px;border:1px solid rgba(0,0,0,0.08);background:white;cursor:pointer;font-weight:600';
-        b.addEventListener('click', () => {
-          try { if (window.lr_helpers && typeof window.lr_helpers.setBreathPattern === 'function') window.lr_helpers.setBreathPattern(k); } catch (e) {}
-          Array.from(presetsWrap.querySelectorAll('button')).forEach(x => x.style.boxShadow = 'none');
-          b.style.boxShadow = 'inset 0 0 0 2px rgba(34,197,94,0.12)';
-          showToast('Preset: ' + PRESET_MAP[k]);
-        }, { passive: true });
-        presetsWrap.appendChild(b);
-      });
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = '__lr_hot_preset';
+  b.dataset.preset = k;
+  b.textContent = PRESET_MAP[k];
+  b.style.cssText = 'padding:8px 10px;border-radius:8px;border:1px solid rgba(0,0,0,0.08);background:white;cursor:pointer;font-weight:600';
 
+  b.addEventListener('click', () => {
+    try {
+      // Prefer the canonical helper if available
+      if (window.lr_helpers && typeof window.lr_helpers.setBreathPattern === 'function') {
+        window.lr_helpers.setBreathPattern(k);
+      } else {
+        // Fallback: apply pattern directly to internal timing vars so preset works immediately
+        const PRE = {
+          box: { inh: 4, h1: 4, exh: 4, h2: 4 },
+          calm: { inh: 4, h1: 4, exh: 6, h2: 1 },
+          slow: { inh: 5, h1: 5, exh: 7, h2: 1 },
+          '478': { inh: 4, h1: 7, exh: 8, h2: 1 }
+        };
+        const p = PRE[k];
+        if (p) {
+          inhaleDurationSeconds = p.inh;
+          hold1DurationSeconds = p.h1;
+          exhaleDurationSeconds = p.exh;
+          hold2DurationSeconds = p.h2;
+          lrlog('preset applied (fallback)', k);
+        }
+      }
+    } catch (e) { lrwarn('hotfix preset click error', e); }
+
+    // Visual feedback (same as original)
+    try { Array.from(presetsWrap.querySelectorAll('button')).forEach(x => x.style.boxShadow = 'none'); } catch (e) {}
+    try { b.style.boxShadow = 'inset 0 0 0 2px rgba(34,197,94,0.12)'; } catch (e) {}
+    try { showToast('Preset: ' + PRESET_MAP[k]); } catch (e) {}
+  }, { passive: true });
+
+  presetsWrap.appendChild(b);
+});
       // start button
       const startBtn = document.createElement('button');
       startBtn.id = '__lr_hotfix_start';
