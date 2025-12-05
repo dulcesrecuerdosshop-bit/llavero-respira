@@ -1,14 +1,12 @@
-// BREATH SESSIONS — implementación completa, robusta y sin duplicados
-// - Genera ids únicos
-// - Evita reinyecciones duplicadas (check global)
-// - Limpia flags stale (data-sessionsLoaded)
-// - Expon API window.lr_breathSessions y lr_breathSessions_inject
-// - Hotfix flotante opcional si la inyección en modal falla
+/* BREATH SESSIONS — versión lista para reemplazar
+   - mantiene toda la lógica original
+   - evita eliminar permanentemente el hotfix (se oculta en lugar de remove())
+   - expone API window.lr_breathSessions y window.lr_breathSessions_inject
+*/
 (function(){
-  if (window._lr_breath_sessions_loaded_permanent) return;
-  window._lr_breath_sessions_loaded_permanent = true;
+  if (window._lr_breath_sessions_loaded) return;
+  window._lr_breath_sessions_loaded = true;
 
-  // Config / opciones
   const SESSION_OPTIONS = [
     { id: "0", label: "Sin temporizador", seconds: 0 },
     { id: "60", label: "1 minuto", seconds: 60 },
@@ -24,35 +22,19 @@
   let sessionInterval = null;
   let remainingSeconds = Infinity;
 
-  // Utilidades
-  function makeUid(){
-    return Date.now().toString(36) + Math.floor(Math.random()*1000).toString(36);
-  }
-  function formatTime(s){
-    s = Math.max(0, Math.floor(s));
-    const mm = Math.floor(s/60), ss = s%60;
-    return `${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
-  }
-  function isVisible(node){
-    if(!node) return false;
-    try {
-      const cs = getComputedStyle(node);
-      return cs && cs.display !== 'none' && cs.visibility !== 'hidden' && node.offsetParent !== null;
-    } catch(e) { return false; }
-  }
+  // Utils
+  function makeUid(){ return Date.now().toString(36) + Math.floor(Math.random()*1000).toString(36); }
+  function formatTime(s){ s = Math.max(0, Math.floor(s)); const mm = Math.floor(s/60), ss = s%60; return `${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`; }
+  function isVisible(node){ if(!node) return false; try { const cs = getComputedStyle(node); return cs && cs.display !== 'none' && cs.visibility !== 'hidden' && node.offsetParent !== null; } catch(e){ return false; } }
 
   function showToast(msg){
-    if(typeof window.lr_showToast === 'function'){
-      try { window.lr_showToast(msg); return; } catch(e){}
-    }
-    // fallback simple
+    if(typeof window.lr_showToast === 'function'){ try { window.lr_showToast(msg); return; } catch(e){} }
     console.log('Toast:', msg);
   }
 
-  // --- CONTROLES DE SESIÓN (UI flotante) ---
+  // UI de control flotante
   function showSessionControls(){
     removeSessionControls();
-
     const box = document.createElement('div');
     box.id = 'lr_session_controls';
     box.style.cssText = [
@@ -65,8 +47,7 @@
       'box-shadow:0 10px 30px rgba(0,0,0,0.18)',
       'padding:12px',
       'min-width:220px',
-      'font-family:system-ui,Segoe UI,Roboto,Arial',
-      'pointer-events:auto'
+      'font-family:system-ui,Segoe UI,Roboto,Arial'
     ].join(';');
 
     const header = document.createElement('div');
@@ -106,7 +87,7 @@
     pauseBtn.id = 'lr_ctrl_pause';
     pauseBtn.style.flex = '1';
     styleButton(pauseBtn, false);
-    pauseBtn.onclick = function(){ togglePause(); updatePauseButton(); };
+    pauseBtn.onclick = () => { togglePause(); updatePauseButton(); };
     controls.appendChild(pauseBtn);
 
     const newBtn = document.createElement('button');
@@ -114,7 +95,7 @@
     newBtn.style.flex = '1';
     styleButton(newBtn, true);
     newBtn.textContent = 'Nueva';
-    newBtn.onclick = function(){ newSessionFlow(); };
+    newBtn.onclick = () => { newSessionFlow(); };
     controls.appendChild(newBtn);
 
     box.appendChild(controls);
@@ -162,12 +143,11 @@
     if(el) el.textContent = remainingSeconds === Infinity ? '∞' : formatTime(remainingSeconds);
   }
 
-  // --- LÓGICA DE SESIÓN ---
+  // Lógica de sesión
   function startSession(seconds){
     try {
       sessionActive = true;
       sessionPaused = false;
-
       if(window.lr_helpers && typeof window.lr_helpers.startBreathFlow === 'function'){
         try { window.lr_helpers.startBreathFlow(); } catch(e){ console.warn('lr_helpers.startBreathFlow error', e); }
       } else {
@@ -178,7 +158,7 @@
       if(remainingSeconds !== Infinity){
         sessionEndsAt = Date.now() + remainingSeconds * 1000;
         clearInterval(sessionInterval);
-        sessionInterval = setInterval(function(){
+        sessionInterval = setInterval(()=>{
           if(!sessionActive || sessionPaused) return;
           remainingSeconds = Math.max(0, Math.ceil((sessionEndsAt - Date.now())/1000));
           updateTimerDisplay();
@@ -190,7 +170,6 @@
       } else {
         updateTimerDisplay();
       }
-
       showSessionControls();
     } catch(e){
       console.error('startSession error', e);
@@ -212,7 +191,7 @@
     if(remainingSeconds !== Infinity){
       sessionEndsAt = Date.now() + remainingSeconds * 1000;
       clearInterval(sessionInterval);
-      sessionInterval = setInterval(function(){
+      sessionInterval = setInterval(()=>{
         if(!sessionActive || sessionPaused) return;
         remainingSeconds = Math.max(0, Math.ceil((sessionEndsAt - Date.now())/1000));
         updateTimerDisplay();
@@ -240,21 +219,20 @@
 
   function newSessionFlow(){
     stopSession();
-    setTimeout(function(){ document.getElementById('settings_menu')?.click(); }, 200);
+    setTimeout(()=>{ document.getElementById('settings_menu')?.click(); }, 200);
   }
 
-  // --- INYECCIÓN EN MODAL / CARD ---
+  // Inyección en modal / card
   function clearStaleFlag(card){
     if(!card) return;
     const hasSelect = !!card.querySelector('[data-lr="session-select"]');
-    const hasBtn = !!card.querySelector('[data-lr="session-start"]') || !!card.querySelector('[id^="lr_session_start_btn_"]');
+    const hasBtn = !!card.querySelector('[data-lr="session-start"]') || !!card.querySelector('[id^="lr_session_start_btn"]');
     if(card.dataset.sessionsLoaded === "1" && (!hasSelect || !hasBtn)){
       try { delete card.dataset.sessionsLoaded; } catch(e){ try { card.removeAttribute('data-sessions-loaded'); } catch(err){} }
     }
   }
 
   function buildSettingsBlock(card){
-    // Construcción segura del DOM (sin plantillas complejas)
     const container = document.createElement('div');
     container.style.marginTop = '16px';
 
@@ -266,25 +244,25 @@
 
     const select = document.createElement('select');
     const uid = makeUid();
-    const selectId = 'lr_session_select_' + uid;
-    const startId = 'lr_session_start_btn_' + uid;
-    const presetsId = 'lr_preset_buttons_' + uid;
+    const selectId = `lr_session_select_${uid}`;
+    const startId = `lr_session_start_btn_${uid}`;
+    const presetsId = `lr_preset_buttons_${uid}`;
 
     select.id = selectId;
     select.dataset.lr = 'session-select';
     select.style.cssText = 'width:100%;padding:10px;border-radius:10px;border:1px solid rgba(0,0,0,0.1);font-size:1rem';
-    SESSION_OPTIONS.forEach(function(opt){
-      const o = document.createElement('option');
-      o.value = String(opt.seconds);
-      o.textContent = opt.label;
-      select.appendChild(o);
+    SESSION_OPTIONS.forEach(o=>{
+      const opt = document.createElement('option');
+      opt.value = String(o.seconds);
+      opt.textContent = o.label;
+      select.appendChild(opt);
     });
     try {
       const saved = localStorage.getItem('lr_session_seconds');
       if(saved) select.value = saved;
     } catch(e){}
 
-    select.addEventListener('change', function(e){
+    select.addEventListener('change', (e) => {
       try { localStorage.setItem('lr_session_seconds', e.target.value); } catch(e){}
     });
 
@@ -296,7 +274,7 @@
     startBtn.type = 'button';
     startBtn.style.cssText = 'width:100%;margin-top:12px;padding:10px;border:none;border-radius:10px;font-weight:700;font-size:1rem;background:linear-gradient(90deg,#77c8ff,#a4e6c6);color:#012e3a;cursor:pointer';
     startBtn.textContent = 'Iniciar sesión';
-    startBtn.addEventListener('click', function(ev){
+    startBtn.addEventListener('click', (ev)=>{
       try { ev.stopPropagation && ev.stopPropagation(); } catch(e){}
       const seconds = parseInt(select.value || '0', 10) || 0;
       if(window.lr_breathSessions && typeof window.lr_breathSessions.startSession === 'function'){
@@ -325,12 +303,12 @@
     wrap.dataset.lr = 'preset-wrap';
     wrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:10px';
 
-    Object.keys(PRESET_LABELS).forEach(function(k){
+    Object.keys(PRESET_LABELS).forEach(k => {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.textContent = PRESET_LABELS[k];
       btn.style.cssText = 'padding:8px 12px;border-radius:10px;font-weight:600;background:white;border:1px solid rgba(0,0,0,0.08);cursor:pointer';
-      btn.addEventListener('click', function(){
+      btn.addEventListener('click', ()=> {
         try { window.lr_helpers?.setBreathPattern && window.lr_helpers.setBreathPattern(k); } catch(e){}
         try { window.lr_showToast && window.lr_showToast('Preset aplicado: ' + PRESET_LABELS[k]); } catch(e){}
       });
@@ -339,22 +317,13 @@
 
     container.appendChild(wrap);
 
-    return {
-      container: container,
-      selectId: selectId,
-      startId: startId,
-      presetsId: presetsId,
-      uid: uid
-    };
+    return { container, selectId, startId, presetsId, uid };
   }
 
   function injectSettingsUIInto(target){
-    // target puede ser modal Element, card Element o ShadowRoot
     try {
-      // Prevención global: si ya existe un control en la página evitamos crear otro
       const alreadyGlobal = document.querySelector('[data-lr="session-select"]');
       if(alreadyGlobal){
-        // Si ya está dentro del mismo target, no duplicar; si no, evitamos crear otra
         if(target && (target instanceof Element) && target.contains(alreadyGlobal)) return false;
         return false;
       }
@@ -376,9 +345,18 @@
       const built = buildSettingsBlock(card);
       card.appendChild(built.container);
       try { card.dataset.sessionsLoaded = "1"; } catch(e){ card.setAttribute('data-sessions-loaded','1'); }
-      // remove floating hotfix if present
-      const hf = document.getElementById('__lr_hotfix_floating'); if(hf) hf.remove();
       window.__lr_last_session_ids = { selectId: built.selectId, startId: built.startId, presetsId: built.presetsId, uid: built.uid };
+
+      // Instead of removing hotfix from DOM, hide it so it can be reopened later
+      try {
+        const hf = document.getElementById('__lr_hotfix_floating');
+        if (hf) {
+          try { hf.style.display = 'none'; hf.setAttribute('aria-hidden','true'); } catch (e) { hf.remove && hf.remove(); }
+        }
+      } catch (e) {
+        // swallow errors
+      }
+
       return true;
     } catch(e){
       console.error('injectSettingsUIInto error', e);
@@ -386,7 +364,6 @@
     }
   }
 
-  // --- FALLBACK SIMPLE (si faltan helpers) ---
   function fallbackLocalSession(seconds){
     const rem = seconds > 0 ? seconds : Infinity;
     const id = '__lr_fallback_timer_' + makeUid();
@@ -396,30 +373,25 @@
     box.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:2147483647;background:#fff;border-radius:12px;padding:12px;box-shadow:0 8px 24px rgba(0,0,0,0.12)';
     box.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center"><strong>Sesión (fallback)</strong><button id="'+id+'_close">✕</button></div><div id="'+id+'_timer" style="font-size:1.4rem;font-weight:700;text-align:center;margin:8px 0">--:--</div><div style="display:flex;gap:8px"><button id="'+id+'_stop" style="flex:1;padding:8px;border-radius:8px;background:#ff6b6b;border:none;color:white">Salir</button></div>';
     document.body.appendChild(box);
-    document.getElementById(id+'_close').onclick = function(){ box.remove(); clearInterval(window[id+'_interval']); };
-    document.getElementById(id+'_stop').onclick = function(){ box.remove(); clearInterval(window[id+'_interval']); };
+    document.getElementById(id+'_close').onclick = ()=>{ box.remove(); clearInterval(window[id+'_interval']); };
+    document.getElementById(id+'_stop').onclick = ()=>{ box.remove(); clearInterval(window[id+'_interval']); };
     let remaining = rem === Infinity ? Infinity : rem;
     const timerEl = document.getElementById(id+'_timer');
     function draw(){ timerEl.textContent = remaining === Infinity ? '∞' : formatTime(remaining); }
     draw();
     if(remaining !== Infinity){
-      window[id+'_interval'] = setInterval(function(){
+      window[id+'_interval'] = setInterval(()=> {
         remaining = Math.max(0, remaining - 1);
         draw();
-        if(remaining <= 0){
-          clearInterval(window[id+'_interval']);
-          box.remove();
-          showToast('Sesión completada (fallback)');
-        }
+        if(remaining <= 0){ clearInterval(window[id+'_interval']); box.remove(); showToast('Sesión completada (fallback)'); }
       }, 1000);
     }
   }
 
-  // --- INTENTO AUTOMÁTICO DE INYECCIÓN ---
+  // Intento de inyección automática
   async function tryInjectNow(){
     const modalIds = ['_lr_settings_modal', 'lr-user-modal', '_settings_modal', 'settings_modal'];
-    for(let i=0;i<modalIds.length;i++){
-      const id = modalIds[i];
+    for(const id of modalIds){
       const m = document.getElementById(id);
       if(m){
         if(isVisible(m)){
@@ -431,104 +403,80 @@
         return;
       }
     }
-    // fallback: intentar .lr-modal-card global
     const candidate = document.querySelector('.lr-modal-card');
     if(candidate){
       injectSettingsUIInto(candidate.parentElement || candidate);
     }
   }
 
-  function waitForVisible(node, timeout){
-    timeout = timeout || 6000;
-    return new Promise(function(resolve){
+  function waitForVisible(node, timeout=6000){
+    return new Promise(resolve=>{
       if(!node) return resolve(false);
       if(isVisible(node)) return resolve(true);
-      const mo = new MutationObserver(function(){
-        if(isVisible(node)){ mo.disconnect(); clearTimeout(t); resolve(true); }
-      });
+      const mo = new MutationObserver(()=>{ if(isVisible(node)){ mo.disconnect(); clearTimeout(t); resolve(true); }});
       mo.observe(node, { attributes:true, attributeFilter:['class','style'], subtree:false });
-      const t = setTimeout(function(){ try{ mo.disconnect(); }catch(e){}; resolve(false); }, timeout);
+      const t = setTimeout(()=>{ try{ mo.disconnect(); }catch(e){}; resolve(false); }, timeout);
     });
   }
 
-  // Observador global para detectar inserción de modales
-  const modalObserver = new MutationObserver(function(){ tryInjectNow(); });
+  // Observadores
+  const modalObserver = new MutationObserver(()=>{ tryInjectNow(); });
   modalObserver.observe(document.body, { childList:true, subtree:true });
 
   function attachSettingsMenuListener(){
     const btn = document.getElementById('settings_menu');
     if(btn && !btn.dataset._lr_settings_attached){
       btn.dataset._lr_settings_attached = '1';
-      btn.addEventListener('click', function(){ setTimeout(function(){ tryInjectNow(); }, 160); });
+      btn.addEventListener('click', ()=>{ setTimeout(()=>tryInjectNow(), 160); });
       return true;
     }
     return false;
   }
   if(!attachSettingsMenuListener()){
-    const mo = new MutationObserver(function(){
-      if(attachSettingsMenuListener()) mo.disconnect();
-    });
+    const mo = new MutationObserver(()=>{ if(attachSettingsMenuListener()) mo.disconnect(); });
     mo.observe(document.body, { childList:true, subtree:true });
   }
 
-  // --- HOTFIX FLOTANTE (solo si NO hay un control de sesión ya) ---
-  function ensureFloatingHotfix(){
-    // si ya hay un control en la página, no crear hotfix
-    if(document.querySelector('[data-lr="session-select"]')) return;
-    if(document.getElementById('__lr_hotfix_floating')) return;
+  // API pública
+  window.lr_breathSessions_inject = injectSettingsUIInto;
+  window.lr_breathSessions = {
+    startSession,
+    stopSession,
+    pauseSession,
+    resumeSession
+  };
 
+  // Hotfix flotante para iniciar sesiones aunque la inyección falle
+  function ensureFloatingHotfix(){
+    if(document.getElementById('__lr_hotfix_floating')) return;
     const wrap = document.createElement('div');
     wrap.id = '__lr_hotfix_floating';
-    wrap.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:2147483646;pointer-events:auto;display:flex;gap:8px;align-items:center;background:transparent';
-
-    const sel = document.createElement('select');
-    SESSION_OPTIONS.forEach(function(o){
-      const opt = document.createElement('option');
-      opt.value = String(o.seconds);
-      opt.textContent = o.label;
-      sel.appendChild(opt);
-    });
-    sel.style.cssText = 'padding:6px;border-radius:8px;border:1px solid rgba(0,0,0,0.08);background:white';
-
+    wrap.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:2147483646;pointer-events:auto';
     const btn = document.createElement('button');
-    btn.textContent = 'Iniciar sesión (hotfix)';
+    btn.textContent = 'Iniciar sesión';
     btn.style.cssText = 'padding:10px;border-radius:8px;border:none;background:#56c0ff;color:#00303a;font-weight:700;cursor:pointer';
-    btn.onclick = function(){
-      const s = parseInt(sel.value||'0',10) || 0;
+    const sel = document.createElement('select');
+    sel.style.marginRight = '8px';
+    SESSION_OPTIONS.forEach(o=>{ const opt = document.createElement('option'); opt.value = String(o.seconds); opt.textContent = o.label; sel.appendChild(opt); });
+    btn.onclick = ()=> {
+      const s = parseInt(sel.value||'0',10)||0;
       if(window.lr_breathSessions && typeof window.lr_breathSessions.startSession === 'function'){
         window.lr_breathSessions.startSession(s);
       } else {
         fallbackLocalSession(s);
       }
     };
-
-    const close = document.createElement('button');
-    close.textContent = 'Cerrar';
-    close.style.cssText = 'padding:6px;border-radius:8px;border:1px solid rgba(0,0,0,0.06);background:white;cursor:pointer';
-    close.onclick = function(){ wrap.remove(); };
-
     wrap.appendChild(sel);
     wrap.appendChild(btn);
+    const close = document.createElement('button');
+    close.textContent = 'Cerrar';
+    close.style.cssText = 'margin-left:8px;padding:6px;border-radius:8px;border:1px solid rgba(0,0,0,0.06);background:white;cursor:pointer';
+    close.onclick = ()=> { wrap.style.display = 'none'; wrap.setAttribute('aria-hidden','true'); };
     wrap.appendChild(close);
-
     document.body.appendChild(wrap);
   }
 
-  // Exponer API global
-  window.lr_breathSessions_inject = injectSettingsUIInto;
-  window.lr_breathSessions = {
-    startSession: startSession,
-    stopSession: stopSession,
-    pauseSession: pauseSession,
-    resumeSession: resumeSession
-  };
+  try{ ensureFloatingHotfix(); }catch(e){}
+  tryInjectNow();
 
-  // Intentos iniciales
-  try{
-    ensureFloatingHotfix();
-  }catch(e){}
-  try{
-    tryInjectNow();
-  }catch(e){}
-
-})(); 
+})();
