@@ -60,7 +60,7 @@ html,body{
 /* Left: logo + title */
 .header-left{ display:flex; align-items:center; gap:10px; }
 
-/* Header logo – tamaño definitivo y correcto */
+/* LOGO LIMPIO SIN BORDE */
 .app-header .logo,
 img.logo {
   width: 64px !important;
@@ -69,9 +69,9 @@ img.logo {
   max-height: 64px !important;
   object-fit: cover !important;
   border-radius: 50% !important;
-  padding: 4px !important;
-  background: #ffffff !important;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.15) !important;
+  padding: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
   display: inline-block !important;
 }
 
