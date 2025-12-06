@@ -60,15 +60,19 @@ html,body{
 /* Left: logo + title */
 .header-left{ display:flex; align-items:center; gap:10px; }
 
-/* Header logo (pequeño y controlado) */
-.app-header .logo, img.logo {
-  max-height: 36px;
-  height: 36px;
-  width: auto;
-  max-width: 160px;
-  object-fit: contain;
-  display:inline-block;
+/* Header logo — tamaño correcto y sin deformarse */
+.app-header .logo,
+img.logo {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
 }
+.header-left {
+  gap: 12px; /* un poquito más de respiro visual */
+}
+
 
 /* Welcome (centrado y no invasivo) */
 .welcome.fullscreen {
