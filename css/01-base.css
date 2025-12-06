@@ -60,15 +60,21 @@ html,body{
 /* Left: logo + title */
 .header-left{ display:flex; align-items:center; gap:10px; }
 
-/* Header logo (pequeño y controlado) */
-.app-header .logo, img.logo {
-  max-height: 36px;
-  height: 36px;
-  width: auto;
-  max-width: 160px;
-  object-fit: contain;
-  display:inline-block;
+/* Header logo – tamaño definitivo y correcto */
+.app-header .logo,
+img.logo {
+  width: 64px !important;
+  height: 64px !important;
+  max-width: 64px !important;
+  max-height: 64px !important;
+  object-fit: cover !important;
+  border-radius: 50% !important;
+  padding: 4px !important;
+  background: #ffffff !important;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.15) !important;
+  display: inline-block !important;
 }
+
 
 /* Welcome (centrado y no invasivo) */
 .welcome.fullscreen {
