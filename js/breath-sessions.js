@@ -2,7 +2,7 @@
 // - Evita duplicados (marca bloques insertados con data-lr-session-block)
 // - No inyecta en lr-user-modal
 // - Expone window.openSessionModal(opts) que crea un modal efímero y usa injectSettingsUIInto para reutilizar la UI correcta
-// - Hotfix flotante solo aparece si window.ALLOW_HOTFIX_UI === true
+// - Hotfix flotante aparece solo si window.ALLOW_HOTFIX_UI === true
 // - Mantiene API pública: window.lr_breathSessions & window.lr_breathSessions_inject
 
 // --- STUB para llamadas tempranas a openSessionModal (si phrases.js lo llama antes de que este script cargue)
@@ -378,23 +378,49 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
       // Now inject the settings UI into the card
       const injected = (injectSettingsUIInto(card) || injectSettingsUIInto(wrapper) || injectSettingsUIInto(document.body));
 
-      // Inserted block: apply suggestedType to the modal UI if present
+      // Robust handling: normalize aliases and apply preset programmatically (works even if preset buttons hidden)
       try {
-        const suggested = opts && opts.suggestedType ? opts.suggestedType : (wrapper.dataset.suggestedType || null);
+        const aliasMap = {
+          'suave':'calm',
+          'profunda':'478',
+          'hotfix':'478',
+          'calm':'calm',
+          'calma':'calm',
+          'slow':'slow',
+          'lento':'slow',
+          'box':'box',
+          '478':'478'
+        };
+
+        const suggestedRaw = (opts && opts.suggestedType) ? opts.suggestedType : (wrapper.dataset.suggestedType || (window.CLIENT_USER && window.CLIENT_USER.suggestedBreathingType) || null);
+        const suggested = suggestedRaw ? (aliasMap[String(suggestedRaw).toLowerCase()] || String(suggestedRaw)) : null;
+
         if (suggested) {
+          // Prefer using canonical helper to apply pattern immediately
+          try {
+            if (window.lr_helpers && typeof window.lr_helpers.setBreathPattern === 'function') {
+              window.lr_helpers.setBreathPattern(suggested);
+            }
+          } catch(e){}
+
+          // Try to click preset button if present (for visual feedback) — only works when preset buttons rendered
+          try {
+            const presetLabel = PRESET_LABELS[suggested];
+            if (presetLabel) {
+              const presetBtn = Array.from(card.querySelectorAll('button')).find(b => (b.textContent||'').toLowerCase().trim() === presetLabel.toLowerCase().trim());
+              if (presetBtn) presetBtn.click();
+            }
+          } catch(e){}
+
+          // Map preset -> seconds and set select value if present
           const PRESET_TO_SECONDS = { box: 180, calm: 180, slow: 180, '478': 60 };
-          const presetLabel = PRESET_LABELS[suggested];
-
-          const presetBtn = Array.from(card.querySelectorAll('button'))
-            .find(b => (b.textContent || '').toLowerCase().includes((presetLabel || '').toLowerCase()));
-
-          if (presetBtn) { presetBtn.click(); }
-
-          const sel = card.querySelector('[data-lr="session-select"], select');
-          if (sel && PRESET_TO_SECONDS[suggested]) {
-            sel.value = String(PRESET_TO_SECONDS[suggested]);
-            sel.dispatchEvent(new Event('change', { bubbles: true }));
-          }
+          try {
+            const sel = card.querySelector('[data-lr="session-select"], select');
+            if (sel && PRESET_TO_SECONDS[suggested]) {
+              sel.value = String(PRESET_TO_SECONDS[suggested]);
+              sel.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+          } catch(e){}
         }
       } catch (e) {}
 
