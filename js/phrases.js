@@ -936,3 +936,38 @@ Hoy es una página en blanco; escribe algo amable.`,
 
   window.mostrarFrase = mostrarFrase;
 })();
+// ===== Integration helper for phrase selection (append) =====
+(function(){
+  // showDailyPhraseInto: uses PhraseSelector and ClientPhrases to render a phrase into the page
+  function showDailyPhraseInto(containerSelector) {
+    try {
+      var client = window.CLIENT_USER || JSON.parse(localStorage.getItem('lr_client_runtime_user') || '{}');
+      var res = window.PhraseSelector ? window.PhraseSelector.selectAndMark(client) : { category:'rutina', phrase: (window.ClientPhrases ? window.ClientPhrases.random('rutina') : 'Un recordatorio') };
+      // render into DOM (containerSelector expected)
+      var el = document.querySelector(containerSelector || '.frase-text');
+      if (el) el.textContent = res.phrase;
+      // save runtime client
+      window.saveClientRuntime && window.saveClientRuntime(res.updatedClient);
+      // apply theme softly
+      window.ThemeManager && window.ThemeManager.apply(res.updatedClient || client);
+      // expose updated client
+      window.CLIENT_USER = res.updatedClient || client;
+      // prepare breathing suggestion UI if needed (function in breath-sessions integration)
+      if (res.updatedClient && res.updatedClient.suggestedBreathingType) {
+        try {
+          if (typeof window.prepareClientBreathUI === 'function') window.prepareClientBreathUI('.breathing-suggestion');
+          else {
+            // ensure placeholder visible
+            var ps = document.querySelector('.breathing-suggestion');
+            if (ps) ps.style.display = '';
+          }
+        } catch(e){}
+      }
+    } catch(e){ console.warn('showDailyPhraseInto failed', e); }
+  }
+  // expose
+  window.showDailyPhraseInto = showDailyPhraseInto;
+
+  // map existing global call used by load-user.js
+  window.mostrarFrase = function(){ return window.showDailyPhraseInto && window.showDailyPhraseInto('.frase-text'); };
+})();
