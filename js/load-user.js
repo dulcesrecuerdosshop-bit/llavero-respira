@@ -118,10 +118,11 @@
       } catch(e){ console.warn('handleMoodChoice error', e); }
     }
 
-    if (moodBien) moodBien.addEventListener('click', function(){ handleMoodChoice({ estadoEmocionalActual:'neutral', nivelDeAnsiedad:0, suggestedBreathingType:null }); });
-    if (moodTenso) moodTenso.addEventListener('click', function(){ handleMoodChoice({ estadoEmocionalActual:'ansiedad', nivelDeAnsiedad:2, suggestedBreathingType:'suave' }); });
-    if (moodAnsiedad) moodAnsiedad.addEventListener('click', function(){ handleMoodChoice({ estadoEmocionalActual:'ansiedad', nivelDeAnsiedad:3, suggestedBreathingType:'profunda' }); });
-    if (moodCrisis) moodCrisis.addEventListener('click', function(){ handleMoodChoice({ estadoEmocionalActual:'crisis', nivelDeAnsiedad:5, suggestedBreathingType:'hotfix' }); });
+   // Reemplazar las asignaciones actuales por claves canónicas
+if (moodBien) moodBien.addEventListener('click', function(){ handleMoodChoice({ estadoEmocionalActual:'neutral', nivelDeAnsiedad:0, suggestedBreathingType:null }); });
+if (moodTenso) moodTenso.addEventListener('click', function(){ handleMoodChoice({ estadoEmocionalActual:'ansiedad', nivelDeAnsiedad:2, suggestedBreathingType:'calm' }); });
+if (moodAnsiedad) moodAnsiedad.addEventListener('click', function(){ handleMoodChoice({ estadoEmocionalActual:'ansiedad', nivelDeAnsiedad:3, suggestedBreathingType:'478' }); });
+if (moodCrisis) moodCrisis.addEventListener('click', function(){ handleMoodChoice({ estadoEmocionalActual:'crisis', nivelDeAnsiedad:5, suggestedBreathingType:'478' }); });
 
     // Keep view & go buttons functional (existing behavior)
     if (closeBtn) closeBtn.addEventListener('click', closeModal);
