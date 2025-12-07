@@ -1,4 +1,7 @@
 // js/load-user.js - carga personalización por id y gestiona modal de bienvenida (gestión segura del foco)
+// Versión corregida: asigna window.CLIENT_USER al cargar el usuario y normaliza campos emocionales,
+// además deja los helpers runtime ya incluidos al final (saveClientRuntime etc).
+
 (function () {
   'use strict';
 
@@ -75,7 +78,7 @@
     const viewBtn = modal.querySelector('#lr-modal-view');
 
     if (closeBtn) closeBtn.addEventListener('click', closeModal);
-    if (goBtn) goBtn.addEventListener('click', () => { closeModal(); const mainCard = document.querySelector('.panel') || document.body; try { mainCard.scrollIntoView({ behavior: 'smooth' }); } catch (e) {} });
+    if (goBtn) goBtn.addEventListener('click', () => { closeModal(); const mainCard = document.querySelector('.panel') || document.body; try { mainCard.scrollIntoView({ behavior: 'smooth' }); } catch (e) { /* ignore */ } });
     if (viewBtn) viewBtn.addEventListener('click', () => { closeModal(); if (typeof window.mostrarFrase === 'function') try { window.mostrarFrase(); } catch (e) { console.warn(e); } });
 
     // Close when clicking outside the dialog card
@@ -242,10 +245,32 @@
 
     if (!id) return;
     const data = await loadUserData(id);
-    if (data) applyPersonalization(data);
-    else console.log('[load-user] no personalization found for id', id);
+    if (data) {
+      // normalize new emotional fields (in case the user file lacks them)
+      data.estadoEmocionalActual = typeof data.estadoEmocionalActual !== 'undefined' ? data.estadoEmocionalActual : 'neutral';
+      data.nivelDeAnsiedad = typeof data.nivelDeAnsiedad !== 'undefined' ? Number(data.nivelDeAnsiedad) : 0;
+      data.ultimaCategoriaMostrada = typeof data.ultimaCategoriaMostrada !== 'undefined' ? data.ultimaCategoriaMostrada : null;
+      data.ultimaFechaMostrado = typeof data.ultimaFechaMostrado !== 'undefined' ? data.ultimaFechaMostrado : null;
+      data.rachaDeLectura = typeof data.rachaDeLectura !== 'undefined' ? Number(data.rachaDeLectura) : 0;
+      data.temaVisualActual = typeof data.temaVisualActual !== 'undefined' ? data.temaVisualActual : 'neutral';
+      data.suggestedBreathingType = typeof data.suggestedBreathingType !== 'undefined' ? data.suggestedBreathingType : null;
+
+      // set runtime global and persist in localStorage for UI runtime
+      try {
+        window.CLIENT_USER = data;
+        localStorage.setItem('lr_client_runtime_user', JSON.stringify(data));
+      } catch (e) { console.warn('[load-user] saving runtime user failed', e); }
+
+      // Apply theme if ThemeManager loaded
+      if (window.ThemeManager && typeof window.ThemeManager.apply === 'function') {
+        try { window.ThemeManager.apply(data); } catch (e) { /* ignore theme apply error */ }
+      }
+
+      applyPersonalization(data);
+    } else console.log('[load-user] no personalization found for id', id);
   });
 })();
+
 // ===== UX: client runtime helpers (append) =====
 // Provide a runtime CLIENT_USER object and save helper using localStorage.
 // This avoids writing server files in runtime and keeps UI state.
@@ -255,9 +280,7 @@
     // try to load ambient user object created by existing load logic
     var user = window.CLIENT_USER || null;
     if (!user) {
-      // try to read from users/llavero023.json data previously embedded or fetched
-      // If the app already fetches and assigns a global user, we keep it.
-      // fallback: read from localStorage
+      // try to read from localStorage (set earlier by loadUserData)
       var stored = localStorage.getItem('lr_client_runtime_user');
       if (stored) {
         user = JSON.parse(stored);
