@@ -1,9 +1,9 @@
-// BREATH SESSIONS — versión corregida y completa
+// BREATH SESSIONS — versión completa, corregida y autocontenida
 // - Evita duplicados (marca bloques insertados con data-lr-session-block)
 // - No inyecta en lr-user-modal
-// - Expone window.openSessionModal(opts) que crea un modal efímero y usa injectSettingsUIInto para reutilizar la UI correcta
-// - Hotfix flotante aparece solo si window.ALLOW_HOTFIX_UI === true
-// - Mantiene API pública: window.lr_breathSessions & window.lr_breathSessions_inject
+// - Exposición de API: window.lr_breathSessions & window.lr_breathSessions_inject
+// - openSessionModal soporta cola para llamadas tempranas (evita "openSessionModal no disponible")
+// - Delegación de audio a RespiracionInteligente / window.lr_helpers
 
 // --- STUB para llamadas tempranas a openSessionModal (si phrases.js lo llama antes de que este script cargue)
 if (!window.__lr_openSession_queue) window.__lr_openSession_queue = [];
@@ -12,8 +12,9 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
     try {
       window.__lr_openSession_queue = window.__lr_openSession_queue || [];
       window.__lr_openSession_queue.push(opts || {});
-      console.warn('openSessionModal queued (breath-sessions not yet initialized)');
-    } catch(e){ console.warn('openSessionModal queue failed', e); }
+      // mensaje informativo (no error)
+      console.warn('[lr] openSessionModal queued (breath-sessions not yet initialized)');
+    } catch(e){ console.warn('[lr] openSessionModal queue error', e); }
   };
 }
 
@@ -21,7 +22,7 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
   if (window._lr_breath_sessions_loaded_permanent) return;
   window._lr_breath_sessions_loaded_permanent = true;
 
-  // Config / opciones
+  // Configuración
   const SESSION_OPTIONS = [
     { id: "0", label: "Sin temporizador", seconds: 0 },
     { id: "60", label: "1 minuto", seconds: 60 },
@@ -30,31 +31,36 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
   ];
   const PRESET_LABELS = { box:"Caja (4-4-4-4)", calm:"Calma suave", slow:"Lento", "478":"4-7-8" };
 
-  // Estado de sesión
+  // Estado
   let sessionActive = false;
   let sessionPaused = false;
   let sessionEndsAt = 0;
   let sessionInterval = null;
   let remainingSeconds = Infinity;
 
-  // Utilidades
+  // Utils
   function makeUid(){ return Date.now().toString(36) + Math.floor(Math.random()*1000).toString(36); }
   function formatTime(s){ s = Math.max(0, Math.floor(s)); const mm = Math.floor(s/60), ss = s%60; return `${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`; }
   function isVisible(node){ if(!node) return false; try { const cs = getComputedStyle(node); return cs && cs.display !== 'none' && cs.visibility !== 'hidden' && node.offsetParent !== null; } catch(e){ return false; } }
+  function showToast(msg){ if(typeof window.lr_showToast === 'function'){ try{ window.lr_showToast(msg); return; } catch(e){} } console.log('Toast:', msg); }
 
-  function showToast(msg){
-    if(typeof window.lr_showToast === 'function'){ try { window.lr_showToast(msg); return; } catch(e){} }
-    console.log('Toast:', msg);
-  }
-
-  // --- CONTROLES DE SESIÓN (UI flotante) ---
+  // --- UI CONTROLS (flotante) ---
   function showSessionControls(){
     removeSessionControls();
-    const box = document.createElement('div'); box.id = 'lr_session_controls';
+    const box = document.createElement('div');
+    box.id = 'lr_session_controls';
     box.style.cssText = [
-      'position:fixed','right:18px','bottom:18px','z-index:2147483647',
-      'background:rgba(255,255,255,0.98)','border-radius:12px','box-shadow:0 10px 30px rgba(0,0,0,0.18)',
-      'padding:12px','min-width:220px','font-family:system-ui,Segoe UI,Roboto,Arial','pointer-events:auto'
+      'position:fixed',
+      'right:18px',
+      'bottom:18px',
+      'z-index:2147483647',
+      'background:rgba(255,255,255,0.98)',
+      'border-radius:12px',
+      'box-shadow:0 10px 30px rgba(0,0,0,0.18)',
+      'padding:12px',
+      'min-width:220px',
+      'font-family:system-ui,Segoe UI,Roboto,Arial',
+      'pointer-events:auto'
     ].join(';');
 
     const header = document.createElement('div');
@@ -62,16 +68,10 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
     header.style.justifyContent = 'space-between';
     header.style.alignItems = 'center';
 
-    const title = document.createElement('strong');
-    title.textContent = 'Sesión activa';
-    title.style.fontSize = '1rem';
+    const title = document.createElement('strong'); title.textContent = 'Sesión activa'; title.style.fontSize = '1rem';
     header.appendChild(title);
 
-    const closeBtn = document.createElement('button');
-    closeBtn.textContent = '✕';
-    closeBtn.style.background = 'none';
-    closeBtn.style.border = 'none';
-    closeBtn.style.cursor = 'pointer';
+    const closeBtn = document.createElement('button'); closeBtn.textContent = '✕'; closeBtn.style.background='none'; closeBtn.style.border='none'; closeBtn.style.cursor='pointer';
     closeBtn.onclick = removeSessionControls;
     header.appendChild(closeBtn);
 
@@ -83,21 +83,12 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
     timerEl.textContent = remainingSeconds === Infinity ? '∞' : formatTime(remainingSeconds);
     box.appendChild(timerEl);
 
-    const controls = document.createElement('div');
-    controls.style.display = 'flex';
-    controls.style.gap = '8px';
-
-    const pauseBtn = document.createElement('button');
-    pauseBtn.id = 'lr_ctrl_pause';
-    pauseBtn.style.flex = '1';
-    styleButton(pauseBtn,false);
+    const controls = document.createElement('div'); controls.style.display = 'flex'; controls.style.gap = '8px';
+    const pauseBtn = document.createElement('button'); pauseBtn.id = 'lr_ctrl_pause'; pauseBtn.style.flex = '1'; styleButton(pauseBtn,false);
     pauseBtn.onclick = function(){ togglePause(); updatePauseButton(); };
     controls.appendChild(pauseBtn);
 
-    const newBtn = document.createElement('button');
-    newBtn.id = 'lr_ctrl_new';
-    newBtn.style.flex = '1';
-    styleButton(newBtn,true);
+    const newBtn = document.createElement('button'); newBtn.id = 'lr_ctrl_new'; newBtn.style.flex = '1'; styleButton(newBtn,true);
     newBtn.textContent = 'Nueva';
     newBtn.onclick = function(){ newSessionFlow(); };
     controls.appendChild(newBtn);
@@ -130,7 +121,7 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
   function updatePauseButton(){ const btn = document.getElementById('lr_ctrl_pause'); if(!btn) return; btn.textContent = sessionPaused ? 'Continuar' : 'Pausar'; }
   function updateTimerDisplay(){ const el = document.getElementById('lr_ctrl_timer'); if(el) el.textContent = remainingSeconds === Infinity ? '∞' : formatTime(remainingSeconds); }
 
-  // --- LÓGICA DE SESIÓN ---
+  // --- SESSION LOGIC ---
   function startSession(seconds){
     try {
       sessionActive = true; sessionPaused = false;
@@ -147,18 +138,21 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
           updateTimerDisplay();
           if(remainingSeconds <= 0){ stopSession(); showToast('Sesión completada'); }
         }, 1000);
-      } else { updateTimerDisplay(); }
+      } else {
+        updateTimerDisplay();
+      }
+
       showSessionControls();
     } catch(e){ console.error('startSession error', e); }
   }
 
-  function pauseSession(){ if(!sessionActive) return; sessionPaused=true; clearInterval(sessionInterval); try { window.lr_helpers?.stopBreathFlow?.(); window.lr_helpers?.stopAmbient?.(); } catch(e){} showToast('Sesión pausada'); updatePauseButton(); }
-  function resumeSession(){ if(!sessionActive) return; sessionPaused=false; if(remainingSeconds !== Infinity){ sessionEndsAt = Date.now() + remainingSeconds * 1000; clearInterval(sessionInterval); sessionInterval = setInterval(function(){ if(!sessionActive || sessionPaused) return; remainingSeconds = Math.max(0, Math.ceil((sessionEndsAt - Date.now())/1000)); updateTimerDisplay(); if(remainingSeconds <= 0){ stopSession(); showToast('Sesión completada'); } }, 1000); } try { window.lr_helpers?.startBreathFlow?.(); window.lr_helpers?.resumeAudio?.(); } catch(e){} showToast('Sesión reanudada'); updatePauseButton(); }
+  function pauseSession(){ if(!sessionActive) return; sessionPaused = true; clearInterval(sessionInterval); try { window.lr_helpers?.stopBreathFlow?.(); window.lr_helpers?.stopAmbient?.(); } catch(e){} showToast('Sesión pausada'); updatePauseButton(); }
+  function resumeSession(){ if(!sessionActive) return; sessionPaused = false; if(remainingSeconds !== Infinity){ sessionEndsAt = Date.now() + remainingSeconds * 1000; clearInterval(sessionInterval); sessionInterval = setInterval(function(){ if(!sessionActive || sessionPaused) return; remainingSeconds = Math.max(0, Math.ceil((sessionEndsAt - Date.now())/1000)); updateTimerDisplay(); if(remainingSeconds <= 0){ stopSession(); showToast('Sesión completada'); } }, 1000); } try { window.lr_helpers?.startBreathFlow?.(); window.lr_helpers?.resumeAudio?.(); } catch(e){} showToast('Sesión reanudada'); updatePauseButton(); }
   function togglePause(){ if(sessionPaused) resumeSession(); else pauseSession(); }
-  function stopSession(){ sessionActive=false; sessionPaused=false; clearInterval(sessionInterval); try { window.lr_helpers?.stopBreathFlow?.(); window.lr_helpers?.stopAmbient?.(); } catch(e){} removeSessionControls(); showToast('Sesión detenida'); }
+  function stopSession(){ sessionActive = false; sessionPaused = false; clearInterval(sessionInterval); try { window.lr_helpers?.stopBreathFlow?.(); window.lr_helpers?.stopAmbient?.(); } catch(e){} removeSessionControls(); showToast('Sesión detenida'); }
   function newSessionFlow(){ stopSession(); setTimeout(function(){ document.getElementById('settings_menu')?.click(); }, 200); }
 
-  // --- INYECCIÓN EN MODAL / CARD ---
+  // --- INJECTION HELPERS ---
   function clearStaleFlag(card){
     if(!card) return;
     const hasSelect = !!card.querySelector('[data-lr="session-select"]');
@@ -377,53 +371,6 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
 
       // Now inject the settings UI into the card
       const injected = (injectSettingsUIInto(card) || injectSettingsUIInto(wrapper) || injectSettingsUIInto(document.body));
-
-      // Robust handling: normalize aliases and apply preset programmatically (works even if preset buttons hidden)
-      try {
-        const aliasMap = {
-          'suave':'calm',
-          'profunda':'478',
-          'hotfix':'478',
-          'calm':'calm',
-          'calma':'calm',
-          'slow':'slow',
-          'lento':'slow',
-          'box':'box',
-          '478':'478'
-        };
-
-        const suggestedRaw = (opts && opts.suggestedType) ? opts.suggestedType : (wrapper.dataset.suggestedType || (window.CLIENT_USER && window.CLIENT_USER.suggestedBreathingType) || null);
-        const suggested = suggestedRaw ? (aliasMap[String(suggestedRaw).toLowerCase()] || String(suggestedRaw)) : null;
-
-        if (suggested) {
-          // Prefer using canonical helper to apply pattern immediately
-          try {
-            if (window.lr_helpers && typeof window.lr_helpers.setBreathPattern === 'function') {
-              window.lr_helpers.setBreathPattern(suggested);
-            }
-          } catch(e){}
-
-          // Try to click preset button if present (for visual feedback) — only works when preset buttons rendered
-          try {
-            const presetLabel = PRESET_LABELS[suggested];
-            if (presetLabel) {
-              const presetBtn = Array.from(card.querySelectorAll('button')).find(b => (b.textContent||'').toLowerCase().trim() === presetLabel.toLowerCase().trim());
-              if (presetBtn) presetBtn.click();
-            }
-          } catch(e){}
-
-          // Map preset -> seconds and set select value if present
-          const PRESET_TO_SECONDS = { box: 180, calm: 180, slow: 180, '478': 60 };
-          try {
-            const sel = card.querySelector('[data-lr="session-select"], select');
-            if (sel && PRESET_TO_SECONDS[suggested]) {
-              sel.value = String(PRESET_TO_SECONDS[suggested]);
-              sel.dispatchEvent(new Event('change', { bubbles: true }));
-            }
-          } catch(e){}
-        }
-      } catch (e) {}
-
       // wire cleanup: when a start button inside this card is clicked, remove wrapper after short delay
       try {
         const startBtn = card.querySelector('[data-lr="session-start"], [id^="lr_session_start_btn_"]');
@@ -444,23 +391,111 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
       if(opts && opts.suggestedType) wrapper.dataset.suggestedType = opts.suggestedType;
       wrapper.setAttribute('aria-hidden','false');
 
+      // Process any queued openSessionModal calls that arrived before initialization
+      try {
+        if (Array.isArray(window.__lr_openSession_queue) && window.__lr_openSession_queue.length) {
+          const q = window.__lr_openSession_queue.slice(0);
+          window.__lr_openSession_queue = [];
+          q.forEach(function(o){
+            try { // openSessionModal is now defined: call it for queued opts
+              if (o && typeof o === 'object') {
+                // open a separate ephemeral modal for each queued call, but avoid spamming if many: call openSessionModal(o)
+                // Note: to avoid recursive queueing, call the real openSessionModal after a short delay
+                setTimeout(()=>{ try{ window.openSessionModal(o); }catch(e){ console.warn('queued openSessionModal failed', e); } }, 150);
+              } else {
+                setTimeout(()=>{ try{ window.openSessionModal({}); }catch(e){ console.warn('queued openSessionModal failed', e); } }, 150);
+              }
+            } catch(e){ console.warn('processing queued openSessionModal item failed', e); }
+          });
+        }
+      } catch(e){ console.warn('flush queue failed', e); }
+
       return wrapper;
     } catch(e){ console.error('openSessionModal failed', e); return null; }
   };
 
-  // Drain any queued openSessionModal calls that happened before the real implementation loaded
-  try {
-    if (Array.isArray(window.__lr_openSession_queue) && window.__lr_openSession_queue.length) {
-      // Copy and clear first to avoid re-entrancy issues
-      const q = window.__lr_openSession_queue.slice(0);
-      window.__lr_openSession_queue = [];
-      q.forEach(function(o){
-        try { window.openSessionModal(o); } catch(e){ console.warn('drain openSessionModal queue failed', e); }
-      });
-    }
-  } catch(e){ console.warn('draining openSessionModal queue failed', e); }
-
-  // Initial attempts
+  // initial attempts
   try{ ensureFloatingHotfix(); }catch(e){}
   try{ tryInjectNow(); }catch(e){}
-})();
+
+  // helper functions defined after usage to keep structure tidy
+  function tryInjectNow(){ // lightweight wrapper with same behavior
+    (async function(){
+      const modalIds = ['_lr_settings_modal', '_settings_modal', 'settings_modal'];
+      for(let i=0;i<modalIds.length;i++){
+        const id = modalIds[i];
+        const m = document.getElementById(id);
+        if(m){
+          if(isVisible(m)){ injectSettingsUIInto(m); } else { await waitForVisible(m, 3000); injectSettingsUIInto(m); }
+          return;
+        }
+      }
+      const candidate = document.querySelector('.lr-modal-card');
+      if(candidate){ if (!candidate.closest || !candidate.closest('#lr-user-modal') ) { injectSettingsUIInto(candidate.parentElement || candidate); } }
+    })();
+  }
+
+  async function waitForVisible(node, timeout){
+    timeout = timeout || 6000;
+    return new Promise(function(resolve){
+      if(!node) return resolve(false);
+      if(isVisible(node)) return resolve(true);
+      const mo = new MutationObserver(function(){
+        if(isVisible(node)){ try{ mo.disconnect(); }catch(e){}; clearTimeout(t); resolve(true); }
+      });
+      mo.observe(node, { attributes:true, attributeFilter:['class','style'], subtree:false });
+      const t = setTimeout(function(){ try{ mo.disconnect(); }catch(e){}; resolve(false); }, timeout);
+    });
+  }
+
+  // reuse ensureFloatingHotfix declared earlier (it needs to be here as function for clarity)
+  function ensureFloatingHotfix(){
+    if (window.ALLOW_HOTFIX_UI !== true) return;
+    if(document.querySelector('[data-lr="session-select"]')) return;
+    if(document.getElementById('__lr_hotfix_floating')) return;
+
+    const wrap = document.createElement('div');
+    wrap.id = '__lr_hotfix_floating';
+    wrap.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:2147483646;pointer-events:auto;display:flex;gap:8px;align-items:center;background:transparent';
+
+    const sel = document.createElement('select');
+    SESSION_OPTIONS.forEach(function(o){
+      const opt = document.createElement('option'); opt.value = String(o.seconds); opt.textContent = o.label; sel.appendChild(opt);
+    });
+    sel.style.cssText = 'padding:6px;border-radius:8px;border:1px solid rgba(0,0,0,0.08);background:white';
+
+    const btn = document.createElement('button');
+    btn.textContent = 'Iniciar sesión (hotfix)';
+    btn.style.cssText = 'padding:10px;border-radius:8px;border:none;background:#56c0ff;color:#00303a;font-weight:700;cursor:pointer';
+    btn.onclick = function(){ const s = parseInt(sel.value||'0',10) || 0; if(window.lr_breathSessions && typeof window.lr_breathSessions.startSession==='function'){ window.lr_breathSessions.startSession(s); } else { fallbackLocalSession(s); } };
+
+    const close = document.createElement('button');
+    close.textContent = 'Cerrar';
+    close.style.cssText = 'padding:6px;border-radius:8px;border:1px solid rgba(0,0,0,0.06);background:white;cursor:pointer';
+    close.onclick = function(){ wrap.remove(); };
+
+    wrap.appendChild(sel);
+    wrap.appendChild(btn);
+    wrap.appendChild(close);
+    document.body.appendChild(wrap);
+  }
+
+  // expose (already set earlier for compatibility)
+  window.lr_breathSessions_inject = injectSettingsUIInto;
+  window.lr_breathSessions = { startSession: startSession, stopSession: stopSession, pauseSession: pauseSession, resumeSession: resumeSession };
+
+  // Mutation observer to detect modals (already established above)
+  // Attach settings menu listener
+  (function attachListener(){
+    const btn = document.getElementById('settings_menu');
+    if(btn && !btn.dataset._lr_settings_attached){
+      btn.dataset._lr_settings_attached = '1';
+      btn.addEventListener('click', function(){ setTimeout(function(){ tryInjectNow(); }, 160); });
+      return true;
+    }
+    // fallback observe
+    const mo = new MutationObserver(function(){ const b = document.getElementById('settings_menu'); if(b && !b.dataset._lr_settings_attached){ attachListener(); mo.disconnect(); } });
+    mo.observe(document.body, { childList:true, subtree:true });
+  })();
+
+})(); 
