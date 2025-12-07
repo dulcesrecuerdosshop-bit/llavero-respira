@@ -532,3 +532,44 @@
   }catch(e){}
 
 })(); 
+// ===== Integration with respiracionInteligente (append) =====
+(function(){
+  function prepareClientBreathUI(containerSelector) {
+    try {
+      var container = document.querySelector(containerSelector || '.breathing-suggestion');
+      if (!container) return;
+      // create if not exists simple UI
+      var html = '<p class="suggest-text">Te puede venir bien respirar un momento</p>' +
+                 '<div class="duration-select">' +
+                   '<label><input type="radio" name="dur" value="1" checked>1 min</label>' +
+                   '<label><input type="radio" name="dur" value="3">3 min</label>' +
+                   '<label><input type="radio" name="dur" value="5">5 min</label>' +
+                 '</div>' +
+                 '<button class="btn-primary" id="lr_start_breath">Iniciar sesión</button>' +
+                 '<div id="lr_breath_preview" style="display:none;margin-top:8px;"></div>';
+      container.innerHTML = html;
+      var startBtn = container.querySelector('#lr_start_breath');
+      var getDuration = function(){
+        var sel = container.querySelector('input[name="dur"]:checked');
+        return sel ? Number(sel.value) : 1;
+      };
+      var currentSession = null;
+      startBtn.addEventListener('click', function(){
+        var client = window.CLIENT_USER || JSON.parse(localStorage.getItem('lr_client_runtime_user') || '{}');
+        var suggested = client && client.suggestedBreathingType ? client.suggestedBreathingType : null;
+        currentSession = window.RespiracionInteligente.createSession({
+          suggestedType: suggested,
+          duration: getDuration(),
+          onTick: function(sec){ var p=document.getElementById('lr_breath_preview'); if(p) { p.style.display='block'; p.textContent = 'Tiempo restante: ' + sec + 's'; } },
+          onFinish: function(){ var p=document.getElementById('lr_breath_preview'); if(p) { p.textContent = 'Sesión finalizada'; setTimeout(()=>p.style.display='none',2000); } },
+          onRender: function(info){ console.log('render animation for preset', info.preset); }
+        });
+        // only starts when user clicked (we are in the click handler)
+        if (currentSession) currentSession.start();
+      });
+    } catch(e){ console.warn('prepareClientBreathUI failed', e); }
+  }
+
+  // expose
+  window.prepareClientBreathUI = prepareClientBreathUI;
+})();
