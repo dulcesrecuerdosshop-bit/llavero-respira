@@ -1,10 +1,8 @@
-// BREATH SESSIONS — implementación completa con guardas para NO inyectar en lr-user-modal
-// Cambios principales:
-// - tryInjectNow: no incluye 'lr-user-modal' en modalIds
-// - injectSettingsUIInto: comprueba y evita inyectar en nodos .welcome / lr-user-modal
-// - buildSettingsBlock: presets se crean solo si window.ALLOW_HOTFIX_UI === true
-// - Añadido: modal persistente #lr-session-modal y window.openSessionModal
-// - Añadido: binder para botón del menú '#breathBtn_menu' y '#breathBtn' si existe
+// BREATH SESSIONS — versión ajustada para evitar duplicados de UI
+// - No crea un modal persistente por defecto
+// - Expone window.openSessionModal(opts) que construye on-demand un modal usando buildSettingsBlock()
+// - No inyecta en lr-user-modal (welcome)
+// - Presets visibles solo si window.ALLOW_HOTFIX_UI === true
 
 (function(){
   if (window._lr_breath_sessions_loaded_permanent) return;
@@ -47,7 +45,6 @@
     if(typeof window.lr_showToast === 'function'){
       try { window.lr_showToast(msg); return; } catch(e){}
     }
-    // fallback simple
     console.log('Toast:', msg);
   }
 
@@ -320,7 +317,6 @@
     h3p.style.fontWeight = '700';
     h3p.style.marginBottom = '8px';
     h3p.textContent = 'Presets de respiración';
-    // Append header first (can be removed later if presets suppressed)
     container.appendChild(h3p);
 
     // --- ONLY ADD PRESETS WHEN ALLOW_HOTFIX_UI IS TRUE ---
@@ -344,7 +340,6 @@
 
       container.appendChild(wrap);
     } else {
-      // If presets suppressed, remove the header we added
       try { h3p.remove(); } catch(e){}
     }
 
@@ -360,18 +355,14 @@
   function injectSettingsUIInto(target){
     // target puede ser modal Element, card Element o ShadowRoot
     try {
-      // Prevención global: si ya existe un control en la página evitamos crear otro
       const alreadyGlobal = document.querySelector('[data-lr="session-select"]');
       if(alreadyGlobal){
         if(target && (target instanceof Element) && target.contains(alreadyGlobal)) return false;
         return false;
       }
 
-      // SECURITY: do not inject into welcome/modal of welcome flow
       if (target && target instanceof Element) {
-        // if it's the lr-user-modal or a node inside .welcome do not inject
         if (target.id === 'lr-user-modal' || target.closest && target.closest('.welcome')) {
-          // skip injection in welcome modal intentionally
           return false;
         }
       }
@@ -393,7 +384,6 @@
       const built = buildSettingsBlock(card);
       card.appendChild(built.container);
       try { card.dataset.sessionsLoaded = "1"; } catch(e){ card.setAttribute('data-sessions-loaded','1'); }
-      // remove floating hotfix if present
       const hf = document.getElementById('__lr_hotfix_floating'); if(hf) hf.remove();
       window.__lr_last_session_ids = { selectId: built.selectId, startId: built.startId, presetsId: built.presetsId, uid: built.uid };
       return true;
@@ -449,7 +439,6 @@
         return;
       }
     }
-    // fallback: intentar .lr-modal-card global (but skip welcome)
     const candidate = document.querySelector('.lr-modal-card');
     if(candidate){
       if (!candidate.closest || !candidate.closest('#lr-user-modal') ) {
@@ -493,7 +482,6 @@
 
   // --- HOTFIX FLOTANTE (solo si NO hay un control de sesión ya) ---
   function ensureFloatingHotfix(){
-    // Respect allow flag: only create floating hotfix if explicit opt-in
     if (window.ALLOW_HOTFIX_UI !== true) return;
 
     if(document.querySelector('[data-lr="session-select"]')) return;
@@ -535,76 +523,6 @@
 
     document.body.appendChild(wrap);
   }
-
-  // create persistent session modal (so we always have a consistent place for sessions)
-  (function createPersistentSessionModal(){
-    if (document.getElementById('lr-session-modal')) return;
-    try {
-      const modal = document.createElement('div');
-      modal.id = 'lr-session-modal';
-      modal.className = 'lr-user-modal hidden';
-      modal.style.zIndex = 14001;
-      modal.innerHTML = `
-        <div class="lr-modal-card" role="document" aria-labelledby="lr-session-title" style="max-width:520px;">
-          <button class="lr-modal-close" aria-label="Cerrar" id="lr-session-close">&times;</button>
-          <h2 id="lr-session-title" class="lr-modal-title">Sesión de respiración</h2>
-          <div class="lr-modal-message" id="lr-session-message">Elige duración y pulsa Iniciar cuando estés listo/a.</div>
-          <div style="margin-top:12px;">
-            <label style="display:block;margin-bottom:8px;font-weight:700;color:var(--muted)">Duración</label>
-            <select id="lr-session-duration" style="width:100%;padding:10px;border-radius:10px;border:1px solid rgba(0,0,0,0.08);font-size:1rem">
-              <option value="60">1 minuto</option>
-              <option value="180">3 minutos</option>
-              <option value="300">5 minutos</option>
-            </select>
-            <button id="lr-session-start" style="width:100%;margin-top:12px;padding:12px;border-radius:10px;border:none;background:linear-gradient(90deg,#77c8ff,#a4e6c6);color:#012e3a;font-weight:800;cursor:pointer">Iniciar sesión</button>
-            <div id="lr-session-preview" style="margin-top:10px;color:var(--muted);display:none"></div>
-          </div>
-        </div>
-      `;
-      document.body.appendChild(modal);
-      modal.querySelector('#lr-session-close').addEventListener('click', ()=>{ modal.classList.add('hidden'); modal.setAttribute('aria-hidden','true'); });
-
-      // start handler (uses RespiracionInteligente if available)
-      modal.querySelector('#lr-session-start').addEventListener('click', function(){
-        try {
-          const dur = parseInt(document.getElementById('lr-session-duration').value,10) || 60;
-          const suggested = modal.dataset && modal.dataset.suggestedType ? modal.dataset.suggestedType : null;
-          if (window.RespiracionInteligente && typeof window.RespiracionInteligente.createSession === 'function') {
-            const minutes = Math.max(1, Math.round(dur/60));
-            const ses = window.RespiracionInteligente.createSession({
-              suggestedType: suggested,
-              duration: minutes,
-              onTick: function(sec){ var p=document.getElementById('lr-session-preview'); if(p){ p.style.display='block'; p.textContent = 'Tiempo restante: ' + sec + 's'; } },
-              onFinish: function(){ var p=document.getElementById('lr-session-preview'); if(p){ p.textContent='Sesión finalizada'; setTimeout(()=>p.style.display='none',2000); } }
-            });
-            ses.start();
-            modal.classList.add('hidden');
-            return;
-          }
-          if (window.lr_breathSessions && typeof window.lr_breathSessions.startSession === 'function') {
-            window.lr_breathSessions.startSession(dur);
-            modal.classList.add('hidden');
-            return;
-          }
-          fallbackLocalSession && typeof fallbackLocalSession === 'function' ? fallbackLocalSession(dur) : showToast('No hay motor de respiración disponible');
-        } catch(e){ console.error('session modal start handler failed', e); }
-      });
-
-      window.openSessionModal = function(opts){ opts = opts || {}; modal.dataset.suggestedType = opts.suggestedType || ''; document.getElementById('lr-session-message').textContent = opts.message || 'Elige duración y pulsa iniciar'; modal.classList.remove('hidden'); modal.setAttribute('aria-hidden','false'); };
-      // bind menu button if present
-      function bindMenuBtn(){
-        const b = document.getElementById('breathBtn_menu') || document.getElementById('breathBtn') || document.querySelector('[data-action="breath"]');
-        if(b && !b.dataset._lr_breath_bound){
-          b.dataset._lr_breath_bound = '1';
-          b.addEventListener('click', function(e){ try { e.preventDefault && e.preventDefault(); window.openSessionModal({ suggestedType: (window.CLIENT_USER && window.CLIENT_USER.suggestedBreathingType) || null, message: '¿Quieres empezar una breve sesión?' }); } catch(err){ console.warn(err); } });
-        }
-      }
-      bindMenuBtn();
-      // observe for dynamic menu
-      const mo = new MutationObserver(function(){ bindMenuBtn(); });
-      mo.observe(document.body, { childList:true, subtree:true });
-    } catch(e){ console.warn('createPersistentSessionModal failed', e); }
-  })();
 
   // Exponer API global
   window.lr_breathSessions_inject = injectSettingsUIInto;
