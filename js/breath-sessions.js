@@ -1,9 +1,11 @@
-// BREATH SESSIONS — implementación completa, robusta y sin duplicados
-// - Genera ids únicos
-// - Evita reinyecciones duplicadas (check global)
-// - Limpia flags stale (data-sessionsLoaded)
-// - Expon API window.lr_breathSessions y lr_breathSessions_inject
-// - Hotfix flotante opcional si la inyección en modal falla
+// BREATH SESSIONS — implementación completa con guardas para NO inyectar en lr-user-modal
+// Cambios principales:
+// - tryInjectNow: no incluye 'lr-user-modal' en modalIds
+// - injectSettingsUIInto: comprueba y evita inyectar en nodos .welcome / lr-user-modal
+// - buildSettingsBlock: presets se crean solo si window.ALLOW_HOTFIX_UI === true
+// - Añadido: modal persistente #lr-session-modal y window.openSessionModal
+// - Añadido: binder para botón del menú '#breathBtn_menu' y '#breathBtn' si existe
+
 (function(){
   if (window._lr_breath_sessions_loaded_permanent) return;
   window._lr_breath_sessions_loaded_permanent = true;
@@ -294,7 +296,7 @@
     startBtn.id = startId;
     startBtn.dataset.lr = 'session-start';
     startBtn.type = 'button';
-    startBtn.style.cssText = 'width:100%;margin-top:12px;padding:10px;border:none;border-radius:10px;font-weight:700;font-size:1rem;background:linear-gradient(90deg,#77c8ff,#a4e6c6);color:#012e3a;cursor:pointer';
+    startBtn.style.cssText = 'width:100%;margin-top:12px;padding:10px;border:none;border-radius:10px;font-weight:700;font-size:1rem;background:linear-gradient(90deg,#77c8ff,#a4e6c6);color:#012e3a';
     startBtn.textContent = 'Iniciar sesión';
     startBtn.addEventListener('click', function(ev){
       try { ev.stopPropagation && ev.stopPropagation(); } catch(e){}
@@ -318,26 +320,33 @@
     h3p.style.fontWeight = '700';
     h3p.style.marginBottom = '8px';
     h3p.textContent = 'Presets de respiración';
+    // Append header first (can be removed later if presets suppressed)
     container.appendChild(h3p);
 
-    const wrap = document.createElement('div');
-    wrap.id = presetsId;
-    wrap.dataset.lr = 'preset-wrap';
-    wrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:10px';
+    // --- ONLY ADD PRESETS WHEN ALLOW_HOTFIX_UI IS TRUE ---
+    if (window.ALLOW_HOTFIX_UI === true) {
+      const wrap = document.createElement('div');
+      wrap.id = presetsId;
+      wrap.dataset.lr = 'preset-wrap';
+      wrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:10px';
 
-    Object.keys(PRESET_LABELS).forEach(function(k){
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.textContent = PRESET_LABELS[k];
-      btn.style.cssText = 'padding:8px 12px;border-radius:10px;font-weight:600;background:white;border:1px solid rgba(0,0,0,0.08);cursor:pointer';
-      btn.addEventListener('click', function(){
-        try { window.lr_helpers?.setBreathPattern && window.lr_helpers.setBreathPattern(k); } catch(e){}
-        try { window.lr_showToast && window.lr_showToast('Preset aplicado: ' + PRESET_LABELS[k]); } catch(e){}
+      Object.keys(PRESET_LABELS).forEach(function(k){
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = PRESET_LABELS[k];
+        btn.style.cssText = 'padding:8px 12px;border-radius:10px;font-weight:600;background:white;border:1px solid rgba(0,0,0,0.08);cursor:pointer';
+        btn.addEventListener('click', function(){
+          try { window.lr_helpers?.setBreathPattern && window.lr_helpers.setBreathPattern(k); } catch(e){}
+          try { window.lr_showToast && window.lr_showToast('Preset aplicado: ' + PRESET_LABELS[k]); } catch(e){}
+        });
+        wrap.appendChild(btn);
       });
-      wrap.appendChild(btn);
-    });
 
-    container.appendChild(wrap);
+      container.appendChild(wrap);
+    } else {
+      // If presets suppressed, remove the header we added
+      try { h3p.remove(); } catch(e){}
+    }
 
     return {
       container: container,
@@ -354,9 +363,17 @@
       // Prevención global: si ya existe un control en la página evitamos crear otro
       const alreadyGlobal = document.querySelector('[data-lr="session-select"]');
       if(alreadyGlobal){
-        // Si ya está dentro del mismo target, no duplicar; si no, evitamos crear otra
         if(target && (target instanceof Element) && target.contains(alreadyGlobal)) return false;
         return false;
+      }
+
+      // SECURITY: do not inject into welcome/modal of welcome flow
+      if (target && target instanceof Element) {
+        // if it's the lr-user-modal or a node inside .welcome do not inject
+        if (target.id === 'lr-user-modal' || target.closest && target.closest('.welcome')) {
+          // skip injection in welcome modal intentionally
+          return false;
+        }
       }
 
       let card = null;
@@ -394,12 +411,12 @@
     const box = document.createElement('div');
     box.id = id;
     box.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:2147483647;background:#fff;border-radius:12px;padding:12px;box-shadow:0 8px 24px rgba(0,0,0,0.12)';
-    box.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center"><strong>Sesión (fallback)</strong><button id="'+id+'_close">✕</button></div><div id="'+id+'_timer" style="font-size:1.4rem;font-weight:700;text-align:center;margin:8px 0">--:--</div><div style="display:flex;gap:8px"><button id="'+id+'_stop" style="flex:1;padding:8px;border-radius:8px;background:#ff6b6b;border:none;color:white">Salir</button></div>';
+    box.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center"><strong>Sesión (fallback)</strong><button id="'+id+'_close">✕</button></div><div id="'+id+'_time">00:00</div><div style="margin-top:8px"><button id="'+id+'_stop">Detener</button></div>';
     document.body.appendChild(box);
     document.getElementById(id+'_close').onclick = function(){ box.remove(); clearInterval(window[id+'_interval']); };
     document.getElementById(id+'_stop').onclick = function(){ box.remove(); clearInterval(window[id+'_interval']); };
     let remaining = rem === Infinity ? Infinity : rem;
-    const timerEl = document.getElementById(id+'_timer');
+    const timerEl = document.getElementById(id+'_time');
     function draw(){ timerEl.textContent = remaining === Infinity ? '∞' : formatTime(remaining); }
     draw();
     if(remaining !== Infinity){
@@ -417,7 +434,8 @@
 
   // --- INTENTO AUTOMÁTICO DE INYECCIÓN ---
   async function tryInjectNow(){
-    const modalIds = ['_lr_settings_modal', 'lr-user-modal', '_settings_modal', 'settings_modal'];
+    // NOTE: intentionally exclude 'lr-user-modal' (welcome); we don't inject session UI there.
+    const modalIds = ['_lr_settings_modal', '_settings_modal', 'settings_modal'];
     for(let i=0;i<modalIds.length;i++){
       const id = modalIds[i];
       const m = document.getElementById(id);
@@ -431,10 +449,12 @@
         return;
       }
     }
-    // fallback: intentar .lr-modal-card global
+    // fallback: intentar .lr-modal-card global (but skip welcome)
     const candidate = document.querySelector('.lr-modal-card');
     if(candidate){
-      injectSettingsUIInto(candidate.parentElement || candidate);
+      if (!candidate.closest || !candidate.closest('#lr-user-modal') ) {
+        injectSettingsUIInto(candidate.parentElement || candidate);
+      }
     }
   }
 
@@ -473,7 +493,9 @@
 
   // --- HOTFIX FLOTANTE (solo si NO hay un control de sesión ya) ---
   function ensureFloatingHotfix(){
-    // si ya hay un control en la página, no crear hotfix
+    // Respect allow flag: only create floating hotfix if explicit opt-in
+    if (window.ALLOW_HOTFIX_UI !== true) return;
+
     if(document.querySelector('[data-lr="session-select"]')) return;
     if(document.getElementById('__lr_hotfix_floating')) return;
 
@@ -514,6 +536,76 @@
     document.body.appendChild(wrap);
   }
 
+  // create persistent session modal (so we always have a consistent place for sessions)
+  (function createPersistentSessionModal(){
+    if (document.getElementById('lr-session-modal')) return;
+    try {
+      const modal = document.createElement('div');
+      modal.id = 'lr-session-modal';
+      modal.className = 'lr-user-modal hidden';
+      modal.style.zIndex = 14001;
+      modal.innerHTML = `
+        <div class="lr-modal-card" role="document" aria-labelledby="lr-session-title" style="max-width:520px;">
+          <button class="lr-modal-close" aria-label="Cerrar" id="lr-session-close">&times;</button>
+          <h2 id="lr-session-title" class="lr-modal-title">Sesión de respiración</h2>
+          <div class="lr-modal-message" id="lr-session-message">Elige duración y pulsa Iniciar cuando estés listo/a.</div>
+          <div style="margin-top:12px;">
+            <label style="display:block;margin-bottom:8px;font-weight:700;color:var(--muted)">Duración</label>
+            <select id="lr-session-duration" style="width:100%;padding:10px;border-radius:10px;border:1px solid rgba(0,0,0,0.08);font-size:1rem">
+              <option value="60">1 minuto</option>
+              <option value="180">3 minutos</option>
+              <option value="300">5 minutos</option>
+            </select>
+            <button id="lr-session-start" style="width:100%;margin-top:12px;padding:12px;border-radius:10px;border:none;background:linear-gradient(90deg,#77c8ff,#a4e6c6);color:#012e3a;font-weight:800;cursor:pointer">Iniciar sesión</button>
+            <div id="lr-session-preview" style="margin-top:10px;color:var(--muted);display:none"></div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+      modal.querySelector('#lr-session-close').addEventListener('click', ()=>{ modal.classList.add('hidden'); modal.setAttribute('aria-hidden','true'); });
+
+      // start handler (uses RespiracionInteligente if available)
+      modal.querySelector('#lr-session-start').addEventListener('click', function(){
+        try {
+          const dur = parseInt(document.getElementById('lr-session-duration').value,10) || 60;
+          const suggested = modal.dataset && modal.dataset.suggestedType ? modal.dataset.suggestedType : null;
+          if (window.RespiracionInteligente && typeof window.RespiracionInteligente.createSession === 'function') {
+            const minutes = Math.max(1, Math.round(dur/60));
+            const ses = window.RespiracionInteligente.createSession({
+              suggestedType: suggested,
+              duration: minutes,
+              onTick: function(sec){ var p=document.getElementById('lr-session-preview'); if(p){ p.style.display='block'; p.textContent = 'Tiempo restante: ' + sec + 's'; } },
+              onFinish: function(){ var p=document.getElementById('lr-session-preview'); if(p){ p.textContent='Sesión finalizada'; setTimeout(()=>p.style.display='none',2000); } }
+            });
+            ses.start();
+            modal.classList.add('hidden');
+            return;
+          }
+          if (window.lr_breathSessions && typeof window.lr_breathSessions.startSession === 'function') {
+            window.lr_breathSessions.startSession(dur);
+            modal.classList.add('hidden');
+            return;
+          }
+          fallbackLocalSession && typeof fallbackLocalSession === 'function' ? fallbackLocalSession(dur) : showToast('No hay motor de respiración disponible');
+        } catch(e){ console.error('session modal start handler failed', e); }
+      });
+
+      window.openSessionModal = function(opts){ opts = opts || {}; modal.dataset.suggestedType = opts.suggestedType || ''; document.getElementById('lr-session-message').textContent = opts.message || 'Elige duración y pulsa iniciar'; modal.classList.remove('hidden'); modal.setAttribute('aria-hidden','false'); };
+      // bind menu button if present
+      function bindMenuBtn(){
+        const b = document.getElementById('breathBtn_menu') || document.getElementById('breathBtn') || document.querySelector('[data-action="breath"]');
+        if(b && !b.dataset._lr_breath_bound){
+          b.dataset._lr_breath_bound = '1';
+          b.addEventListener('click', function(e){ try { e.preventDefault && e.preventDefault(); window.openSessionModal({ suggestedType: (window.CLIENT_USER && window.CLIENT_USER.suggestedBreathingType) || null, message: '¿Quieres empezar una breve sesión?' }); } catch(err){ console.warn(err); } });
+        }
+      }
+      bindMenuBtn();
+      // observe for dynamic menu
+      const mo = new MutationObserver(function(){ bindMenuBtn(); });
+      mo.observe(document.body, { childList:true, subtree:true });
+    } catch(e){ console.warn('createPersistentSessionModal failed', e); }
+  })();
+
   // Exponer API global
   window.lr_breathSessions_inject = injectSettingsUIInto;
   window.lr_breathSessions = {
@@ -531,45 +623,4 @@
     tryInjectNow();
   }catch(e){}
 
-})(); 
-// ===== Integration with respiracionInteligente (append) =====
-(function(){
-  function prepareClientBreathUI(containerSelector) {
-    try {
-      var container = document.querySelector(containerSelector || '.breathing-suggestion');
-      if (!container) return;
-      // create if not exists simple UI
-      var html = '<p class="suggest-text">Te puede venir bien respirar un momento</p>' +
-                 '<div class="duration-select">' +
-                   '<label><input type="radio" name="dur" value="1" checked>1 min</label>' +
-                   '<label><input type="radio" name="dur" value="3">3 min</label>' +
-                   '<label><input type="radio" name="dur" value="5">5 min</label>' +
-                 '</div>' +
-                 '<button class="btn-primary" id="lr_start_breath">Iniciar sesión</button>' +
-                 '<div id="lr_breath_preview" style="display:none;margin-top:8px;"></div>';
-      container.innerHTML = html;
-      var startBtn = container.querySelector('#lr_start_breath');
-      var getDuration = function(){
-        var sel = container.querySelector('input[name="dur"]:checked');
-        return sel ? Number(sel.value) : 1;
-      };
-      var currentSession = null;
-      startBtn.addEventListener('click', function(){
-        var client = window.CLIENT_USER || JSON.parse(localStorage.getItem('lr_client_runtime_user') || '{}');
-        var suggested = client && client.suggestedBreathingType ? client.suggestedBreathingType : null;
-        currentSession = window.RespiracionInteligente.createSession({
-          suggestedType: suggested,
-          duration: getDuration(),
-          onTick: function(sec){ var p=document.getElementById('lr_breath_preview'); if(p) { p.style.display='block'; p.textContent = 'Tiempo restante: ' + sec + 's'; } },
-          onFinish: function(){ var p=document.getElementById('lr_breath_preview'); if(p) { p.textContent = 'Sesión finalizada'; setTimeout(()=>p.style.display='none',2000); } },
-          onRender: function(info){ console.log('render animation for preset', info.preset); }
-        });
-        // only starts when user clicked (we are in the click handler)
-        if (currentSession) currentSession.start();
-      });
-    } catch(e){ console.warn('prepareClientBreathUI failed', e); }
-  }
-
-  // expose
-  window.prepareClientBreathUI = prepareClientBreathUI;
 })();
