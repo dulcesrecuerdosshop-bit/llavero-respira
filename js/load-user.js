@@ -246,3 +246,34 @@
     else console.log('[load-user] no personalization found for id', id);
   });
 })();
+// ===== UX: client runtime helpers (append) =====
+// Provide a runtime CLIENT_USER object and save helper using localStorage.
+// This avoids writing server files in runtime and keeps UI state.
+(function(){
+  if (window.CLIENT_USER) return;
+  try {
+    // try to load ambient user object created by existing load logic
+    var user = window.CLIENT_USER || null;
+    if (!user) {
+      // try to read from users/llavero023.json data previously embedded or fetched
+      // If the app already fetches and assigns a global user, we keep it.
+      // fallback: read from localStorage
+      var stored = localStorage.getItem('lr_client_runtime_user');
+      if (stored) {
+        user = JSON.parse(stored);
+      } else {
+        user = window.CLIENT_USER || {}; // empty placeholder
+      }
+    }
+    window.CLIENT_USER = user;
+
+    window.saveClientRuntime = function(updated){
+      try {
+        window.CLIENT_USER = Object.assign({}, window.CLIENT_USER, updated);
+        localStorage.setItem('lr_client_runtime_user', JSON.stringify(window.CLIENT_USER));
+      } catch(e){ console.warn('saveClientRuntime failed', e); }
+    };
+  } catch(e){
+    console.warn('client runtime helper init failed', e);
+  }
+})();
