@@ -422,8 +422,19 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
     } catch(e){ console.error('openSessionModal failed', e); return null; }
   };
 
+  // Drain any queued openSessionModal calls that happened before the real implementation loaded
+  try {
+    if (Array.isArray(window.__lr_openSession_queue) && window.__lr_openSession_queue.length) {
+      // Copy and clear first to avoid re-entrancy issues
+      const q = window.__lr_openSession_queue.slice(0);
+      window.__lr_openSession_queue = [];
+      q.forEach(function(o){
+        try { window.openSessionModal(o); } catch(e){ console.warn('drain openSessionModal queue failed', e); }
+      });
+    }
+  } catch(e){ console.warn('draining openSessionModal queue failed', e); }
+
   // Initial attempts
   try{ ensureFloatingHotfix(); }catch(e){}
   try{ tryInjectNow(); }catch(e){}
-
 })();
