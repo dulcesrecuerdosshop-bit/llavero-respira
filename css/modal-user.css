@@ -1,5 +1,6 @@
 /* modal-user.css — modal de bienvenida modernizado y responsive
-   Ajustes menores: contraste, spacing y prioridad del contenido para móviles
+   Ajustes: contraste, spacing, prioridad del contenido para móviles,
+   integración de UI emocional y supresión visual del Hotfix (presets).
 */
 
 :root{
@@ -9,8 +10,13 @@
   --accent-start: #ffd166;
   --accent-end: #ff9a9e;
   --muted: rgba(255,255,255,0.85);
+  --btn-bg: rgba(255,255,255,0.04);
+  --btn-border: rgba(255,255,255,0.06);
+  --suggest-bg: linear-gradient(90deg, #ffd166, #ff9a9e);
+  --success: #7EC8A6;
 }
 
+/* Modal container */
 .lr-user-modal{
   position: fixed;
   inset: 0;
@@ -24,8 +30,10 @@
   backdrop-filter: blur(6px) saturate(120%);
 }
 
+/* Hidden state */
 .lr-user-modal.hidden{ display: none !important; pointer-events: none; }
 
+/* Card */
 .lr-modal-card{
   width: 100%;
   max-width: 720px;
@@ -40,11 +48,13 @@
   border: 1px solid rgba(255,255,255,0.03);
 }
 
+/* Entrance */
 @keyframes lr-modal-in {
   from { transform: translateY(8px) scale(.995); opacity: 0; }
   to { transform: translateY(0) scale(1); opacity: 1; }
 }
 
+/* Close button */
 .lr-modal-close{
   position: absolute;
   right: 12px;
@@ -58,6 +68,7 @@
   border-radius: 8px;
 }
 
+/* Title & message */
 .lr-modal-title{
   margin: 6px 0 8px 0;
   font-size: 1.25rem;
@@ -72,6 +83,7 @@
   line-height: 1.45;
 }
 
+/* Actions row */
 .lr-modal-actions{
   display:flex;
   gap:10px;
@@ -81,24 +93,122 @@
 .lr-btn{
   padding:10px 14px;
   border-radius:12px;
-  border:1px solid rgba(255,255,255,0.06);
-  background:transparent;
+  border:1px solid var(--btn-border);
+  background:var(--btn-bg);
   color:#fff;
   cursor:pointer;
   font-weight:700;
   min-height:44px;
 }
 .lr-btn.primary{
-  background: linear-gradient(90deg, var(--accent-start), var(--accent-end));
+  background: var(--suggest-bg);
   color:#072032;
   border:none;
 }
 
+/* --- New: Mood question area (personalización) --- */
+.lr-mood{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  margin-top:8px;
+}
+.lr-mood-prompt{
+  font-weight:700;
+  font-size:1rem;
+  color:#fff;
+  margin-bottom:6px;
+}
+.lr-mood-buttons{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+}
+.lr-mood-btn{
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--btn-border);
+  padding: 10px 12px;
+  border-radius: 12px;
+  color: #fff;
+  cursor: pointer;
+  font-weight:700;
+  min-width: calc(50% - 8px);
+  text-align:center;
+}
+.lr-mood-btn:active, .lr-mood-btn:focus { outline: 3px solid rgba(255,209,102,0.18); outline-offset: 3px; }
+
+/* Suggestion area (shows when suggestedBreathingType != null) */
+.breathing-suggestion{
+  margin-top:14px;
+  display:none; /* initially hidden; JS shows it if suggestedBreathingType exists */
+  gap:12px;
+}
+.breathing-suggestion .suggest-text{
+  font-weight:600;
+  color: #fff;
+  margin-bottom:8px;
+}
+.duration-select{ display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap; }
+.duration-select label{
+  background: rgba(255,255,255,0.03);
+  border:1px solid var(--btn-border);
+  padding:8px 10px;
+  border-radius:10px;
+  cursor:pointer;
+  color:#fff;
+  font-weight:700;
+}
+#lr_start_breath{
+  display:inline-block;
+  padding:12px 16px;
+  border-radius:12px;
+  background: linear-gradient(90deg, #9be7d5, #7ec8a6);
+  border:none;
+  color:#072032;
+  font-weight:800;
+  cursor:pointer;
+}
+
+/* Preview area */
+#lr_breath_preview{
+  margin-top:10px;
+  color:var(--muted);
+}
+
+/* --- Suppress any Hotfix visual elements that could be injected into modal --- */
+/* These rules hide known hotfix containers inside modal; defensive: uses ids, classes and attribute heuristics */
+.lr-modal-card #__lr_hotfix_floating,
+.lr-modal-card .__lr_hotfix_floating,
+.lr-modal-card .lr-hotfix,
+.lr-modal-card .hotfix,
+.lr-modal-card .hotfix-presets,
+.lr-modal-card .presets,
+.lr-modal-card [data-hotfix],
+.lr-modal-card .hotfix-ui {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Also globally hide common preset controls if accidentally appended into DOM inside modal */
+.lr-modal-card .preset-button,
+.lr-modal-card .preset-list,
+.lr-modal-card .preset-control {
+  display: none !important;
+}
+
+/* Accessibility: ensure modal content contrasted */
+.lr-modal-card, .lr-modal-card * { -webkit-font-smoothing:antialiased; }
+
+/* responsive tweaks */
 @media (max-width:560px){
   .lr-modal-card{ padding:16px; max-width:92%; border-radius:12px; }
   .lr-modal-title{ font-size:1.05rem; }
   .lr-modal-message{ font-size:0.98rem; }
   .lr-modal-actions{ justify-content: center; gap:8px; flex-wrap:wrap; }
+  .lr-mood-btn{ min-width: 100%; }
 }
 
+/* focus outlines */
 .lr-btn:focus, .lr-modal-close:focus { outline: 3px solid rgba(255,209,102,0.2); outline-offset: 3px; }
