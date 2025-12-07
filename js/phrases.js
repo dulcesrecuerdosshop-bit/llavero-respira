@@ -1,85 +1,45 @@
-// phrases.js - delegador seguro a ClientPhrases (sin incluir el array gigante)
-// Este archivo prioriza usar window.ClientPhrases (si está disponible) en lugar
-// de contener el array completo. Mantiene fallback seguro y toda la lógica UI.
+// phrases.js - delegador seguro a ClientPhrases (sin array gigante en el propio archivo)
+// Este archivo prioriza usar window.ClientPhrases si está disponible.
+// Mantiene fallback pequeño y toda la lógica UI: mostrarFrase, showDailyPhraseInto,
+// manejo de fondos y detección automática de contraste para legibilidad.
 //
-// Reemplaza el archivo js/phrases.js por este contenido y asegúrate de que
-// clientPhrases.js se cargue ANTES de phrases.js en index.html.
+// Reemplaza js/phrases.js por este archivo completo. Después limpia cache / service worker
+// y recarga la página (ver instrucciones al final).
 
 (function () {
   'use strict';
 
   // ---------------------------------------------------------------------------
-  const frases = [
-`A veces lo único que necesitas es un momento contigo.
-Cerrar los ojos, inhalar profundo y soltar despacio.
-Escuchar tu cuerpo antes que el ruido de fuera.
-Respira. Vas mejor de lo que crees.
-Y mañana, aún mejor.`,
-
-`Hoy permítete no correr.
-No cumplir todas las expectativas, solo las tuyas.
-La vida no te pide que seas perfecta,
-te pide que sigas presente.
-Respira, vuelve a tu centro y continúa.`,
-
-`Tú también mereces lugares suaves.
-Pensamientos que no duelan, palabras que abracen.
-Hoy regálate calma sin sentir culpa.
-Respira despacio y recuerda:
-ser amable contigo también cuenta como avanzar.`,
-
-`No estás llegando tarde a nada.
-Estás justo en el punto donde tu alma aprende.
-Lo que no entiendes aún, mañana será claridad.
-Respira profundo y suelta la prisa.
-El camino también te está eligiendo a ti.`,
-
-`No importa cuántas veces te hayas desordenado.
-Puedes volver a acomodarte todas las que necesites.
-Respira, repara, recomienza.
-Tú tienes permiso para empezar lento.
-Y para empezar de nuevo.`,
-
-`Hoy intenta esto:
-pon tu mano en el pecho, siente tu ritmo.
-Ese latido eres tú recordándote que sigues aquí.
-Respira lento, agradece tu historia,
-y sigue con la cabeza alta.`,
-
-`Hay días en los que simplemente sostenerte ya es un logro.
-No hace falta demostrar nada a nadie.
-Solo respirar, poner un pie delante del otro
-y no soltar tu propia mano.
-Eso también es valentía.`,
-    
- ],
-    
+  // Construcción de la lista de frases delegando en ClientPhrases
   // ---------------------------------------------------------------------------
+
   function buildPhrasesFromClientPhrases() {
     try {
       if (!window.ClientPhrases || typeof window.ClientPhrases.get !== 'function') return null;
 
-      // 1) Si ClientPhrases expone una forma de obtener todos los elementos, usarla
+      // 1) Si hay método getAll() usarlo
       if (typeof window.ClientPhrases.getAll === 'function') {
         try {
           const all = window.ClientPhrases.getAll();
           if (Array.isArray(all) && all.length) return all.slice(0);
+        } catch (e) { /* ignore */ }
+      }
+
+      // 2) Si ClientPhrases expone categorías en propiedades conocidas, agregarlas
+      const possibleCatProps = ['categories', '_categories', '_cats', 'catList'];
+      for (const p of possibleCatProps) {
+        try {
+          if (Array.isArray(window.ClientPhrases[p]) && window.ClientPhrases[p].length) {
+            const acc = [];
+            window.ClientPhrases[p].forEach(c => {
+              try { const arr = window.ClientPhrases.get(c); if (Array.isArray(arr)) acc.push(...arr); } catch(e){}
+            });
+            if (acc.length) return acc;
+          }
         } catch(e){}
       }
 
-      // 2) Si ClientPhrases expone categorías, usarlas
-      const possibleCatProps = ['categories','_categories','_cats','catList'];
-      for (const p of possibleCatProps) {
-        if (Array.isArray(window.ClientPhrases[p]) && window.ClientPhrases[p].length) {
-          const acc = [];
-          window.ClientPhrases[p].forEach(c => {
-            try { const arr = window.ClientPhrases.get(c); if (Array.isArray(arr)) acc.push(...arr); } catch(e){}
-          });
-          if (acc.length) return acc;
-        }
-      }
-
-      // 3) Intentar deducir categorías llamando a get() con nombres comunes
+      // 3) Intentar obtener categorías comunes por nombre
       const commonCats = ['rutina','calma','validacion','bienvenida','crisis','amor','gratitud','autoayuda'];
       const acc = [];
       commonCats.forEach(c => {
@@ -87,14 +47,12 @@ Eso también es valentía.`,
       });
       if (acc.length) return acc;
 
-      // 4) Último intento: si ClientPhrases internamente almacena array en una propiedad no pública
+      // 4) Último recurso: explorar propiedades internas para encontrar arrays de strings
       try {
         for (const k in window.ClientPhrases) {
           if (!Object.prototype.hasOwnProperty.call(window.ClientPhrases, k)) continue;
           const v = window.ClientPhrases[k];
-          if (Array.isArray(v) && v.length && typeof v[0] === 'string') {
-            return v.slice(0);
-          }
+          if (Array.isArray(v) && v.length && typeof v[0] === 'string') return v.slice(0);
         }
       } catch(e){}
 
@@ -102,31 +60,31 @@ Eso también es valentía.`,
     } catch(e){ return null; }
   }
 
-  // Fallback pequeño si no hay ClientPhrases disponible por alguna razón
+  // Fallback seguro y pequeño (no rompe parse ni ocupa mucho)
   const SAFE_FALLBACK_PHRASES = [
     "Un breve recordatorio para ti.\nRespira y mira dentro.",
     "Respira hondo.\nSuelta suavemente.",
     "Hoy puedes empezar de nuevo.\nUn paso a la vez."
   ];
 
-  // Construimos window._phrases_list de manera segura
+  // Inicializar window._phrases_list de forma segura
   (function initPhrasesList(){
     try {
       const fromClient = buildPhrasesFromClientPhrases();
       if (Array.isArray(fromClient) && fromClient.length) {
         window._phrases_list = fromClient;
       } else {
-        // No hemos conseguido extraer las frases; usar fallback temporal
         window._phrases_list = SAFE_FALLBACK_PHRASES.slice(0);
       }
-    } catch(e) {
+    } catch(e){
       window._phrases_list = SAFE_FALLBACK_PHRASES.slice(0);
     }
   })();
 
   // ---------------------------------------------------------------------------
-  // Fondos por defecto (gradientes) y lista de imágenes candidatas
+  // Fondos y helpers (sin tocar la API que usa el resto de la app)
   // ---------------------------------------------------------------------------
+
   const gradientFondos = [
     "linear-gradient(135deg, #f6d365, #fda085)",
     "linear-gradient(135deg, #a1c4fd, #c2e9fb)",
@@ -141,10 +99,6 @@ Eso también es valentía.`,
     "assets/bg3.webp",
     "assets/bg4.webp"
   ];
-
-  // ---------------------------------------------------------------------------
-  // Helpers y renderizado (se mantienen como en tu versión estable)
-  // ---------------------------------------------------------------------------
 
   let fondosDisponibles = [...gradientFondos];
 
@@ -169,8 +123,7 @@ Eso también es valentía.`,
     } catch(e){ console.warn('[phrases] initFondos', e); }
   }
 
-  let lastIndex = -1;
-
+  // Aplicar fondo (imagen o gradient)
   function applyBackgroundToElement(el, bgValue){
     if (!el) return;
     if (/\.(jpe?g|png|webp|avif)$/i.test(bgValue)){
@@ -183,20 +136,25 @@ Eso también es valentía.`,
     }
   }
 
-  // detectContrastAndToggleDarkBg (igual que antes)
+  // ---------------------------------------------------------------------------------------------
+  // Detector de contraste para alternar .dark-bg en la tarjeta (mejora legibilidad)
   async function detectContrastAndToggleDarkBg(imageUrl, containerEl) {
     try {
       containerEl = containerEl || document.querySelector('.frase-card');
       if (!containerEl) return;
+
+      // si no es una imagen (gradient, data:) quitamos dark-bg
       if (!imageUrl || /\.(svg)$/i.test(imageUrl) || imageUrl.indexOf('data:') === 0) {
         containerEl.classList.remove('dark-bg');
         return;
       }
+
       const img = new Image();
       img.crossOrigin = 'Anonymous';
       const p = new Promise((resolve, reject) => { img.onload = () => resolve(); img.onerror = () => reject(new Error('img load error')); });
       img.src = imageUrl + (imageUrl.indexOf('?') === -1 ? '?t=' + Date.now() : '&t=' + Date.now());
       await p;
+
       const w = 40, h = 40;
       const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
       const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, w, h);
@@ -206,15 +164,22 @@ Eso también es valentía.`,
       const r = rSum / count, g = gSum / count, b = bSum / count;
       const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
       const isDark = luminance < 0.45;
+
       if (isDark) containerEl.classList.remove('dark-bg'); else containerEl.classList.add('dark-bg');
       try { canvas.width = canvas.height = 0; } catch(e){}
     } catch (e) {
+      // si falla por CORS o similar, forzamos dark-bg por seguridad (legibilidad)
       try { document.querySelector('.frase-card') && document.querySelector('.frase-card').classList.add('dark-bg'); } catch(_) {}
       console.warn('detectContrastAndToggleDarkBg failed', e);
     }
   }
+  // ---------------------------------------------------------------------------------------------
 
-  // mostrarFrase mantiene la lógica; usa window._phrases_list (ya construido arriba)
+  // ---------------------------------------------------------------------------
+  // Mostrar frase: usa window._phrases_list y prioriza PhraseSelector/ClientPhrases
+  // ---------------------------------------------------------------------------
+  let lastIndex = -1;
+
   function mostrarFrase() {
     const fEl = fraseEl();
     const bEl = bgEl();
@@ -230,7 +195,7 @@ Eso también es valentía.`,
       try {
         var chosenPhrase = frasesLocal.length ? frasesLocal[i] : SAFE_FALLBACK_PHRASES[0];
 
-        // Preferir PhraseSelector si está disponible (igual que antes)
+        // Priorizar PhraseSelector si devuelve algo útil
         var clientSnapshot = window.CLIENT_USER || (localStorage.getItem('lr_client_runtime_user') ? JSON.parse(localStorage.getItem('lr_client_runtime_user')) : {});
         if (window.PhraseSelector && typeof window.PhraseSelector.selectAndMark === 'function') {
           try {
@@ -244,7 +209,7 @@ Eso también es valentía.`,
           } catch(e){ console.warn('PhraseSelector.selectAndMark fallo, fallback', e); }
         }
 
-        // Fallback a ClientPhrases.random si no hay chosenPhrase legible
+        // Fallback a ClientPhrases.random si needed
         if ((!chosenPhrase || !chosenPhrase.trim()) && window.ClientPhrases && typeof window.ClientPhrases.random === 'function') {
           try {
             var estado = (clientSnapshot && clientSnapshot.estadoEmocionalActual) ? String(clientSnapshot.estadoEmocionalActual).toLowerCase() : '';
@@ -283,6 +248,7 @@ Eso también es valentía.`,
     }, 160);
   }
 
+  // Inicialización en DOMContentLoaded
   document.addEventListener('DOMContentLoaded', async () => {
     await initFondos();
     mostrarFrase();
@@ -291,5 +257,7 @@ Eso también es valentía.`,
     });
   });
 
+  // Exponer API pública esperada por otros scripts
   window.mostrarFrase = mostrarFrase;
+
 })();
