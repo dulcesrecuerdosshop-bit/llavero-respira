@@ -971,3 +971,56 @@ Hoy es una página en blanco; escribe algo amable.`,
   // map existing global call used by load-user.js
   window.mostrarFrase = function(){ return window.showDailyPhraseInto && window.showDailyPhraseInto('.frase-text'); };
 })();
+// ===== Integration: ensure fullscreen + persistent Respirar button (append) =====
+(function(){
+  function ensureFraseFullscreen(){
+    try {
+      const card = document.querySelector('.frase-card');
+      if (card && !card.classList.contains('fullscreen')) card.classList.add('fullscreen');
+    } catch(e){ console.warn('ensureFraseFullscreen failed', e); }
+  }
+
+  function ensureRespirarButton(){
+    try {
+      const fraseEl = document.querySelector('.frase-text');
+      if (!fraseEl) return;
+      if (document.getElementById('lr-open-session-btn')) return;
+      const btn = document.createElement('button');
+      btn.id = 'lr-open-session-btn';
+      btn.textContent = 'Respirar';
+      btn.style.cssText = 'margin-left:12px;padding:8px 12px;border-radius:10px;border:none;background:linear-gradient(90deg,#ffd166,#ff9a9e);color:#072032;font-weight:800;cursor:pointer';
+      btn.addEventListener('click', function(){
+        const suggested = window.CLIENT_USER && window.CLIENT_USER.suggestedBreathingType ? window.CLIENT_USER.suggestedBreathingType : null;
+        if (typeof window.openSessionModal === 'function') window.openSessionModal({ suggestedType: suggested, message: suggested ? 'Te sugerimos esta respiración' : 'Elige duración y pulsa iniciar' });
+        else console.warn('openSessionModal no disponible');
+      });
+      fraseEl.parentNode && fraseEl.parentNode.insertBefore(btn, fraseEl.nextSibling);
+    } catch(e){ console.warn('ensureRespirarButton failed', e); }
+  }
+
+  // expose helper to be called after phrase render
+  window.__lr_ensure_frase_ui = function(){
+    ensureFraseFullscreen();
+    ensureRespirarButton();
+  };
+
+  // if mostrarFrase or showDailyPhraseInto exist, wrap them to call our helper after they run
+  try {
+    if (typeof window.showDailyPhraseInto === 'function') {
+      const orig = window.showDailyPhraseInto;
+      window.showDailyPhraseInto = function(sel){
+        const r = orig.apply(this, arguments);
+        try { window.__lr_ensure_frase_ui(); } catch(e){}
+        return r;
+      };
+    }
+    if (typeof window.mostrarFrase === 'function') {
+      const orig2 = window.mostrarFrase;
+      window.mostrarFrase = function(){
+        const r = orig2.apply(this, arguments);
+        try { window.__lr_ensure_frase_ui(); } catch(e){}
+        return r;
+      };
+    }
+  } catch(e){ console.warn('wrap showDailyPhraseInto/mostrarFrase failed', e); }
+})();
