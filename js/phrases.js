@@ -10,7 +10,26 @@
   'use strict';
 
   // ---------------------------------------------------------------------------
-  // Construcción de la lista de frases delegando en ClientPhrases
+   const frases = [
+`A veces lo único que necesitas es un momento contigo.
+Cerrar los ojos, inhalar profundo y soltar despacio.
+Escuchar tu cuerpo antes que el ruido de fuera.
+Respira. Vas mejor de lo que crees.
+Y mañana, aún mejor.`,
+
+`Hoy permítete no correr.
+No cumplir todas las expectativas, solo las tuyas.
+La vida no te pide que seas perfecta,
+te pide que sigas presente.
+Respira, vuelve a tu centro y continúa.`,
+
+`Tú también mereces lugares suaves.
+Pensamientos que no duelan, palabras que abracen.
+Hoy regálate calma sin sentir culpa.
+Respira despacio y recuerda:
+ser amable contigo también cuenta como avanzar.`,
+ ];     
+
   // ---------------------------------------------------------------------------
 
   function buildPhrasesFromClientPhrases() {
