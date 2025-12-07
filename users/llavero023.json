@@ -1,4 +1,11 @@
 {
   "nombre": "María",
-  "mensaje": "Hola María — Éste es tu lugar seguro"
+  "mensaje": "Hola María — Éste es tu lugar seguro",
+  "estadoEmocionalActual": "neutral",
+  "nivelDeAnsiedad": 0,
+  "ultimaCategoriaMostrada": null,
+  "ultimaFechaMostrado": null,
+  "rachaDeLectura": 0,
+  "temaVisualActual": "neutral",
+  "suggestedBreathingType": null
 }
