@@ -1,6 +1,7 @@
 // js/load-user.js - carga personalización por id y gestiona modal de bienvenida (gestión segura del foco)
-// Versión corregida: asigna window.CLIENT_USER al cargar el usuario y normaliza campos emocionales,
-// además deja los helpers runtime ya incluidos al final (saveClientRuntime etc).
+// Versión adaptada: sustituida la plantilla del modal por la UI emocional solicitada,
+// y reemplazados los listeners de los botones por los nuevos handlers para estado emocional.
+// Todo lo demás del archivo original se mantiene intacto y en su sitio.
 
 (function () {
   'use strict';
@@ -60,23 +61,69 @@
     modal.setAttribute('role', 'dialog');
     modal.setAttribute('aria-modal', 'true');
 
+    // ===== REPLACED modal HTML: emotional UI (mood question + suggestion area) =====
     modal.innerHTML = `
       <div class="lr-modal-card" role="document" aria-labelledby="lr-modal-title">
         <button class="lr-modal-close" aria-label="Cerrar" tabindex="-1">&times;</button>
-        <h2 id="lr-modal-title" class="lr-modal-title">Bienvenido</h2>
+        <h2 id="lr-modal-title" class="lr-modal-title">Hola</h2>
         <div class="lr-modal-message" id="lr-modal-message">Mensaje</div>
+
+        <!-- Mood question -->
+        <div class="lr-mood" aria-label="¿Cómo te sientes?">
+          <div class="lr-mood-prompt">¿Cómo te sientes ahora mismo?</div>
+          <div class="lr-mood-buttons">
+            <button id="mood-bien" class="lr-mood-btn" type="button">Bien</button>
+            <button id="mood-tenso" class="lr-mood-btn" type="button">Tenso/a</button>
+            <button id="mood-ansiedad" class="lr-mood-btn" type="button">Con ansiedad</button>
+            <button id="mood-crisis" class="lr-mood-btn" type="button">Lo estoy pasando mal</button>
+          </div>
+        </div>
+
+        <!-- Suggestion area (JS shows it if suggestedBreathingType exists) -->
+        <div class="breathing-suggestion" aria-live="polite" role="region"></div>
+
         <div class="lr-modal-actions">
           <button id="lr-modal-view" class="lr-btn" tabindex="-1">Ver frase</button>
           <button id="lr-modal-go" class="lr-btn primary" tabindex="-1">Ir</button>
         </div>
       </div>
     `;
+    // ===== end replaced HTML =====
 
     // Event handlers
+    // NOTE: replaced the previous listeners with the new binding block below.
+    // We still define references to the modal controls here and attach the new listeners.
     const closeBtn = modal.querySelector('.lr-modal-close');
     const goBtn = modal.querySelector('#lr-modal-go');
     const viewBtn = modal.querySelector('#lr-modal-view');
 
+    // Mood buttons
+    const moodBien = modal.querySelector('#mood-bien');
+    const moodTenso = modal.querySelector('#mood-tenso');
+    const moodAnsiedad = modal.querySelector('#mood-ansiedad');
+    const moodCrisis = modal.querySelector('#mood-crisis');
+
+    function handleMoodChoice(updates) {
+      try {
+        // update runtime client and persist
+        window.saveClientRuntime && window.saveClientRuntime(updates);
+        // ensure window.CLIENT_USER reflects the change
+        try { window.CLIENT_USER = Object.assign({}, window.CLIENT_USER || {}, updates); } catch(e){}
+        // select and show phrase
+        if (typeof window.showDailyPhraseInto === 'function') window.showDailyPhraseInto('.frase-text');
+        // prepare breathing UI if suggestion present (no auto-start)
+        if (typeof window.prepareClientBreathUI === 'function') window.prepareClientBreathUI('.breathing-suggestion');
+        // hide modal after selection
+        setTimeout(() => closeModal(), 220);
+      } catch(e){ console.warn('handleMoodChoice error', e); }
+    }
+
+    if (moodBien) moodBien.addEventListener('click', function(){ handleMoodChoice({ estadoEmocionalActual:'neutral', nivelDeAnsiedad:0, suggestedBreathingType:null }); });
+    if (moodTenso) moodTenso.addEventListener('click', function(){ handleMoodChoice({ estadoEmocionalActual:'ansiedad', nivelDeAnsiedad:2, suggestedBreathingType:'suave' }); });
+    if (moodAnsiedad) moodAnsiedad.addEventListener('click', function(){ handleMoodChoice({ estadoEmocionalActual:'ansiedad', nivelDeAnsiedad:3, suggestedBreathingType:'profunda' }); });
+    if (moodCrisis) moodCrisis.addEventListener('click', function(){ handleMoodChoice({ estadoEmocionalActual:'crisis', nivelDeAnsiedad:5, suggestedBreathingType:'hotfix' }); });
+
+    // Keep view & go buttons functional (existing behavior)
     if (closeBtn) closeBtn.addEventListener('click', closeModal);
     if (goBtn) goBtn.addEventListener('click', () => { closeModal(); const mainCard = document.querySelector('.panel') || document.body; try { mainCard.scrollIntoView({ behavior: 'smooth' }); } catch (e) { /* ignore */ } });
     if (viewBtn) viewBtn.addEventListener('click', () => { closeModal(); if (typeof window.mostrarFrase === 'function') try { window.mostrarFrase(); } catch (e) { console.warn(e); } });
