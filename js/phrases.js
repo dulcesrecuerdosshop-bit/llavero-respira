@@ -1,51 +1,26 @@
-// phrases.js - delegador seguro a ClientPhrases (sin array gigante en el propio archivo)
-// Este archivo prioriza usar window.ClientPhrases si está disponible.
-// Mantiene fallback pequeño y toda la lógica UI: mostrarFrase, showDailyPhraseInto,
-// manejo de fondos y detección automática de contraste para legibilidad.
-//
-// Reemplaza js/phrases.js por este archivo completo. Después limpia cache / service worker
-// y recarga la página (ver instrucciones al final).
+// phrases.js - delegador seguro a ClientPhrases (robusto, sin array gigante inline)
+// Mantiene mostrarFrase/showDailyPhraseInto, persistencia y mejoras de legibilidad.
 
 (function () {
   'use strict';
 
   // ---------------------------------------------------------------------------
-   const frases = [
-`A veces lo único que necesitas es un momento contigo.
-Cerrar los ojos, inhalar profundo y soltar despacio.
-Escuchar tu cuerpo antes que el ruido de fuera.
-Respira. Vas mejor de lo que crees.
-Y mañana, aún mejor.`,
-
-`Hoy permítete no correr.
-No cumplir todas las expectativas, solo las tuyas.
-La vida no te pide que seas perfecta,
-te pide que sigas presente.
-Respira, vuelve a tu centro y continúa.`,
-
-`Tú también mereces lugares suaves.
-Pensamientos que no duelan, palabras que abracen.
-Hoy regálate calma sin sentir culpa.
-Respira despacio y recuerda:
-ser amable contigo también cuenta como avanzar.`,
- ];     
-
+  // Helper: intentar construir frases desde window.ClientPhrases (si existe)
   // ---------------------------------------------------------------------------
-
   function buildPhrasesFromClientPhrases() {
     try {
       if (!window.ClientPhrases || typeof window.ClientPhrases.get !== 'function') return null;
 
-      // 1) Si hay método getAll() usarlo
+      // 1) getAll()
       if (typeof window.ClientPhrases.getAll === 'function') {
         try {
           const all = window.ClientPhrases.getAll();
           if (Array.isArray(all) && all.length) return all.slice(0);
-        } catch (e) { /* ignore */ }
+        } catch(e){}
       }
 
-      // 2) Si ClientPhrases expone categorías en propiedades conocidas, agregarlas
-      const possibleCatProps = ['categories', '_categories', '_cats', 'catList'];
+      // 2) categories props
+      const possibleCatProps = ['categories','_categories','_cats','catList'];
       for (const p of possibleCatProps) {
         try {
           if (Array.isArray(window.ClientPhrases[p]) && window.ClientPhrases[p].length) {
@@ -58,7 +33,7 @@ ser amable contigo también cuenta como avanzar.`,
         } catch(e){}
       }
 
-      // 3) Intentar obtener categorías comunes por nombre
+      // 3) try common category names
       const commonCats = ['rutina','calma','validacion','bienvenida','crisis','amor','gratitud','autoayuda'];
       const acc = [];
       commonCats.forEach(c => {
@@ -66,7 +41,7 @@ ser amable contigo también cuenta como avanzar.`,
       });
       if (acc.length) return acc;
 
-      // 4) Último recurso: explorar propiedades internas para encontrar arrays de strings
+      // 4) search for arrays inside ClientPhrases
       try {
         for (const k in window.ClientPhrases) {
           if (!Object.prototype.hasOwnProperty.call(window.ClientPhrases, k)) continue;
@@ -79,31 +54,36 @@ ser amable contigo también cuenta como avanzar.`,
     } catch(e){ return null; }
   }
 
-  // Fallback seguro y pequeño (no rompe parse ni ocupa mucho)
+  // ---------------------------------------------------------------------------
+  // SAFE FALLBACK (pequeño) para evitar "Cargando..." si ClientPhrases falla.
+  // ---------------------------------------------------------------------------
   const SAFE_FALLBACK_PHRASES = [
     "Un breve recordatorio para ti.\nRespira y mira dentro.",
     "Respira hondo.\nSuelta suavemente.",
-    "Hoy puedes empezar de nuevo.\nUn paso a la vez."
+    "Hoy puedes empezar de nuevo.\nUn paso a la vez.",
+    "Pon tu mano en el pecho, respira lento y vuelve al presente."
   ];
 
-  // Inicializar window._phrases_list de forma segura
+  // ---------------------------------------------------------------------------
+  // Construir window._phrases_list de forma segura
+  // ---------------------------------------------------------------------------
   (function initPhrasesList(){
     try {
       const fromClient = buildPhrasesFromClientPhrases();
       if (Array.isArray(fromClient) && fromClient.length) {
         window._phrases_list = fromClient;
       } else {
+        // como seguridad ligera, mantener un fallback corto
         window._phrases_list = SAFE_FALLBACK_PHRASES.slice(0);
       }
-    } catch(e){
+    } catch(e) {
       window._phrases_list = SAFE_FALLBACK_PHRASES.slice(0);
     }
   })();
 
   // ---------------------------------------------------------------------------
-  // Fondos y helpers (sin tocar la API que usa el resto de la app)
+  // Fondos por defecto y comprobación de imágenes
   // ---------------------------------------------------------------------------
-
   const gradientFondos = [
     "linear-gradient(135deg, #f6d365, #fda085)",
     "linear-gradient(135deg, #a1c4fd, #c2e9fb)",
@@ -142,7 +122,9 @@ ser amable contigo también cuenta como avanzar.`,
     } catch(e){ console.warn('[phrases] initFondos', e); }
   }
 
-  // Aplicar fondo (imagen o gradient)
+  // ---------------------------------------------------------------------------
+  // Helpers visuales
+  // ---------------------------------------------------------------------------
   function applyBackgroundToElement(el, bgValue){
     if (!el) return;
     if (/\.(jpe?g|png|webp|avif)$/i.test(bgValue)){
@@ -155,14 +137,12 @@ ser amable contigo también cuenta como avanzar.`,
     }
   }
 
-  // ---------------------------------------------------------------------------------------------
-  // Detector de contraste para alternar .dark-bg en la tarjeta (mejora legibilidad)
+  // Detector de contraste (muestreo rápido) para alternar .dark-bg
   async function detectContrastAndToggleDarkBg(imageUrl, containerEl) {
     try {
       containerEl = containerEl || document.querySelector('.frase-card');
       if (!containerEl) return;
 
-      // si no es una imagen (gradient, data:) quitamos dark-bg
       if (!imageUrl || /\.(svg)$/i.test(imageUrl) || imageUrl.indexOf('data:') === 0) {
         containerEl.classList.remove('dark-bg');
         return;
@@ -179,7 +159,7 @@ ser amable contigo también cuenta como avanzar.`,
       const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, w, h);
       const data = ctx.getImageData(0, 0, w, h).data;
       let rSum = 0, gSum = 0, bSum = 0, count = 0;
-      for (let i = 0; i < data.length; i += 4 * 3) { rSum += data[i]; gSum += data[i+1]; bSum += data[i+2]; count++; }
+      for (let i = 0; i < data.length; i += 12) { rSum += data[i]; gSum += data[i+1]; bSum += data[i+2]; count++; }
       const r = rSum / count, g = gSum / count, b = bSum / count;
       const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
       const isDark = luminance < 0.45;
@@ -187,15 +167,13 @@ ser amable contigo también cuenta como avanzar.`,
       if (isDark) containerEl.classList.remove('dark-bg'); else containerEl.classList.add('dark-bg');
       try { canvas.width = canvas.height = 0; } catch(e){}
     } catch (e) {
-      // si falla por CORS o similar, forzamos dark-bg por seguridad (legibilidad)
       try { document.querySelector('.frase-card') && document.querySelector('.frase-card').classList.add('dark-bg'); } catch(_) {}
       console.warn('detectContrastAndToggleDarkBg failed', e);
     }
   }
-  // ---------------------------------------------------------------------------------------------
 
   // ---------------------------------------------------------------------------
-  // Mostrar frase: usa window._phrases_list y prioriza PhraseSelector/ClientPhrases
+  // Mostrar frase: prioriza PhraseSelector → ClientPhrases → fallback local
   // ---------------------------------------------------------------------------
   let lastIndex = -1;
 
@@ -214,7 +192,7 @@ ser amable contigo también cuenta como avanzar.`,
       try {
         var chosenPhrase = frasesLocal.length ? frasesLocal[i] : SAFE_FALLBACK_PHRASES[0];
 
-        // Priorizar PhraseSelector si devuelve algo útil
+        // PhraseSelector preference (if available)
         var clientSnapshot = window.CLIENT_USER || (localStorage.getItem('lr_client_runtime_user') ? JSON.parse(localStorage.getItem('lr_client_runtime_user')) : {});
         if (window.PhraseSelector && typeof window.PhraseSelector.selectAndMark === 'function') {
           try {
@@ -225,10 +203,10 @@ ser amable contigo también cuenta como avanzar.`,
               try { window.saveClientRuntime && window.saveClientRuntime(res.updatedClient); } catch(e){ try { localStorage.setItem('lr_client_runtime_user', JSON.stringify(window.CLIENT_USER)); } catch(_){} }
               if (res.category) { try { window.CLIENT_USER.ultimaCategoriaMostrada = res.category; window.saveClientRuntime && window.saveClientRuntime({ ultimaCategoriaMostrada: res.category }); } catch(e){} }
             }
-          } catch(e){ console.warn('PhraseSelector.selectAndMark fallo, fallback', e); }
+          } catch(e){ console.warn('PhraseSelector.selectAndMark fallo', e); }
         }
 
-        // Fallback a ClientPhrases.random si needed
+        // fallback to ClientPhrases.random if needed
         if ((!chosenPhrase || !chosenPhrase.trim()) && window.ClientPhrases && typeof window.ClientPhrases.random === 'function') {
           try {
             var estado = (clientSnapshot && clientSnapshot.estadoEmocionalActual) ? String(clientSnapshot.estadoEmocionalActual).toLowerCase() : '';
@@ -240,6 +218,7 @@ ser amable contigo también cuenta como avanzar.`,
           } catch(e){ /* ignore */ }
         }
 
+        // apply to DOM and sync memory
         if (fEl) { try { fEl.textContent = chosenPhrase; } catch(e){ try { fEl.innerText = chosenPhrase; } catch(_){} } }
         try { window._phrases_current = chosenPhrase; window._phrases_currentIndex = (typeof i === 'number' && chosenPhrase === (frasesLocal[i]||'') ) ? i : -1; } catch(e){}
       } catch(e){
@@ -247,7 +226,7 @@ ser amable contigo también cuenta como avanzar.`,
         try { window._phrases_current = window._phrases_list && window._phrases_list[0]; window._phrases_currentIndex = 0; } catch(_) {}
       }
 
-      // aplicar fondo y detectar contraste
+      // apply background and run contrast detection
       const bgValue = fondosDisponibles[j] || gradientFondos[j % gradientFondos.length];
       if (bEl) {
         applyBackgroundToElement(bEl, bgValue);
@@ -261,13 +240,14 @@ ser amable contigo también cuenta como avanzar.`,
 
       fEl.style.opacity = 1;
 
+      // remove help hint to avoid overlap
       try { const hintEl = document.querySelector('.hint'); if (hintEl) hintEl.remove(); } catch(e){}
 
       if (typeof window.onFraseMostrada === 'function') try{ window.onFraseMostrada(window._phrases_current); }catch(e){}
     }, 160);
   }
 
-  // Inicialización en DOMContentLoaded
+  // init on DOM ready
   document.addEventListener('DOMContentLoaded', async () => {
     await initFondos();
     mostrarFrase();
@@ -276,7 +256,34 @@ ser amable contigo también cuenta como avanzar.`,
     });
   });
 
-  // Exponer API pública esperada por otros scripts
+  // Show API expected by other modules
   window.mostrarFrase = mostrarFrase;
+
+  // Integration helper: showDailyPhraseInto (exposed public)
+  (function(){
+    function showDailyPhraseInto(containerSelector) {
+      try {
+        var client = window.CLIENT_USER || JSON.parse(localStorage.getItem('lr_client_runtime_user') || '{}');
+        var res = window.PhraseSelector ? window.PhraseSelector.selectAndMark(client) : { category:'rutina', phrase: (window.ClientPhrases && typeof window.ClientPhrases.random === 'function' ? window.ClientPhrases.random('rutina') : (window._phrases_list && window._phrases_list[0]) || SAFE_FALLBACK_PHRASES[0]) };
+        var el = document.querySelector(containerSelector || '.frase-text');
+        if (el) el.textContent = res.phrase;
+        window.saveClientRuntime && window.saveClientRuntime(res.updatedClient);
+        window.ThemeManager && window.ThemeManager.apply(res.updatedClient || client);
+        window.CLIENT_USER = res.updatedClient || client;
+        if (res.updatedClient && res.updatedClient.suggestedBreathingType) {
+          try {
+            if (typeof window.prepareClientBreathUI === 'function') window.prepareClientBreathUI('.breathing-suggestion');
+            else {
+              var ps = document.querySelector('.breathing-suggestion');
+              if (ps) ps.style.display = '';
+            }
+          } catch(e){}
+        }
+      } catch(e){ console.warn('showDailyPhraseInto failed', e); }
+    }
+    window.showDailyPhraseInto = showDailyPhraseInto;
+    // keep compatibility: map existing call sites
+    window.mostrarFrase = function(){ return window.showDailyPhraseInto && window.showDailyPhraseInto('.frase-text'); };
+  })();
 
 })();
