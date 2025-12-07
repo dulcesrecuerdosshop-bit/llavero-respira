@@ -105,10 +105,18 @@
 
     function handleMoodChoice(updates) {
       try {
-        // update runtime client and persist
+        // Build updated client object (merged)
+        const updatedClient = Object.assign({}, window.CLIENT_USER || {}, updates);
+
+        // update runtime client and persist (existing call preserved)
         window.saveClientRuntime && window.saveClientRuntime(updates);
+
         // ensure window.CLIENT_USER reflects the change
         try { window.CLIENT_USER = Object.assign({}, window.CLIENT_USER || {}, updates); } catch(e){}
+
+        // Ensure saveClientRuntime(updatedClient) executes as requested
+        try { window.saveClientRuntime && window.saveClientRuntime(updatedClient); } catch(e){}
+
         // select and show phrase
         if (typeof window.showDailyPhraseInto === 'function') window.showDailyPhraseInto('.frase-text');
         // prepare breathing UI if suggestion present (no auto-start)
@@ -118,15 +126,14 @@
       } catch(e){ console.warn('handleMoodChoice error', e); }
     }
 
-   // Reemplazar las asignaciones actuales por claves canónicas
-if (moodBien) moodBien.addEventListener('click', function(){ handleMoodChoice({ estadoEmocionalActual:'neutral', nivelDeAnsiedad:0, suggestedBreathingType:null }); });
-if (moodTenso) moodTenso.addEventListener('click', function(){ handleMoodChoice({ estadoEmocionalActual:'ansiedad', nivelDeAnsiedad:2, suggestedBreathingType:'calm' }); });
-if (moodAnsiedad) moodAnsiedad.addEventListener('click', function(){ handleMoodChoice({ estadoEmocionalActual:'ansiedad', nivelDeAnsiedad:3, suggestedBreathingType:'478' }); });
-if (moodCrisis) moodCrisis.addEventListener('click', function(){ handleMoodChoice({ estadoEmocionalActual:'crisis', nivelDeAnsiedad:5, suggestedBreathingType:'478' }); });
+    if (moodBien) moodBien.addEventListener('click', function(){ handleMoodChoice({ estadoEmocionalActual:'neutral', nivelDeAnsiedad:0, suggestedBreathingType:null }); });
+    if (moodTenso) moodTenso.addEventListener('click', function(){ handleMoodChoice({ estadoEmocionalActual:'ansiedad', nivelDeAnsiedad:2, suggestedBreathingType:'suave' }); });
+    if (moodAnsiedad) moodAnsiedad.addEventListener('click', function(){ handleMoodChoice({ estadoEmocionalActual:'ansiedad', nivelDeAnsiedad:3, suggestedBreathingType:'profunda' }); });
+    if (moodCrisis) moodCrisis.addEventListener('click', function(){ handleMoodChoice({ estadoEmocionalActual:'crisis', nivelDeAnsiedad:5, suggestedBreathingType:'hotfix' }); });
 
     // Keep view & go buttons functional (existing behavior)
     if (closeBtn) closeBtn.addEventListener('click', closeModal);
-    if (goBtn) goBtn.addEventListener('click', () => { closeModal(); const mainCard = document.querySelector('.panel') || document.body; try { mainCard.scrollIntoView({ behavior: 'smooth' }); } catch (e) { /* ignore */ } });
+    if (goBtn) goBtn.addEventListener('click', () => { closeModal(); const mainCard = document.querySelector('.panel') || document.body; try { mainCard.scrollIntoView({ behavior: 'smooth' }); } catch(e){} });
     if (viewBtn) viewBtn.addEventListener('click', () => { closeModal(); if (typeof window.mostrarFrase === 'function') try { window.mostrarFrase(); } catch (e) { console.warn(e); } });
 
     // Close when clicking outside the dialog card
