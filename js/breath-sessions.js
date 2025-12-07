@@ -377,6 +377,27 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
 
       // Now inject the settings UI into the card
       const injected = (injectSettingsUIInto(card) || injectSettingsUIInto(wrapper) || injectSettingsUIInto(document.body));
+
+      // Inserted block: apply suggestedType to the modal UI if present
+      try {
+        const suggested = opts && opts.suggestedType ? opts.suggestedType : (wrapper.dataset.suggestedType || null);
+        if (suggested) {
+          const PRESET_TO_SECONDS = { box: 180, calm: 180, slow: 180, '478': 60 };
+          const presetLabel = PRESET_LABELS[suggested];
+
+          const presetBtn = Array.from(card.querySelectorAll('button'))
+            .find(b => (b.textContent || '').toLowerCase().includes((presetLabel || '').toLowerCase()));
+
+          if (presetBtn) { presetBtn.click(); }
+
+          const sel = card.querySelector('[data-lr="session-select"], select');
+          if (sel && PRESET_TO_SECONDS[suggested]) {
+            sel.value = String(PRESET_TO_SECONDS[suggested]);
+            sel.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        }
+      } catch (e) {}
+
       // wire cleanup: when a start button inside this card is clicked, remove wrapper after short delay
       try {
         const startBtn = card.querySelector('[data-lr="session-start"], [id^="lr_session_start_btn_"]');
@@ -396,6 +417,7 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
 
       if(opts && opts.suggestedType) wrapper.dataset.suggestedType = opts.suggestedType;
       wrapper.setAttribute('aria-hidden','false');
+
       return wrapper;
     } catch(e){ console.error('openSessionModal failed', e); return null; }
   };
@@ -403,4 +425,5 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
   // Initial attempts
   try{ ensureFloatingHotfix(); }catch(e){}
   try{ tryInjectNow(); }catch(e){}
+
 })();
