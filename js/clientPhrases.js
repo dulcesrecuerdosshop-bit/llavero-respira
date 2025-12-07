@@ -109,7 +109,7 @@
     "Cada emoción tuya\nes una pieza de una historia\nque merece ser honrada.",
     "No tienes que esconderte.\nTu vulnerabilidad también es belleza.",
     "Lo que sea que estás sintiendo ahora,\ndéjalo ser.\nTu emoción no es un enemigo,\nes una parte de ti\npidiendo un abrazo."
-  ]
+        
       ],
       motivacion: [
          "No necesitas cambiar tu vida hoy.\nSolo dar un paso pequeño,\nuno que te recuerde\nque sigues caminando.\nEl resto vendrá contigo.",
