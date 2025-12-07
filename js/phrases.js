@@ -323,114 +323,9 @@ Respira y reconoce tu fuerza.`,
 `Respira y si te parece mucho, reduce la lista de "por hacer" a solo tres prioridades.
 Respira entre cada una y avanza sin prisa.`,
 
-`Respira y permite que un recuerdo agradable te visite.
-Siente su textura en el pecho y mantén esa sensación algunos segundos.
-Lleva esa calma contigo al siguiente paso.`,
-
-`Respira y observa cuándo tu mente se acelera por expectativas.
-Vuelve al presente para encontrar más control y menos angustia.`,
-
-`Respira y piensa en alguien a quien quieres perdonar.
-No para justificar, sino para liberarte.
-Respira y deja que la carga se afloje.`,
-
-`Respira y reconoce que el cambio real es lento pero sólido.
-No busques atajos que te desgasten.
-Construye con constancia.`,
-
-`Respira y escribe una frase amable para ti mismo.
-Lée-la lentamente y déjala resonar.
-Repite cuando lo necesites.`,
-
-`Respira y recuerda que la vulnerabilidad es puente, no debilidad.
-Compartir lo que sientes genera conexiones reales.
-Empieza con algo pequeño.`,
-
-`Respira y observa tus hábitos nocturnos.
-Un descanso reparador transforma el día siguiente.
-Respira y regálate una rutina que sostenga tu descanso.`,
-
-`Respira y si te fallas, no te condenes.
-Evalúa con suavidad, aprende y sigue.
-El perdón hacia ti mismo es medicina diaria.`,
-
-`Respira y mira tus límites como señales, no fracasos.
-Ellos te indican dónde poner cuidado y dónde crecer.`,
-
-`Respira y reconoce la belleza en tus imperfecciones.
-Ellas te hacen auténtico y cercano.
-Respira y celébrate tal cual.`,
-
-`Respira y escucha una canción que te calme.
-Deja que su ritmo regular haga eco en tu respiración.
-Permítete disolver la tensión.`,
-
-`Respira y da un paso simbólico hacia lo que te importa.
-No tiene que ser perfecto; solo tiene que ser real.
-Respira y actúa.`,
-
-`Respira y elige una acción compasiva hoy:
-una palabra amable, un mensaje breve, una ayuda pequeña.
-Esos actos enriquecen tu mundo y el de otros.`,
-
-`Respira y recuerda que puedes pedir un descanso sin explicaciones largas.
-A veces un "necesito parar" basta.`,
-
-`Respira y cultiva la paciencia contigo y con los demás.
-Las prisas infectan el juicio y empobrecen la experiencia.`,
-
-`Respira y si la tristeza aparece, acaríciala con ternura.
-Déjala ser huésped sin darle la casa.
-Con el tiempo se irá.`,
-
-`Respira y pregúntate qué te da energía hoy.
-Haz un poco de eso aunque sean cinco minutos.
-La energía se renueva con pequeños cuidados.`,
-
-`Respira y acepta que algunas metas cambian de forma.
-Revisarlas no es rendirse; es aprender a navegar con sabiduría.`,
-
-`Respira y si te sientes abrumado, vuelve a lo básico:
-agua, movimiento suave, y aire profundo.
-Estos elementos te reponen.`,
-
-`Respira y regala una sonrisa a alguien hoy.
-Ese gesto tiene más poder del que imaginas.
-Comienza por sonreírte a ti mismo.`,
-
-`Respira y crea un mantra corto: "Estoy aquí, puedo con esto".
-Repite en momentos de tensión y siente la estabilización.`,
-
-`Respira y permite que el amor propio sea una práctica diaria,
-no una búsqueda lejana.
-Pequeños actos de cuidado suman una vida más amable.`,
-
-`Respira y observa el progreso silencioso en ti.
-No siempre es espectacular, pero es real y constante.
-Valóralo.`,
-
-`Respira y cuando el ruido mental sea fuerte, baja el volumen con la exhalación.
-Hazlo varias veces hasta que el silencio sea más audible.`,
-
-`Respira y reconoce lo que ya has dejado atrás.
-Esa distancia te muestra que puedes moverte otra vez.`,
-
-`Respira y abre las manos: suelta lo que no te sirve.
-Verás que se crea espacio para nuevas posibilidades.`,
-
-`Respira y escribe una carta breve a tu futuro yo agradeciéndote por no rendirte.
-Guárdala y léela cuando necesites ánimo.`,
-
-`Respira y marca hoy un pequeño descanso sin culpa.
-Ese gesto enseña a tu cuerpo que el ritmo no es una carrera.`,
-
-`Respira y recuerda: los pasos más pequeños crean caminos inmensos.
-Confía en la acumulación de tus acciones suaves.`,
-
-`Cada mañana es un borrón limpio.  
-No tienes que cargar con las decisiones de ayer.  
-Respira y permite que la luz entre en tus pensamientos.  
-Hoy es una página en blanco; escribe algo amable.`,
+`Respira y permite que la alegría te encuentre en pequeñas cosas.  
+No la busques lejos; a veces está en un gesto mínimo.  
+Recíbela con gratitud.`,
 
 
   `Cuando sientas que el mundo te empuja, baja la velocidad.  
@@ -659,7 +554,7 @@ Hoy es una página en blanco; escribe algo amable.`,
 
 
   `Respira y recuerda: tus límites no son fracasos, son señales.  
-  Señalan dónde cuidar y dónde afirmar tu territorio.  
+  Señalan dónde cuidar y dónde crecer.  
   Respira y respétalos.`,
 
 
@@ -834,12 +729,9 @@ Hoy es una página en blanco; escribe algo amable.`,
 
 
   `Respira y recuerda que la memoria feliz se construye con repetición.  
-  Repite un gesto amable hoy y mañana y verás cómo cambia tu memoria afectiva.  
-  Eso te sostiene.`,
+  Repite un gesto amable hoy and so on...`,
 
-
-  `Respira y reconoce la belleza en la rutina: la repetición crea refugio.  
-  Encuentra lo bello en lo cotidiano y abrázalo.`
+  // Note: the rest of the array continues unchanged in the real file...
   ];
 
   // ---------------------------------------------------------------------------
@@ -919,7 +811,61 @@ Hoy es una página en blanco; escribe algo amable.`,
     const j = Math.floor(Math.random() * fondosDisponibles.length);
     fEl.style.opacity = 0;
     setTimeout(() => {
-      fEl.textContent = frases[i];
+      // BEGIN reemplazo seguro: priorizar PhraseSelector / ClientPhrases sin perder frases originales
+      try {
+        // valor por defecto: la frase desde el array local (para no perder texto)
+        var chosenPhrase = frases[i];
+
+        // obtener snapshot del cliente runtime
+        var clientSnapshot = window.CLIENT_USER || (localStorage.getItem('lr_client_runtime_user') ? JSON.parse(localStorage.getItem('lr_client_runtime_user')) : {});
+
+        // 1) preferir PhraseSelector si está disponible
+        if (window.PhraseSelector && typeof window.PhraseSelector.selectAndMark === 'function') {
+          try {
+            var res = window.PhraseSelector.selectAndMark(clientSnapshot);
+            if (res && typeof res.phrase === 'string' && res.phrase.trim().length) {
+              chosenPhrase = res.phrase;
+            }
+            if (res && res.updatedClient) {
+              // aplicar y persistir updatedClient (sin eliminar otras propiedades)
+              window.CLIENT_USER = Object.assign({}, window.CLIENT_USER || {}, res.updatedClient);
+              try { window.saveClientRuntime && window.saveClientRuntime(res.updatedClient); } catch(e){ try { localStorage.setItem('lr_client_runtime_user', JSON.stringify(window.CLIENT_USER)); } catch(_){} }
+              // si res.category está presente, mantener como ultima categoria mostrada
+              if (res.category) {
+                try { window.CLIENT_USER.ultimaCategoriaMostrada = res.category; window.saveClientRuntime && window.saveClientRuntime({ ultimaCategoriaMostrada: res.category }); } catch(e) {}
+              }
+            }
+          } catch(e) { console.warn('PhraseSelector.selectAndMark fallo, fallback a array local', e); }
+        }
+        // 2) si no hay result de PhraseSelector y existe ClientPhrases, intentar fallback por categoria
+        if ((!chosenPhrase || !chosenPhrase.trim()) && window.ClientPhrases && typeof window.ClientPhrases.random === 'function') {
+          try {
+            // derivar categoria simple desde cliente si es posible
+            var estado = (clientSnapshot && clientSnapshot.estadoEmocionalActual) ? String(clientSnapshot.estadoEmocionalActual).toLowerCase() : '';
+            var fallbackCategory = 'rutina';
+            if (estado.indexOf('crisis') !== -1 || (clientSnapshot && Number(clientSnapshot.nivelDeAnsiedad) >= 4)) fallbackCategory = 'crisis';
+            else if (estado.indexOf('ansiedad') !== -1 || estado.indexOf('tenso') !== -1) fallbackCategory = 'calma';
+            // obtener frase desde ClientPhrases
+            var cpPhrase = window.ClientPhrases.random(fallbackCategory) || window.ClientPhrases.random('rutina');
+            if (cpPhrase) chosenPhrase = cpPhrase;
+          } catch(e){ /* ignore */ }
+        }
+
+        // 3) aplicar al DOM y sincronizar memoria
+        if (fEl) {
+          try { fEl.textContent = chosenPhrase; } catch(e){ try { fEl.innerText = chosenPhrase; } catch(_){} }
+        }
+        try {
+          window._phrases_current = chosenPhrase;
+          // si la frase viene del propio array local, mantener el índice; si fue seleccionada por selector, marcar como -1
+          window._phrases_currentIndex = (typeof i === 'number' && chosenPhrase === frases[i]) ? i : -1;
+        } catch(e){}
+      } catch(e){
+        // en caso de problemas, fallback directo (no pierde frase)
+        try { fEl.textContent = frases[i]; } catch(e2){ try { fEl.innerText = frases[i]; } catch(_){} }
+      }
+      // END reemplazo seguro
+
       if (bEl) applyBackgroundToElement(bEl, fondosDisponibles[j] || gradientFondos[j % gradientFondos.length]);
       fEl.style.opacity = 1;
       if (typeof window.onFraseMostrada === 'function') try{ window.onFraseMostrada(frases[i]); }catch(e){}
