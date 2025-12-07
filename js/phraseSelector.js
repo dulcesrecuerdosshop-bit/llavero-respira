@@ -70,7 +70,13 @@
 
       persistRuntime(c);
 
-      return { category, phrase, updatedClient: c };
+      const res = { category, phrase, updatedClient: c };
+
+const CATEGORY_TO_PRESET = { 'crisis': '478', 'calma': 'calm', 'validacion': 'calm', 'motivacion': 'box', 'anclaje': 'box', 'bienvenida': 'box', 'rutina': 'box', 'profundo': 'slow' };
+
+if (res && res.updatedClient) { const cat = res.category; if (cat && CATEGORY_TO_PRESET[cat]) { res.updatedClient.suggestedBreathingType = CATEGORY_TO_PRESET[cat]; res.updatedClient.ultimaCategoriaMostrada = cat; } }
+
+      return res;
     }
 
     return { selectAndMark };
