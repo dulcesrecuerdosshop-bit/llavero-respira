@@ -1,6 +1,43 @@
 // helpers.v2.js - Helpers completos (TTS, respiración, favoritos, compartir, descarga).
 // Versión modificada: se han movido los presets al hotfix reabrible, se ha eliminado el bloque de presets del modal Ajustes,
 // se asegura que el hotfix pueda reabrirse y se mantiene tracking y parada segura de WebAudio/HTMLAudio/timers.
+// ===== Hotfix UI suppression (append) =====
+// By default suppress visual rendering of Hotfix in the client UI.
+// To explicitly allow Hotfix visual UI in admin/technical pages, set window.ALLOW_HOTFIX_UI = true before helpers.v2 runs.
+(function(){
+  try {
+    if (typeof window.ALLOW_HOTFIX_UI === 'undefined') window.ALLOW_HOTFIX_UI = false;
+
+    if (!window.ALLOW_HOTFIX_UI) {
+      // Observe DOM for hotfix insertion and remove/hide it immediately
+      var mo = new MutationObserver(function(muts){
+        muts.forEach(function(m){
+          Array.prototype.forEach.call(m.addedNodes || [], function(node){
+            try {
+              if (!node) return;
+              // check by id or class used by hotfix
+              if (node.id === '__lr_hotfix_floating' || (node.classList && node.classList.contains('__lr_hotfix_floating'))) {
+                // remove visual element but keep logic intact (internal functions remain available)
+                try { node.style.display = 'none'; node.remove(); console.log('[hotfix] visual suppressed'); } catch(e){}
+              }
+              // also check within subtree
+              if (node.querySelector) {
+                var found = node.querySelector('#__lr_hotfix_floating');
+                if (found) { try { found.style.display='none'; found.remove(); console.log('[hotfix] visual suppressed (subtree)'); } catch(e){} }
+              }
+            } catch(e){}
+          });
+        });
+      });
+      mo.observe(document.body, { childList: true, subtree: true });
+      // initial cleanup if already present
+      var existing = document.getElementById('__lr_hotfix_floating');
+      if (existing) { try { existing.style.display = 'none'; existing.remove(); console.log('[hotfix] existing visual removed'); } catch(e){} }
+      // expose function to stop the observer if needed
+      window.__stop_hotfix_suppression = function(){ try { mo.disconnect(); delete window.__stop_hotfix_suppression; console.log('hotfix suppression stopped'); } catch(e){} };
+    }
+  } catch(e){ console.warn('hotfix suppression init failed', e); }
+})();
 
 (function () {
   'use strict';
@@ -1086,41 +1123,4 @@
   preloadAssets().catch(e => lrwarn('preload error', e));
 
   lrlog('ready');
-})();
-// ===== Hotfix UI suppression (append) =====
-// By default suppress visual rendering of Hotfix in the client UI.
-// To explicitly allow Hotfix visual UI in admin/technical pages, set window.ALLOW_HOTFIX_UI = true before helpers.v2 runs.
-(function(){
-  try {
-    if (typeof window.ALLOW_HOTFIX_UI === 'undefined') window.ALLOW_HOTFIX_UI = false;
-
-    if (!window.ALLOW_HOTFIX_UI) {
-      // Observe DOM for hotfix insertion and remove/hide it immediately
-      var mo = new MutationObserver(function(muts){
-        muts.forEach(function(m){
-          Array.prototype.forEach.call(m.addedNodes || [], function(node){
-            try {
-              if (!node) return;
-              // check by id or class used by hotfix
-              if (node.id === '__lr_hotfix_floating' || (node.classList && node.classList.contains('__lr_hotfix_floating'))) {
-                // remove visual element but keep logic intact (internal functions remain available)
-                try { node.style.display = 'none'; node.remove(); console.log('[hotfix] visual suppressed'); } catch(e){}
-              }
-              // also check within subtree
-              if (node.querySelector) {
-                var found = node.querySelector('#__lr_hotfix_floating');
-                if (found) { try { found.style.display='none'; found.remove(); console.log('[hotfix] visual suppressed (subtree)'); } catch(e){} }
-              }
-            } catch(e){}
-          });
-        });
-      });
-      mo.observe(document.body, { childList: true, subtree: true });
-      // initial cleanup if already present
-      var existing = document.getElementById('__lr_hotfix_floating');
-      if (existing) { try { existing.style.display = 'none'; existing.remove(); console.log('[hotfix] existing visual removed'); } catch(e){} }
-      // expose function to stop the observer if needed
-      window.__stop_hotfix_suppression = function(){ try { mo.disconnect(); delete window.__stop_hotfix_suppression; console.log('hotfix suppression stopped'); } catch(e){} };
-    }
-  } catch(e){ console.warn('hotfix suppression init failed', e); }
 })();
