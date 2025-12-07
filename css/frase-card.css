@@ -54,14 +54,46 @@
   z-index: 0;
 }
 
-/* Layer overlay to ensure text contrast */
+/* REEMPLAZAR la regla .frase-bg::after existente por este bloque (mejora overlay) */
 .frase-bg::after{
   content: "";
   position: absolute;
   inset: 0;
+  /* overlay por defecto: ligera atenuación + gradiente sutil para proteger legibilidad */
   background: linear-gradient(180deg, rgba(255,255,255,0.0), rgba(6,8,12,0.12));
   pointer-events: none;
   z-index:1;
+  transition: background 320ms ease, opacity 320ms ease;
+}
+
+/* Si el fondo resulta oscuro, activar .dark-bg en .frase-card para texto claro y sombras */
+.frase-card.dark-bg .frase-bg::after{
+  background: linear-gradient(180deg, rgba(0,0,0,0.36), rgba(0,0,0,0.54));
+}
+
+/* Ajustes de texto para el modo dark-bg (no tocar el modo por defecto) */
+.frase-card.dark-bg .frase-text{
+  color: #ffffff;
+  text-shadow:
+    0 2px 6px rgba(0,0,0,0.55),
+    0 6px 18px rgba(0,0,0,0.45);
+}
+
+/* Controles cuando el fondo es oscuro */
+.frase-card.dark-bg .control{
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.06);
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+}
+.frase-card.dark-bg .control.primary{
+  background: var(--accent);
+  color:#072032;
+}
+
+/* Transiciones suaves globales para cambios de estado */
+.frase-card, .frase-bg::after, .frase-text {
+  transition: color 260ms ease, text-shadow 260ms ease, background 260ms ease, filter 260ms ease;
 }
 
 /* Content area (above bg) */
