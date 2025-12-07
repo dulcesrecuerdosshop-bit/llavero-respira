@@ -174,7 +174,58 @@ El ritual prepara la mente.`
       }
       // END reemplazo seguro
 
-      if (bEl) applyBackgroundToElement(bEl, fondosDisponibles[j] || gradientFondos[j % gradientFondos.length]);
+     // detectContrastAndToggleDarkBg(imageUrl, containerEl)
+// - imageUrl: URL de la imagen (string)
+// - containerEl: elemento .frase-card (o document.querySelector('.frase-card'))
+async function detectContrastAndToggleDarkBg(imageUrl, containerEl) {
+  try {
+    containerEl = containerEl || document.querySelector('.frase-card');
+    if (!containerEl) return;
+
+    // No image -> remove class
+    if (!imageUrl || /\.(svg)$/i.test(imageUrl) || imageUrl.indexOf('data:') === 0) {
+      containerEl.classList.remove('dark-bg');
+      return;
+    }
+
+    const img = new Image();
+    img.crossOrigin = 'Anonymous';
+    const p = new Promise((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error('img load error'));
+    });
+    // cache-bust para forzar reload
+    img.src = imageUrl + (imageUrl.indexOf('?') === -1 ? '?t=' + Date.now() : '&t=' + Date.now());
+    await p;
+
+    // small sampling canvas
+    const w = 40, h = 40;
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, w, h);
+
+    const data = ctx.getImageData(0, 0, w, h).data;
+    let rSum = 0, gSum = 0, bSum = 0, count = 0;
+    for (let i = 0; i < data.length; i += 4 * 3) { // sample every 3 pixels
+      rSum += data[i]; gSum += data[i+1]; bSum += data[i+2];
+      count++;
+    }
+    const r = rSum / count, g = gSum / count, b = bSum / count;
+    const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+    const isDark = luminance < 0.45; // umbral (ajustable)
+
+    if (isDark) containerEl.classList.remove('dark-bg');
+    else containerEl.classList.add('dark-bg');
+
+    // cleanup
+    try { canvas.width = canvas.height = 0; } catch(e) {}
+  } catch (e) {
+    // si falla (tainted canvas/CORS), fallback conservador: activar dark-bg si no estás seguro
+    try { document.querySelector('.frase-card') && document.querySelector('.frase-card').classList.add('dark-bg'); } catch(_) {}
+    console.warn('detectContrastAndToggleDarkBg failed', e);
+  }
+}
       fEl.style.opacity = 1;
       // NOTA: pasar la frase realmente mostrada al callback (no el array original)
       if (typeof window.onFraseMostrada === 'function') try{ window.onFraseMostrada(window._phrases_current); }catch(e){}
