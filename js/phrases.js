@@ -273,12 +273,12 @@
     function showDailyPhraseInto(containerSelector) {
       try {
         var client = window.CLIENT_USER || JSON.parse(localStorage.getItem('lr_client_runtime_user') || '{}');
-        var res = window.PhraseSelector ? window.PhraseSelector.selectAndMark(client) : { category:'rutina', phrase: (window.ClientPhrases && typeof window.ClientPhrases.random === 'function' ? window[...]
+        var res = window.PhraseSelector ? window.PhraseSelector.selectAndMark(client) : { category:'rutina', phrase: (window.ClientPhrases && typeof window.ClientPhrases.random === 'function' ? window.ClientPhrases.random('rutina') : SAFE_FALLBACK_PHRASES[0]) };
         var el = document.querySelector(containerSelector || '.frase-text');
         if (el) el.textContent = res.phrase;
-        window.saveClientRuntime && window.saveClientRuntime(res.updatedClient);
-        window.ThemeManager && window.ThemeManager.apply(res.updatedClient || client);
-        window.CLIENT_USER = res.updatedClient || client;
+        try { window.saveClientRuntime && window.saveClientRuntime(res.updatedClient); } catch(e){}
+        try { window.ThemeManager && window.ThemeManager.apply(res.updatedClient || client); } catch(e){}
+        try { window.CLIENT_USER = res.updatedClient || client; } catch(e){}
         if (res.updatedClient && res.updatedClient.suggestedBreathingType) {
           try {
             if (typeof window.prepareClientBreathUI === 'function') window.prepareClientBreathUI('.breathing-suggestion');
@@ -408,7 +408,17 @@
           try { const el = card.querySelector(sel); if (el) { controls = el; break; } } catch(e){}
         }
         // fallback: añadir al propio card si no hay contenedor específico
-        if (!controls) controls = card;
+        if (!controls) {
+          // try to add a .frase-controls container if possible
+          try {
+            const content = card.querySelector('.frase-content') || card;
+            controls = document.createElement('div');
+            controls.className = 'frase-controls';
+            content.appendChild(controls);
+          } catch (e) {
+            controls = card;
+          }
+        }
 
         // crear botón
         const btn = document.createElement('button');
