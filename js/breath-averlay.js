@@ -67,14 +67,12 @@
 
   function applyPhaseVisual(type) {
     if (!state.overlay) return;
-    // set background color solid (no transparency)
     const colors = state.colors || DEFAULT_COLORS;
     let color = colors[type] || DEFAULT_COLORS.inhale;
     try {
       state.overlay.style.background = color;
     } catch (e) {}
 
-    // update circle animation classes
     try {
       state.circle.classList.remove('phase-inhale', 'phase-exhale', 'phase-hold');
       if (type === 'inhale') state.circle.classList.add('phase-inhale');
@@ -100,7 +98,6 @@
       if (!state.countdownEl) return;
       state.countdownEl.textContent = formatSeconds(state.remaining);
 
-      // update every 1s
       state.countdownTimer = setInterval(function () {
         try {
           state.remaining = Math.max(0, state.remaining - 1);
@@ -123,9 +120,8 @@
         state.username = options.username || '';
         state.colors = Object.assign({}, DEFAULT_COLORS, options.colors || {});
         createDOM(container);
-        // Overlay should be hidden and not start animations yet
         state.overlay.classList.add('hidden');
-        state.overlay.style.display = ''; // ensure present
+        state.overlay.style.display = '';
         state.inited = true;
       } catch (e) { console.warn('BreathOverlay.init error', e); }
     },
@@ -133,15 +129,12 @@
     showPhase: function (type, seconds) {
       try {
         if (!state.inited) {
-          // auto-init with defaults if not initialized
           this.init({ username: '', container: document.body, colors: DEFAULT_COLORS });
         }
-        // ensure visible
         if (!state.overlay) createDOM(document.body);
         state.overlay.classList.remove('hidden');
         state.overlay.setAttribute('aria-hidden', 'false');
 
-        // apply visuals
         applyPhaseVisual(type);
         updatePhaseText(type);
         startCountdown(seconds || 0);
@@ -151,11 +144,9 @@
     hide: function () {
       try {
         if (!state.overlay) return;
-        // hide visually but keep DOM
         state.overlay.classList.add('hidden');
         state.overlay.setAttribute('aria-hidden', 'true');
         clearCountdown();
-        // reset circle animations
         try { state.circle.classList.remove('phase-inhale', 'phase-exhale', 'phase-hold'); } catch (e) {}
       } catch (e) { console.warn('BreathOverlay.hide error', e); }
     }
