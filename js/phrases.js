@@ -37,7 +37,10 @@
       try {
         if (typeof window.ClientPhrases.get === 'function') {
           commonCats.forEach(c => {
-            try { const arr = window.ClientPhrases.get(c); if (Array.isArray(arr) && arr.length) acc.push(...arr); } catch (e) {}
+            try {
+              const arr = window.ClientPhrases.get(c);
+              if (Array.isArray(arr) && arr.length) acc.push(...arr);
+            } catch (e) {}
           });
         }
       } catch (e) {}
@@ -441,7 +444,7 @@
               window.openBreathHotfix();
             } else {
               console.warn('[breathBtn] función de respiración no disponible');
-              showToast && typeof showToast === 'function' && showToast('Función de respiración no disponible');
+              try { showToast && typeof showToast === 'function' && showToast('Función de respiración no disponible'); } catch(e){}
             }
           } catch (err) { console.warn('breathBtn click error', err); }
           // prevenir "doble" acciones
