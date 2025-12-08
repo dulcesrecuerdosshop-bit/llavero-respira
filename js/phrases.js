@@ -37,7 +37,10 @@
       try {
         if (typeof window.ClientPhrases.get === 'function') {
           commonCats.forEach(c => {
-            try { const arr = window.ClientPhrases.get(c); if (Array.isArray(arr) && arr.length) acc.push(...arr); } catch (e) {}
+            try {
+              const arr = window.ClientPhrases.get(c);
+              if (Array.isArray(arr) && arr.length) acc.push(...arr);
+            } catch (e) {}
           });
         }
       } catch (e) {}
@@ -298,6 +301,25 @@
   // Finalizer: reintenta si algo (por timing o por otros scripts) deja vacía la lista
   // ---------------------------------------------------------------------------
   (function finalizer(){
+
+    // ---------------------------------------------------------
+    // Declaramos runInit al principio del scope finalizer para
+    // evitar ReferenceError si se llama por setTimeout/guardas.
+    // ---------------------------------------------------------
+    function runInit(){
+      try {
+        const ok = rebuildIfEmpty();
+        ensureFondos();
+        ensureMostrarFn();
+        try { typeof ensureBreathButton === 'function' && ensureBreathButton(); } catch(e) {}
+        try { window.mostrarFrase && window.mostrarFrase(); } catch(e){}
+        return ok;
+      } catch(e){ return false; }
+    }
+
+    // ---------------------------------------------------------
+    // Resto del finalizer (funciones auxiliares)
+    // ---------------------------------------------------------
     function rebuildIfEmpty(){
       try {
         if (!window._phrases_list || !window._phrases_list.length) {
@@ -364,69 +386,80 @@
         }
       } catch(e){ /* silent */ }
     }
-// === Inserta dentro de finalizer(), por ejemplo justo después de ensureMostrarFn() ===
-function ensureBreathButton(){
-  try {
-    // si ya existe, no hacemos nada
-    if (document.getElementById('breathBtn')) return;
 
-    const card = document.querySelector('.frase-card') || document.querySelector('.card') || document.body;
-    if (!card) return;
-
-    // encontrar contenedor de controles donde añadir el botón (intenta varios selectores)
-    const possible = [
-      '.frase-controls',
-      '.card-controls',
-      '.controls',
-      '.frase-card__controls',
-      '.card .controls',
-      '.frase-card footer',
-      '.frase-card'
-    ];
-    let controls = null;
-    for (const sel of possible) {
-      try { const el = card.querySelector(sel); if (el) { controls = el; break; } } catch(e){}
-    }
-    // fallback: añadir al propio card si no hay contenedor específico
-    if (!controls) controls = card;
-
-    // crear botón
-    const btn = document.createElement('button');
-    btn.id = 'breathBtn';
-    btn.type = 'button';
-    btn.className = 'lr-btn breath-btn';
-    btn.textContent = 'Respirar';
-
-    // estilos básicos (ajusta si quieres)
-    btn.style.cssText = 'padding:10px 16px;border-radius:12px;border:none;background:linear-gradient(90deg,#ffc371,#ff6b6b);color:#04232a;font-weight:700;cursor:pointer;margin-left:10px;box-shadow:0 6[...]
-
-    // handler: preferir lr_helpers, fallback a funciones internas
-    btn.addEventListener('click', function (e) {
+    // === Inserta dentro de finalizer(), por ejemplo justo después de ensureMostrarFn() ===
+    function ensureBreathButton(){
       try {
-        if (window.lr_helpers && typeof window.lr_helpers.startBreathFlow === 'function') {
-          window.lr_helpers.startBreathFlow();
-        } else if (typeof window.startBreathFlowInternal === 'function') {
-          window.startBreathFlowInternal();
-        } else if (typeof window.openBreathHotfix === 'function') {
-          window.openBreathHotfix();
-        } else {
-          console.warn('[breathBtn] función de respiración no disponible');
-          showToast && typeof showToast === 'function' && showToast('Función de respiración no disponible');
+        // si ya existe, no hacemos nada
+        if (document.getElementById('breathBtn')) return;
+
+        const card = document.querySelector('.frase-card') || document.querySelector('.card') || document.body;
+        if (!card) return;
+
+        // encontrar contenedor de controles donde añadir el botón (intenta varios selectores)
+        const possible = [
+          '.frase-controls',
+          '.card-controls',
+          '.controls',
+          '.frase-card__controls',
+          '.card .controls',
+          '.frase-card footer',
+          '.frase-card'
+        ];
+        let controls = null;
+        for (const sel of possible) {
+          try { const el = card.querySelector(sel); if (el) { controls = el; break; } } catch(e){}
         }
-      } catch (err) { console.warn('breathBtn click error', err); }
-      // prevenir "doble" acciones
-      try { e.preventDefault(); e.stopPropagation(); } catch(_) {}
-    }, { passive: true });
+        // fallback: añadir al propio card si no hay contenedor específico
+        if (!controls) {
+          // try to add a .frase-controls container if possible
+          try {
+            const content = card.querySelector('.frase-content') || card;
+            controls = document.createElement('div');
+            controls.className = 'frase-controls';
+            content.appendChild(controls);
+          } catch (e) {
+            controls = card;
+          }
+        }
 
-    // insertarlo al principio o al final según convenga
-    try { controls.insertBefore(btn, controls.firstChild); } catch(e){ try { controls.appendChild(btn); } catch(_){} }
-  } catch(e) { console.warn('ensureBreathButton error', e); }
-}
+        // crear botón
+        const btn = document.createElement('button');
+        btn.id = 'breathBtn';
+        btn.type = 'button';
+        btn.className = 'lr-btn breath-btn';
+        btn.textContent = 'Respirar';
 
-// Exponer ensureBreathButton por si otros scripts lo necesitan
-try { window.ensureBreathButton = window.ensureBreathButton || ensureBreathButton; } catch(e){}
+        // estilos básicos (ajusta si quieres)
+        btn.style.cssText = 'padding:10px 16px;border-radius:12px;border:none;background:linear-gradient(90deg,#ffc371,#ff6b6b);color:#04232a;font-weight:700;cursor:pointer;margin-left:10px;box-shadow:0 6px 18px rgba(0,0,0,0.12)';
 
- // Ejecutar una vez de forma inmediata (si el DOM ya está listo)
+        // handler: priorizar abrir hotfix/modal, fallback a helpers
+        btn.addEventListener('click', function (e) {
+          try {
+            // detener supresión visual si existe
+            try { if (typeof window.__stop_hotfix_suppression === 'function') window.__stop_hotfix_suppression(); } catch(e){}
+
+            // intentar abrir hotfix flotante / modal programable
+            if (typeof window.openBreathHotfix === 'function') { window.openBreathHotfix(); return; }
+            if (window.lr_breathSessions && typeof window.lr_breathSessions.openHotfix === 'function') { window.lr_breathSessions.openHotfix(); return; }
+
+            // fallback a iniciar flujo (sin UI)
+            if (window.lr_helpers && typeof window.lr_helpers.startBreathFlow === 'function') { window.lr_helpers.startBreathFlow(); return; }
+            if (typeof window.startBreathFlowInternal === 'function') { window.startBreathFlowInternal(); return; }
+
+            try { showToast && typeof showToast === 'function' && showToast('Función de respiración no disponible'); } catch(e){}
+          } catch (err) { console.warn('breathBtn click error', err); }
+        });
+
+        // insertarlo al principio o al final según convenga
+        try { controls.insertBefore(btn, controls.firstChild); } catch(e){ try { controls.appendChild(btn); } catch(_){} }
+      } catch(e) { console.warn('ensureBreathButton error', e); }
+    }
+
+    // Exponer ensureBreathButton por si otros scripts lo necesitan
+    try { window.ensureBreathButton = window.ensureBreathButton || ensureBreathButton; } catch(e){}
+
+    // Ejecutar una vez de forma inmediata (si el DOM ya está listo)
     try { ensureBreathButton(); } catch(e){}
 
     // run shortly after load, and again as a safety net
