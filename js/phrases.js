@@ -677,7 +677,74 @@ Recíbela con gratitud.`,
   // ---------------------------------------------------------------------------
 
   // Exponer lista en memoria para que helpers (TTS / share / download) la lean
-  window._phrases_list = frases;
+// Reemplazar la línea `window._phrases_list = frases;` por este bloque:
+(function(){
+  try {
+    // si existe ClientPhrases, intentar obtener la lista desde allí
+    if (window.ClientPhrases) {
+      // 1) preferir getAll()
+      if (typeof window.ClientPhrases.getAll === 'function') {
+        const all = window.ClientPhrases.getAll();
+        if (Array.isArray(all) && all.length) {
+          window._phrases_list = all.slice(0);
+          return;
+        }
+      }
+
+      // 2) si hay método para categorias / random, intentar recoger categorías comunes
+      const collected = [];
+      const commonCats = ['rutina','calma','validacion','bienvenida','crisis','amor','gratitud','autoayuda'];
+      try {
+        if (typeof window.ClientPhrases.get === 'function') {
+          for (const c of commonCats) {
+            try {
+              const arr = window.ClientPhrases.get(c);
+              if (Array.isArray(arr) && arr.length) collected.push(...arr);
+            } catch(e){}
+          }
+        }
+      } catch(e){}
+
+      // 3) si no hay categorias, intentar usar random repetido para rellenar
+      try {
+        if (!collected.length && typeof window.ClientPhrases.random === 'function') {
+          // intentar 10 muestras distintas
+          const seen = new Set();
+          for (let k=0;k<10;k++){
+            try {
+              const p = window.ClientPhrases.random('rutina') || window.ClientPhrases.random();
+              if (p && !seen.has(p)) { seen.add(p); collected.push(p); }
+            } catch(e){}
+          }
+        }
+      } catch(e){}
+
+      // 4) último recurso: buscar arrays dentro del objeto ClientPhrases
+      try {
+        if (!collected.length) {
+          for (const k in window.ClientPhrases) {
+            if (!Object.prototype.hasOwnProperty.call(window.ClientPhrases,k)) continue;
+            const v = window.ClientPhrases[k];
+            if (Array.isArray(v) && v.length && typeof v[0] === 'string') {
+              collected.push(...v);
+            }
+          }
+        }
+      } catch(e){}
+
+      if (collected.length) {
+        window._phrases_list = Array.from(new Set(collected)); // unique
+        return;
+      }
+    }
+
+    // fallback: usar las frases embebidas en este archivo
+    window._phrases_list = Array.isArray(frases) ? frases.slice(0) : [];
+  } catch(err) {
+    // fallback seguro
+    try { window._phrases_list = Array.isArray(frases) ? frases.slice(0) : []; } catch(e){ window._phrases_list = []; }
+  }
+})();
 
   let fondosDisponibles = [...gradientFondos];
 
