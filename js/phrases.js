@@ -426,15 +426,17 @@ function ensureBreathButton(){
 // y desde runInit() (donde ya llamas a ensureMostrarFn), añade una llamada:
 ensureBreathButton();
     function runInit(){
-      try {
-        const ok = rebuildIfEmpty();
-        ensureFondos();
-        ensureMostrarFn();
-        try { window.mostrarFrase && window.mostrarFrase(); } catch(e){}
-        return ok;
-      } catch(e){ return false; }
-    }
-
+  try {
+    const ok = rebuildIfEmpty();
+    ensureFondos();
+    ensureMostrarFn();
+    // === AÑADIDO: asegurar que el botón "Respirar" se crea cuando la inicialización ocurre ===
+    try { typeof ensureBreathButton === 'function' && ensureBreathButton(); } catch(e) { /* silencioso */ }
+    // =======================================================================
+    try { window.mostrarFrase && window.mostrarFrase(); } catch(e){}
+    return ok;
+  } catch(e){ return false; }
+}
     // run shortly after load, and again as a safety net
     if (document.readyState === 'complete') {
       setTimeout(runInit, 200);
