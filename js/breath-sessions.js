@@ -601,7 +601,75 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
   // Re-define helper functions at end (keeps file structure tidy)
   // ---------------------------------------------------------------------------
   // (tryInjectNow and waitForVisible defined above; ensureFloatingHotfix minimal no-op here)
+// --- Attach external "open session" buttons (makes page buttons open the session modal)
+// Place this near the end of breath-sessions.js, after the attachListener IIFE
+(function attachExternalOpeners(){
+  // Selectors to consider as "open session" buttons on the page.
+  // Add any class or data-attribute your theme uses (e.g. '.btn-breath', '#open-session', '[data-open-session]')
+  const OPEN_SELECTORS = [
+    '.lr-open-session',           // custom class you can add to the button
+    '[data-lr-open-session]',     // data attribute
+    '#open_session_btn',          // example id
+    '.btn-breath',                // other possible class names
+    '#respirar_btn'               // add any specific ids used in your HTML
+  ];
 
+  function bindEl(el){
+    if(!el || el.dataset._lr_open_attached) return;
+    el.dataset._lr_open_attached = '1';
+
+    function handler(ev){
+      try {
+        if (ev && ev.preventDefault) ev.preventDefault();
+      } catch(e){}
+      try {
+        // Prefer the explicit API
+        if (typeof window.openSessionModal === 'function') {
+          window.openSessionModal({});
+          return;
+        }
+        // Fallback: click the settings menu if present (existing code opens inject UI there)
+        const settings = document.getElementById('settings_menu');
+        if (settings && typeof settings.click === 'function') {
+          settings.click();
+          return;
+        }
+        // Final fallback: call the session start directly (last resort)
+        if (window.lr_breathSessions && typeof window.lr_breathSessions.openSessionModal === 'function') {
+          try { window.lr_breathSessions.openSessionModal({}); return;} catch(e){}
+        }
+      } catch(e){
+        console.warn('[lr] open-session handler error', e);
+      }
+    }
+
+    // Listen for click and touchend/pointerup to cover mobile
+    el.addEventListener('click', handler, { passive: true });
+    el.addEventListener('touchend', handler, { passive: true });
+    el.addEventListener('pointerup', handler, { passive: true });
+  }
+
+  function scanAndBind(){
+    try {
+      OPEN_SELECTORS.forEach(sel => {
+        const list = document.querySelectorAll(sel);
+        list && list.forEach(bindEl);
+      });
+    } catch(e){ console.warn('[lr] scanAndBind error', e); }
+  }
+
+  // Initial scan
+  scanAndBind();
+
+  // Observe DOM to bind dynamic elements (e.g. SPA navigation)
+  const mo = new MutationObserver(function(muts){
+    scanAndBind();
+  });
+  try { mo.observe(document.body, { childList: true, subtree: true }); } catch(e){}
+
+  // Expose for debugging
+  window.__lr_attachOpeners = function(){ scanAndBind(); };
+})();
   // Attach minimal settings-menu listener fallback (already attempted above)
   (function attachListener(){
     const btn = document.getElementById('settings_menu');
