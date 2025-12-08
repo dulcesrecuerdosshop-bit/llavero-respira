@@ -784,23 +784,107 @@ Recíbela con gratitud.`,
   }
 
   function mostrarFrase() {
-    const fEl = fraseEl();
-    const bEl = bgEl();
-    if (!fEl) return;
-    let i = Math.floor(Math.random() * frases.length);
-    if (i === lastIndex) i = (i + 1) % frases.length;
+  const fEl = fraseEl();
+  const bEl = bgEl();
+  if (!fEl) return;
 
-    // no exponemos la frase aún; la determinamos dentro del timeout (evita race conditions)
-    lastIndex = i;
-    const j = Math.floor(Math.random() * fondosDisponibles.length);
-    fEl.style.opacity = 0;
-    setTimeout(() => {
+  // usar la lista construida (ClientPhrases o fallback)
+  const frasesLocal = Array.isArray(window._phrases_list) && window._phrases_list.length ? window._phrases_list : (Array.isArray(frases) ? frases : []);
+  // si no hay ninguna frase, salir
+  if (!frasesLocal.length) return;
 
-      // BEGIN reemplazo seguro: priorizar PhraseSelector / ClientPhrases sin perder frases originales
+  let i = Math.floor(Math.random() * frasesLocal.length);
+  if (i === lastIndex) i = (i + 1) % frasesLocal.length;
+
+  // no exponemos la frase aún; la determinamos dentro del timeout (evita race conditions)
+  lastIndex = i;
+  const j = Math.floor(Math.random() * fondosDisponibles.length);
+  fEl.style.opacity = 0;
+
+  setTimeout(() => {
+    // BEGIN: priorizar PhraseSelector / ClientPhrases sin perder frases originales
+    try {
+      // valor por defecto: la frase desde la lista local (puede venir de clientPhrases)
+      var chosenPhrase = frasesLocal[i];
+
+      // obtener snapshot del cliente runtime
+      var clientSnapshot = window.CLIENT_USER || (localStorage.getItem('lr_client_runtime_user') ? JSON.parse(localStorage.getItem('lr_client_runtime_user')) : {});
+
+      // 1) preferir PhraseSelector si está disponible
+      if (window.PhraseSelector && typeof window.PhraseSelector.selectAndMark === 'function') {
+        try {
+          var res = window.PhraseSelector.selectAndMark(clientSnapshot);
+          if (res && typeof res.phrase === 'string' && res.phrase.trim().length) {
+            chosenPhrase = res.phrase;
+          }
+          if (res && res.updatedClient) {
+            // aplicar y persistir updatedClient (sin eliminar otras propiedades)
+            window.CLIENT_USER = Object.assign({}, window.CLIENT_USER || {}, res.updatedClient);
+            try { window.saveClientRuntime && window.saveClientRuntime(res.updatedClient); } catch(e){ try { localStorage.setItem('lr_client_runtime_user', JSON.stringify(window.CLIENT_USER)); } catch(_){} }
+            if (res.category) {
+              try { window.CLIENT_USER.ultimaCategoriaMostrada = res.category; window.saveClientRuntime && window.saveClientRuntime({ ultimaCategoriaMostrada: res.category }); } catch(e) {}
+            }
+          }
+        } catch(e) { console.warn('PhraseSelector.selectAndMark fallo, fallback a lista local', e); }
+      }
+
+      // 2) si no hay result de PhraseSelector y existe ClientPhrases, intentar fallback por categoría
+      if ((!chosenPhrase || !chosenPhrase.trim()) && window.ClientPhrases && typeof window.ClientPhrases.random === 'function') {
+        try {
+          var estado = (clientSnapshot && clientSnapshot.estadoEmocionalActual) ? String(clientSnapshot.estadoEmocionalActual).toLowerCase() : '';
+          var fallbackCategory = 'rutina';
+          if (estado.indexOf('crisis') !== -1 || (clientSnapshot && Number(clientSnapshot.nivelDeAnsiedad) >= 4)) fallbackCategory = 'crisis';
+          else if (estado.indexOf('ansiedad') !== -1 || estado.indexOf('tenso') !== -1) fallbackCategory = 'calma';
+          var cpPhrase = window.ClientPhrases.random(fallbackCategory) || window.ClientPhrases.random('rutina');
+          if (cpPhrase) chosenPhrase = cpPhrase;
+        } catch(e){ /* ignore */ }
+      }
+
+      // 3) aplicar al DOM y sincronizar memoria
+      if (fEl) {
+        try { fEl.textContent = chosenPhrase; } catch(e){ try { fEl.innerText = chosenPhrase; } catch(_){} }
+      }
       try {
-        // valor por defecto: la frase desde el array local (para no perder texto)
-        var chosenPhrase = frases[i];
+        window._phrases_current = chosenPhrase;
+        // si la frase viene de la lista local, mantener el índice; si fue seleccionada por selector, marcar como -1
+        window._phrases_currentIndex = (typeof i === 'number' && chosenPhrase === frasesLocal[i]) ? i : -1;
+      } catch(e){}
+    } catch(e){
+      // en caso de problemas, fallback directo (no pierde frase)
+      try { fEl.textContent = frasesLocal[i] || (Array.isArray(frases) ? frases[0] : ''); } catch(e2){}
+      try { window._phrases_current = frasesLocal[i] || ''; window._phrases_currentIndex = 0; } catch(_) {}
+    }
+    // END priorización
 
-        // obtener snapshot del cliente runtime
-        var clientSnapshot = window.CLIENT_USER || (localStorage.getItem('lr_client_runtime_user') ? JSON.parse(localStorage.getItem('lr_client_runtime_user')) : {});
-        ...
+    // aplicar fondo (imagen o gradient) y luego decidir contraste
+    const bgValue = fondosDisponibles[j] || gradientFondos[j % gradientFondos.length];
+    if (bEl) {
+      applyBackgroundToElement(bEl, bgValue);
+      try {
+        const imageUrl = (/\.(jpe?g|png|webp|avif)$/i.test(bgValue)) ? bgValue : null;
+        if (typeof detectContrastAndToggleDarkBg === 'function') {
+          detectContrastAndToggleDarkBg(imageUrl, document.querySelector('.frase-card'));
+        }
+      } catch (e) { console.warn('contrast toggle call failed', e); }
+    } else {
+      try { document.querySelector('.frase-card') && document.querySelector('.frase-card').classList.remove('dark-bg'); } catch(_) {}
+    }
+
+    // asegurar fullscreen (no intrusivo)
+    try {
+      const card = document.querySelector('.frase-card');
+      if (card && !card.classList.contains('fullscreen')) card.classList.add('fullscreen');
+    } catch(e){ /* silent */ }
+
+    fEl.style.opacity = 1;
+
+    // ocultar hint si existe (evita solapamientos)
+    try {
+      const hintEl = document.querySelector('.hint');
+      if (hintEl) hintEl.remove();
+    } catch(e){}
+
+    // callback post-mostrado
+    if (typeof window.onFraseMostrada === 'function') try{ window.onFraseMostrada(window._phrases_current); }catch(e){}
+  }, 160);
+}
