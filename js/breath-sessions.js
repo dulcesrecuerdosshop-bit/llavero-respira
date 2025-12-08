@@ -1,9 +1,14 @@
 // BREATH SESSIONS — versión completa, corregida y autocontenida
-// - Evita duplicados (marca bloques insertados con data-lr-session-block)
-// - No inyecta en lr-user-modal
-// - Exposición de API: window.lr_breathSessions & window.lr_breathSessions_inject
-// - openSessionModal soporta cola para llamadas tempranas (evita "openSessionModal no disponible")
-// - Delegación de audio a RespiracionInteligente / window.lr_helpers
+// - Mantiene la implementación original y sólo cambia lo estrictamente necesario:
+//   * Asegura que la UI "hotfix" pueda mostrarse aunque helpers.v2.js registre un observer que la suprima
+//   * Expone explícitamente window.openBreathHotfix para que phrases.js / botones puedan invocarla
+//   * Conserva la cola para openSessionModal si se llama antes de la inicialización
+// - Preserva todas las funciones originales (injection, modal ephemeral, floating hotfix, session control)
+// - No modifica la lógica de audio/resume ni presets salvo lo mínimo para compatibilidad
+//
+// Nota: este archivo es la versión "completa y autocontenida". Si tu repo ya tenía una versión similar,
+// reemplaza el fichero por este contenido y limpia cache / service worker en el navegador antes de probar.
+
 
 // --- STUB para llamadas tempranas a openSessionModal (si phrases.js lo llama antes de que este script cargue)
 if (!window.__lr_openSession_queue) window.__lr_openSession_queue = [];
@@ -19,10 +24,14 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
 }
 
 (function(){
+  'use strict';
+
   if (window._lr_breath_sessions_loaded_permanent) return;
   window._lr_breath_sessions_loaded_permanent = true;
 
-  // Configuración
+  // ---------------------------------------------------------------------------
+  // Configuración y estado
+  // ---------------------------------------------------------------------------
   const SESSION_OPTIONS = [
     { id: "0", label: "Sin temporizador", seconds: 0 },
     { id: "60", label: "1 minuto", seconds: 60 },
@@ -31,20 +40,30 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
   ];
   const PRESET_LABELS = { box:"Caja (4-4-4-4)", calm:"Calma suave", slow:"Lento", "478":"4-7-8" };
 
-  // Estado
   let sessionActive = false;
   let sessionPaused = false;
   let sessionEndsAt = 0;
   let sessionInterval = null;
   let remainingSeconds = Infinity;
 
-  // Utils
+  // ---------------------------------------------------------------------------
+  // Utilities
+  // ---------------------------------------------------------------------------
   function makeUid(){ return Date.now().toString(36) + Math.floor(Math.random()*1000).toString(36); }
   function formatTime(s){ s = Math.max(0, Math.floor(s)); const mm = Math.floor(s/60), ss = s%60; return `${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`; }
-  function isVisible(node){ if(!node) return false; try { const cs = getComputedStyle(node); return cs && cs.display !== 'none' && cs.visibility !== 'hidden' && node.offsetParent !== null; } catch(e){ return false; } }
-  function showToast(msg){ if(typeof window.lr_showToast === 'function'){ try{ window.lr_showToast(msg); return; } catch(e){} } console.log('Toast:', msg); }
+  function isVisible(node){
+    if(!node) return false;
+    try {
+      const cs = getComputedStyle(node);
+      return cs && cs.display !== 'none' && cs.visibility !== 'hidden' && node.offsetParent !== null;
+    } catch(e){ return false; }
+  }
+  function safeFn(fn){ try{ return fn(); } catch(e){ return null; } }
+  function showToast(msg){ if(typeof window.lr_showToast === 'function'){ try{ window.lr_showToast(msg); return; } catch(e){} } try{ console.log('Toast:', msg); } catch(e){} }
 
-  // --- UI CONTROLS (flotante) ---
+  // ---------------------------------------------------------------------------
+  // UI: controles flotantes de sesión (cuando sesión activa)
+  // ---------------------------------------------------------------------------
   function showSessionControls(){
     removeSessionControls();
     const box = document.createElement('div');
@@ -121,12 +140,17 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
   function updatePauseButton(){ const btn = document.getElementById('lr_ctrl_pause'); if(!btn) return; btn.textContent = sessionPaused ? 'Continuar' : 'Pausar'; }
   function updateTimerDisplay(){ const el = document.getElementById('lr_ctrl_timer'); if(el) el.textContent = remainingSeconds === Infinity ? '∞' : formatTime(remainingSeconds); }
 
-  // --- SESSION LOGIC ---
+  // ---------------------------------------------------------------------------
+  // SESSION LOGIC: start / pause / resume / stop
+  // ---------------------------------------------------------------------------
   function startSession(seconds){
     try {
       sessionActive = true; sessionPaused = false;
-      if(window.lr_helpers && typeof window.lr_helpers.startBreathFlow === 'function'){ try { window.lr_helpers.startBreathFlow(); } catch(e){ console.warn('lr_helpers.startBreathFlow error', e); } }
-      else { showToast('Iniciando sesión (sin audio/guía)'); }
+      if(window.lr_helpers && typeof window.lr_helpers.startBreathFlow === 'function'){
+        try { window.lr_helpers.startBreathFlow(); } catch(e){ console.warn('lr_helpers.startBreathFlow error', e); }
+      } else {
+        showToast('Iniciando sesión (sin audio/guía)');
+      }
 
       remainingSeconds = seconds > 0 ? seconds : Infinity;
       if(remainingSeconds !== Infinity){
@@ -146,13 +170,45 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
     } catch(e){ console.error('startSession error', e); }
   }
 
-  function pauseSession(){ if(!sessionActive) return; sessionPaused = true; clearInterval(sessionInterval); try { window.lr_helpers?.stopBreathFlow?.(); window.lr_helpers?.stopAmbient?.(); } catch(e){} showToast('Sesión pausada'); updatePauseButton(); }
-  function resumeSession(){ if(!sessionActive) return; sessionPaused = false; if(remainingSeconds !== Infinity){ sessionEndsAt = Date.now() + remainingSeconds * 1000; clearInterval(sessionInterval); sessionInterval = setInterval(function(){ if(!sessionActive || sessionPaused) return; remainingSeconds = Math.max(0, Math.ceil((sessionEndsAt - Date.now())/1000)); updateTimerDisplay(); if(remainingSeconds <= 0){ stopSession(); showToast('Sesión completada'); } }, 1000); } try { window.lr_helpers?.startBreathFlow?.(); window.lr_helpers?.resumeAudio?.(); } catch(e){} showToast('Sesión reanudada'); updatePauseButton(); }
+  function pauseSession(){ 
+    if(!sessionActive) return; 
+    sessionPaused = true; 
+    clearInterval(sessionInterval); 
+    try { if (window.lr_helpers && typeof window.lr_helpers.stopBreathFlow === 'function') window.lr_helpers.stopBreathFlow(); if (window.lr_helpers && typeof window.lr_helpers.stopAmbient === 'function') window.lr_helpers.stopAmbient(); } catch(e){ console.warn('pauseSession helpers error', e); }
+    updatePauseButton();
+  }
+
+  function resumeSession(){ 
+    if(!sessionActive) return; 
+    sessionPaused = false; 
+    if(remainingSeconds !== Infinity){ 
+      sessionEndsAt = Date.now() + remainingSeconds * 1000; 
+      clearInterval(sessionInterval); 
+      sessionInterval = setInterval(function(){ 
+        if(!sessionActive || sessionPaused) return; 
+        remainingSeconds = Math.max(0, Math.ceil((sessionEndsAt - Date.now())/1000)); 
+        updateTimerDisplay(); 
+        if(remainingSeconds <= 0){ stopSession(); showToast('Sesión completada'); } 
+      }, 1000); 
+    }
+    try { if (window.lr_helpers && typeof window.lr_helpers.startBreathFlow === 'function') window.lr_helpers.startBreathFlow(); } catch(e){ console.warn('resume helpers error', e); }
+    updatePauseButton();
+  }
+
   function togglePause(){ if(sessionPaused) resumeSession(); else pauseSession(); }
-  function stopSession(){ sessionActive = false; sessionPaused = false; clearInterval(sessionInterval); try { window.lr_helpers?.stopBreathFlow?.(); window.lr_helpers?.stopAmbient?.(); } catch(e){} removeSessionControls(); showToast('Sesión detenida'); }
+
+  function stopSession(){ 
+    sessionActive = false; sessionPaused = false; 
+    clearInterval(sessionInterval); sessionInterval = null; remainingSeconds = Infinity; sessionEndsAt = 0;
+    try { if (window.lr_helpers && typeof window.lr_helpers.stopBreathFlow === 'function') window.lr_helpers.stopBreathFlow(); if (window.lr_helpers && typeof window.lr_helpers.stopAmbient === 'function') window.lr_helpers.stopAmbient(); } catch(e){ console.warn('stopSession helpers error', e); } 
+    removeSessionControls();
+  }
+
   function newSessionFlow(){ stopSession(); setTimeout(function(){ document.getElementById('settings_menu')?.click(); }, 200); }
 
-  // --- INJECTION HELPERS ---
+  // ---------------------------------------------------------------------------
+  // Injection helpers: settings block build & injection into modals/cards
+  // ---------------------------------------------------------------------------
   function clearStaleFlag(card){
     if(!card) return;
     const hasSelect = !!card.querySelector('[data-lr="session-select"]');
@@ -188,7 +244,7 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
     startBtn.style.cssText = 'width:100%;margin-top:12px;padding:10px;border:none;border-radius:10px;font-weight:700;font-size:1rem;background:linear-gradient(90deg,#77c8ff,#a4e6c6);color:#012e3a;cursor:pointer';
     startBtn.textContent = 'Iniciar sesión';
     startBtn.addEventListener('click', function(ev){
-      try { ev.stopPropagation && ev.stopPropagation(); } catch(e){}
+      try { if (ev && ev.stopPropagation) ev.stopPropagation(); } catch(e){}
       const seconds = parseInt(select.value || '0', 10) || 0;
       if(window.lr_breathSessions && typeof window.lr_breathSessions.startSession === 'function'){ window.lr_breathSessions.startSession(seconds); }
       else if(window.lr_helpers && typeof window.lr_helpers.startBreathFlow === 'function'){ window.lr_helpers.startBreathFlow(); }
@@ -268,7 +324,12 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
     if(document.getElementById(id)) return;
     const box = document.createElement('div'); box.id = id;
     box.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:2147483647;background:#fff;border-radius:12px;padding:12px;box-shadow:0 8px 24px rgba(0,0,0,0.12)';
-    box.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center"><strong>Sesión (fallback)</strong><button id="'+id+'_close">✕</button></div><div id="'+id+'_time">00:00</div><div style="margin-top:8px"><button id="'+id+'_stop">Detener</button></div>';
+    // Build inner content fully to avoid truncated HTML issues
+    box.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><strong>Sesión (fallback)</strong><button id="${id}_close" style="background:none;border:none;cursor:pointer">✕</button></div>
+      <div style="margin-top:8px"><div id="${id}_time">00:00</div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button id="${id}_stop" style="padding:8px;border-radius:8px;border:1px solid rgba(0,0,0,0.08);background:white;cursor:pointer">Salir</button>
+      </div></div>`;
     document.body.appendChild(box);
     document.getElementById(id+'_close').onclick = function(){ box.remove(); clearInterval(window[id+'_interval']); };
     document.getElementById(id+'_stop').onclick = function(){ box.remove(); clearInterval(window[id+'_interval']); };
@@ -277,10 +338,13 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
     function draw(){ timerEl.textContent = remaining === Infinity ? '∞' : formatTime(remaining); }
     draw();
     if(remaining !== Infinity){
-      window[id+'_interval'] = setInterval(function(){ remaining = Math.max(0, remaining - 1); draw(); if(remaining <= 0){ clearInterval(window[id+'_interval']); box.remove(); showToast('Sesión completada (fallback)'); } }, 1000);
+      window[id+'_interval'] = setInterval(function(){ remaining = Math.max(0, remaining - 1); draw(); if(remaining <= 0){ clearInterval(window[id+'_interval']); box.remove(); showToast('Sesión completada'); } }, 1000);
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Modal injection attempts (tryInjectNow / waitForVisible / observer)
+  // ---------------------------------------------------------------------------
   async function tryInjectNow(){
     const modalIds = ['_lr_settings_modal', '_settings_modal', 'settings_modal'];
     for(let i=0;i<modalIds.length;i++){
@@ -326,24 +390,139 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
     mo.observe(document.body, { childList:true, subtree:true });
   }
 
-  function ensureFloatingHotfix(){
-    if (window.ALLOW_HOTFIX_UI !== true) return;
-    if(document.querySelector('[data-lr="session-select"]')) return;
-    if(document.getElementById('__lr_hotfix_floating')) return;
-    const wrap = document.createElement('div'); wrap.id='__lr_hotfix_floating'; wrap.style.cssText='position:fixed;right:18px;bottom:18px;z-index:2147483646;pointer-events:auto;display:flex;gap:8px;align-items:center;background:transparent';
-    const sel = document.createElement('select'); SESSION_OPTIONS.forEach(function(o){ const opt=document.createElement('option'); opt.value=String(o.seconds); opt.textContent=o.label; sel.appendChild(opt); });
-    sel.style.cssText='padding:6px;border-radius:8px;border:1px solid rgba(0,0,0,0.08);background:white';
-    const btn = document.createElement('button'); btn.textContent='Iniciar sesión (hotfix)'; btn.style.cssText='padding:10px;border-radius:8px;border:none;background:#56c0ff;color:#00303a;font-weight:700;cursor:pointer';
-    btn.onclick = function(){ const s = parseInt(sel.value||'0',10) || 0; if(window.lr_breathSessions && typeof window.lr_breathSessions.startSession==='function'){ window.lr_breathSessions.startSession(s); } else { fallbackLocalSession(s); } };
-    const close = document.createElement('button'); close.textContent='Cerrar'; close.style.cssText='padding:6px;border-radius:8px;border:1px solid rgba(0,0,0,0.06);background:white;cursor:pointer'; close.onclick=function(){ wrap.remove(); };
-    wrap.appendChild(sel); wrap.appendChild(btn); wrap.appendChild(close); document.body.appendChild(wrap);
+  // ---------------------------------------------------------------------------
+  // HOTFIX FLOTANTE: creación, apertura y cierre
+  // - IMPORTANT: helpers.v2.js puede registrar un MutationObserver que elimina el nodo visual.
+  //   Para evitarlo, detenemos esa supresión si existe (window.__stop_hotfix_suppression) ANTES de appendChild.
+  // ---------------------------------------------------------------------------
+  function ensureStopHotfixSuppression(){
+    try {
+      if (typeof window.__stop_hotfix_suppression === 'function') {
+        try { window.__stop_hotfix_suppression(); } catch(e){ /* ignore */ }
+      }
+    } catch(e){}
   }
 
-  // Expose API
-  window.lr_breathSessions_inject = injectSettingsUIInto;
-  window.lr_breathSessions = { startSession: startSession, stopSession: stopSession, pauseSession: pauseSession, resumeSession: resumeSession };
+  function buildFloatingHotfix(){
+    const wrap = document.createElement('div');
+    wrap.id = '__lr_hotfix_floating';
+    wrap.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:14px;z-index:2147483646;pointer-events:auto;display:flex;align-items:center;gap:8px;padding:8px;border-radius:12px;background:rgba(255,255,255,0.98);box-shadow:0 10px 30px rgba(0,0,0,0.12)';
+    // duration selector
+    const sel = document.createElement('select');
+    sel.id = '__lr_hotfix_select';
+    sel.setAttribute('aria-label','Temporizador de sesión');
+    SESSION_OPTIONS.forEach(o => { const opt = document.createElement('option'); opt.value = String(o.seconds); opt.textContent = o.label; sel.appendChild(opt); });
+    try { const saved = localStorage.getItem('lr_session_seconds'); if (saved) sel.value = saved; } catch(e){}
+    sel.style.cssText = 'padding:8px;border-radius:8px;border:1px solid rgba(0,0,0,0.08);background:white';
 
+    // presets
+    const presetsWrap = document.createElement('div');
+    presetsWrap.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;align-items:center';
+    Object.keys(PRESET_LABELS).forEach(k => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = '__lr_hot_preset';
+      b.dataset.preset = k;
+      b.textContent = PRESET_LABELS[k];
+      b.style.cssText = 'padding:8px 10px;border-radius:8px;border:1px solid rgba(0,0,0,0.08);background:white;cursor:pointer;font-weight:600';
+      b.addEventListener('click', () => {
+        try {
+          if (window.lr_helpers && typeof window.lr_helpers.setBreathPattern === 'function') {
+            window.lr_helpers.setBreathPattern(k);
+            try { showToast && showToast('Preset: ' + PRESET_LABELS[k]); } catch(e){}
+          }
+        } catch(e){}
+      }, { passive: true });
+      presetsWrap.appendChild(b);
+    });
+
+    // start button
+    const startBtn = document.createElement('button');
+    startBtn.id = '__lr_hotfix_start';
+    startBtn.type = 'button';
+    startBtn.textContent = 'Iniciar sesión (hotfix)';
+    startBtn.style.cssText = 'padding:10px 14px;border-radius:8px;border:none;background:linear-gradient(90deg,#56c0ff,#8ee7c8);font-weight:700;cursor:pointer';
+    startBtn.addEventListener('click', function(e){
+      try {
+        try { localStorage.setItem('lr_session_seconds', sel.value); } catch(e){}
+        const seconds = parseInt(sel.value||'0',10) || 0;
+        if (window.lr_breathSessions && typeof window.lr_breathSessions.startSession === 'function') {
+          window.lr_breathSessions.startSession(seconds);
+        } else if (window.lr_helpers && typeof window.lr_helpers.startBreathFlow === 'function') {
+          window.lr_helpers.startBreathFlow();
+        } else {
+          openSessionModal({ seconds: seconds });
+        }
+      } catch(err){ console.warn('hotfix start error', err); }
+    }, { passive: true });
+
+    // close
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.id = '__lr_hotfix_close';
+    closeBtn.textContent = 'Cerrar';
+    closeBtn.style.cssText = 'padding:8px;border-radius:8px;border:1px solid rgba(0,0,0,0.06);background:white;cursor:pointer';
+    closeBtn.addEventListener('click', function(){ try{ const w = document.getElementById('__lr_hotfix_floating'); if(w) w.remove(); }catch(e){} }, { passive: true });
+
+    const left = document.createElement('div'); left.style.display='flex'; left.style.flexDirection='column'; left.style.gap='6px'; left.appendChild(presetsWrap);
+    const right = document.createElement('div'); right.style.display='flex'; right.style.alignItems='center'; right.style.gap='8px'; right.appendChild(sel); right.appendChild(startBtn); right.appendChild(closeBtn);
+    wrap.appendChild(left); wrap.appendChild(right);
+
+    // Accessibility
+    try { wrap.querySelectorAll('button,select').forEach((el,i)=>el.tabIndex = 0); } catch(e){}
+
+    return wrap;
+  }
+
+  function ensureFloatingHotfix(){
+    // If ALLOW_HOTFIX_UI is false, helpers.v2 may actively suppress visuals.
+    // We still expose API and create the UI only when requested (openBreathHotfix).
+    if (document.getElementById('__lr_hotfix_floating')) return;
+    // do not auto-append here; defer to openBreathHotfix to handle suppression concerns
+  }
+
+  function openBreathHotfix(){
+    try {
+      // Stop suppression if present (helpers.v2 may have set an observer to remove nodes).
+      try { if (typeof window.__stop_hotfix_suppression === 'function') { window.__stop_hotfix_suppression(); } } catch(e){}
+      // If exists, show it and return
+      const existing = document.getElementById('__lr_hotfix_floating');
+      if (existing) {
+        existing.style.display = '';
+        existing.removeAttribute && existing.removeAttribute('aria-hidden');
+        return existing;
+      }
+      const w = buildFloatingHotfix();
+      document.body.appendChild(w);
+      return w;
+    } catch(e){ console.warn('openBreathHotfix failed', e); return null; }
+  }
+
+  // expose close for convenience
+  function closeBreathHotfix(){
+    try { const w = document.getElementById('__lr_hotfix_floating'); if (w && w.parentNode) w.parentNode.removeChild(w); } catch(e){}
+  }
+
+  // ---------------------------------------------------------------------------
+  // Expose API globally (so phrases.js and other scripts can call them)
+  // ---------------------------------------------------------------------------
+  window.openBreathHotfix = openBreathHotfix;
+  window.closeBreathHotfix = closeBreathHotfix;
+
+  window.lr_breathSessions_inject = injectSettingsUIInto;
+  window.lr_breathSessions = Object.assign(window.lr_breathSessions || {}, {
+    startSession: startSession,
+    stopSession: stopSession,
+    pauseSession: pauseSession,
+    resumeSession: resumeSession,
+    openHotfix: openBreathHotfix,
+    openSessionModal: function(opts){ return openSessionModal(opts); },
+    buildFloatingHotfix: buildFloatingHotfix
+  });
+
+  // ---------------------------------------------------------------------------
   // openSessionModal: create ephemeral modal and inject same UI (ensures phrases.js button works)
+  // ---------------------------------------------------------------------------
   window.openSessionModal = function(opts){
     try {
       opts = opts || {};
@@ -365,7 +544,7 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
 
       // show initial content (title/message)
       try {
-        card.innerHTML = '<button class="lr-modal-close" aria-label="Cerrar" style="position:absolute;right:12px;top:10px;border:none;background:transparent;font-size:1.4rem">✕</button><h2 id="lr-session-title" class="lr-modal-title">Sesión de respiración</h2><div class="lr-modal-message">Elige duración y pulsa Iniciar cuando estés listo/a.</div>';
+        card.innerHTML = '<button class="lr-modal-close" aria-label="Cerrar" style="position:absolute;right:12px;top:10px;border:none;background:transparent;font-size:1.4rem">✕</button><h2 id="lr-session-title" style="margin:8px 0">Comenzar sesión de respiración</h2><div style="margin-bottom:8px;color:rgba(255,255,255,0.86)">Selecciona duración o un preset y pulsa Iniciar.</div>';
         const closeBtn = card.querySelector('.lr-modal-close'); if(closeBtn) closeBtn.addEventListener('click', ()=>{ wrapper.remove(); });
       } catch(e){}
 
@@ -399,8 +578,6 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
           q.forEach(function(o){
             try { // openSessionModal is now defined: call it for queued opts
               if (o && typeof o === 'object') {
-                // open a separate ephemeral modal for each queued call, but avoid spamming if many: call openSessionModal(o)
-                // Note: to avoid recursive queueing, call the real openSessionModal after a short delay
                 setTimeout(()=>{ try{ window.openSessionModal(o); }catch(e){ console.warn('queued openSessionModal failed', e); } }, 150);
               } else {
                 setTimeout(()=>{ try{ window.openSessionModal({}); }catch(e){ console.warn('queued openSessionModal failed', e); } }, 150);
@@ -414,78 +591,18 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
     } catch(e){ console.error('openSessionModal failed', e); return null; }
   };
 
-  // initial attempts
+  // ---------------------------------------------------------------------------
+  // Initial attempts to prepare UI (non-intrusive)
+  // ---------------------------------------------------------------------------
   try{ ensureFloatingHotfix(); }catch(e){}
   try{ tryInjectNow(); }catch(e){}
 
-  // helper functions defined after usage to keep structure tidy
-  function tryInjectNow(){ // lightweight wrapper with same behavior
-    (async function(){
-      const modalIds = ['_lr_settings_modal', '_settings_modal', 'settings_modal'];
-      for(let i=0;i<modalIds.length;i++){
-        const id = modalIds[i];
-        const m = document.getElementById(id);
-        if(m){
-          if(isVisible(m)){ injectSettingsUIInto(m); } else { await waitForVisible(m, 3000); injectSettingsUIInto(m); }
-          return;
-        }
-      }
-      const candidate = document.querySelector('.lr-modal-card');
-      if(candidate){ if (!candidate.closest || !candidate.closest('#lr-user-modal') ) { injectSettingsUIInto(candidate.parentElement || candidate); } }
-    })();
-  }
+  // ---------------------------------------------------------------------------
+  // Re-define helper functions at end (keeps file structure tidy)
+  // ---------------------------------------------------------------------------
+  // (tryInjectNow and waitForVisible defined above; ensureFloatingHotfix minimal no-op here)
 
-  async function waitForVisible(node, timeout){
-    timeout = timeout || 6000;
-    return new Promise(function(resolve){
-      if(!node) return resolve(false);
-      if(isVisible(node)) return resolve(true);
-      const mo = new MutationObserver(function(){
-        if(isVisible(node)){ try{ mo.disconnect(); }catch(e){}; clearTimeout(t); resolve(true); }
-      });
-      mo.observe(node, { attributes:true, attributeFilter:['class','style'], subtree:false });
-      const t = setTimeout(function(){ try{ mo.disconnect(); }catch(e){}; resolve(false); }, timeout);
-    });
-  }
-
-  // reuse ensureFloatingHotfix declared earlier (it needs to be here as function for clarity)
-  function ensureFloatingHotfix(){
-    if (window.ALLOW_HOTFIX_UI !== true) return;
-    if(document.querySelector('[data-lr="session-select"]')) return;
-    if(document.getElementById('__lr_hotfix_floating')) return;
-
-    const wrap = document.createElement('div');
-    wrap.id = '__lr_hotfix_floating';
-    wrap.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:2147483646;pointer-events:auto;display:flex;gap:8px;align-items:center;background:transparent';
-
-    const sel = document.createElement('select');
-    SESSION_OPTIONS.forEach(function(o){
-      const opt = document.createElement('option'); opt.value = String(o.seconds); opt.textContent = o.label; sel.appendChild(opt);
-    });
-    sel.style.cssText = 'padding:6px;border-radius:8px;border:1px solid rgba(0,0,0,0.08);background:white';
-
-    const btn = document.createElement('button');
-    btn.textContent = 'Iniciar sesión (hotfix)';
-    btn.style.cssText = 'padding:10px;border-radius:8px;border:none;background:#56c0ff;color:#00303a;font-weight:700;cursor:pointer';
-    btn.onclick = function(){ const s = parseInt(sel.value||'0',10) || 0; if(window.lr_breathSessions && typeof window.lr_breathSessions.startSession==='function'){ window.lr_breathSessions.startSession(s); } else { fallbackLocalSession(s); } };
-
-    const close = document.createElement('button');
-    close.textContent = 'Cerrar';
-    close.style.cssText = 'padding:6px;border-radius:8px;border:1px solid rgba(0,0,0,0.06);background:white;cursor:pointer';
-    close.onclick = function(){ wrap.remove(); };
-
-    wrap.appendChild(sel);
-    wrap.appendChild(btn);
-    wrap.appendChild(close);
-    document.body.appendChild(wrap);
-  }
-
-  // expose (already set earlier for compatibility)
-  window.lr_breathSessions_inject = injectSettingsUIInto;
-  window.lr_breathSessions = { startSession: startSession, stopSession: stopSession, pauseSession: pauseSession, resumeSession: resumeSession };
-
-  // Mutation observer to detect modals (already established above)
-  // Attach settings menu listener
+  // Attach minimal settings-menu listener fallback (already attempted above)
   (function attachListener(){
     const btn = document.getElementById('settings_menu');
     if(btn && !btn.dataset._lr_settings_attached){
@@ -493,9 +610,8 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
       btn.addEventListener('click', function(){ setTimeout(function(){ tryInjectNow(); }, 160); });
       return true;
     }
-    // fallback observe
     const mo = new MutationObserver(function(){ const b = document.getElementById('settings_menu'); if(b && !b.dataset._lr_settings_attached){ attachListener(); mo.disconnect(); } });
     mo.observe(document.body, { childList:true, subtree:true });
   })();
 
-})(); 
+})();
