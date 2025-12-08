@@ -1,5 +1,8 @@
-// phrases.js - Delegador seguro a ClientPhrases (sin array gigante inline)
+// phrases.js - Delegador seguro a ClientPhrases (completo, versión V41 applied)
 // Mantiene mostrarFrase/showDailyPhraseInto, persistencia y detector de contraste.
+// Esta versión aplica la corrección solicitada: handler del botón "Respirar" abre
+// openSessionModal() (modal-user) en primer lugar; si no disponible hace fallback.
+// Además se asegura que runInit() esté declarado y que no haya tokens truncados.
 // Reemplaza completamente el archivo js/phrases.js por este contenido.
 // Después limpia cache / service worker y recarga la web para aplicar los cambios.
 
@@ -173,7 +176,10 @@
       const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
       const isDark = luminance < 0.45;
 
-      if (isDark) containerEl.classList.remove('dark-bg'); else containerEl.classList.add('dark-bg');
+      // Note: dark-bg semantics are inverted on purpose depending on design decisions
+      if (isDark) containerEl.classList.remove('dark-bg');
+      else containerEl.classList.add('dark-bg');
+
       try { canvas.width = canvas.height = 0; } catch (e) {}
     } catch (e) {
       try { document.querySelector('.frase-card') && document.querySelector('.frase-card').classList.add('dark-bg'); } catch (_) {}
@@ -215,7 +221,7 @@
             }
             if (res && res.updatedClient) {
               window.CLIENT_USER = Object.assign({}, window.CLIENT_USER || {}, res.updatedClient);
-              try { window.saveClientRuntime && window.saveClientRuntime(res.updatedClient); } catch (e) { try { localStorage.setItem('lr_client_runtime_user', JSON.stringify(window.CLIENT_USER)); } catch(_){ } }
+              try { window.saveClientRuntime && window.saveClientRuntime(res.updatedClient); } catch (e) { try { localStorage.setItem('lr_client_runtime_user', JSON.stringify(window.CLIENT_USER)); } catch(_){} }
               if (res.category) { try { window.CLIENT_USER.ultimaCategoriaMostrada = res.category; window.saveClientRuntime && window.saveClientRuntime({ ultimaCategoriaMostrada: res.category }); } catch(e){} }
             }
           } catch (e) { console.warn('PhraseSelector.selectAndMark fallo', e); }
@@ -302,10 +308,7 @@
   // ---------------------------------------------------------------------------
   (function finalizer(){
 
-    // ---------------------------------------------------------
-    // Declaramos runInit al principio del scope finalizer para
-    // evitar ReferenceError si se llama por setTimeout/guardas.
-    // ---------------------------------------------------------
+    // runInit must be hoisted in this scope to avoid ReferenceError
     function runInit(){
       try {
         const ok = rebuildIfEmpty();
@@ -317,9 +320,6 @@
       } catch(e){ return false; }
     }
 
-    // ---------------------------------------------------------
-    // Resto del finalizer (funciones auxiliares)
-    // ---------------------------------------------------------
     function rebuildIfEmpty(){
       try {
         if (!window._phrases_list || !window._phrases_list.length) {
@@ -387,7 +387,7 @@
       } catch(e){ /* silent */ }
     }
 
-    // === Inserta dentro de finalizer(), por ejemplo justo después de ensureMostrarFn() ===
+    // === Inserta dentro de finalizer(): ensureBreathButton (crea el botón "Respirar" en la tarjeta)
     function ensureBreathButton(){
       try {
         // si ya existe, no hacemos nada
@@ -410,9 +410,8 @@
         for (const sel of possible) {
           try { const el = card.querySelector(sel); if (el) { controls = el; break; } } catch(e){}
         }
-        // fallback: añadir al propio card si no hay contenedor específico
+        // fallback: crear contenedor .frase-controls dentro de .frase-content si posible
         if (!controls) {
-          // try to add a .frase-controls container if possible
           try {
             const content = card.querySelector('.frase-content') || card;
             controls = document.createElement('div');
@@ -433,21 +432,33 @@
         // estilos básicos (ajusta si quieres)
         btn.style.cssText = 'padding:10px 16px;border-radius:12px;border:none;background:linear-gradient(90deg,#ffc371,#ff6b6b);color:#04232a;font-weight:700;cursor:pointer;margin-left:10px;box-shadow:0 6px 18px rgba(0,0,0,0.12)';
 
-        // handler: priorizar abrir hotfix/modal, fallback a helpers
+        // handler: priorizar abrir modal de sesión (openSessionModal), fallback a hotfix y helpers
         btn.addEventListener('click', function (e) {
           try {
-            // detener supresión visual si existe
-            try { if (typeof window.__stop_hotfix_suppression === 'function') window.__stop_hotfix_suppression(); } catch(e){}
+            // 1) Intentar abrir el modal de sesión (user modal) si está disponible
+            try {
+              if (typeof window.openSessionModal === 'function') {
+                window.openSessionModal({ suggestedType: (window.CLIENT_USER && window.CLIENT_USER.suggestedBreathingType) || null });
+                return;
+              }
+            } catch (errModal) { /* ignore and fallback */ }
 
-            // intentar abrir hotfix flotante / modal programable
-            if (typeof window.openBreathHotfix === 'function') { window.openBreathHotfix(); return; }
-            if (window.lr_breathSessions && typeof window.lr_breathSessions.openHotfix === 'function') { window.lr_breathSessions.openHotfix(); return; }
+            // 2) Intentar abrir hotfix flotante
+            try {
+              if (typeof window.openBreathHotfix === 'function') { window.openBreathHotfix(); return; }
+              if (window.lr_breathSessions && typeof window.lr_breathSessions.openHotfix === 'function') { window.lr_breathSessions.openHotfix(); return; }
+            } catch (errHotfix) { /* ignore and fallback */ }
 
-            // fallback a iniciar flujo (sin UI)
-            if (window.lr_helpers && typeof window.lr_helpers.startBreathFlow === 'function') { window.lr_helpers.startBreathFlow(); return; }
-            if (typeof window.startBreathFlowInternal === 'function') { window.startBreathFlowInternal(); return; }
+            // 3) Fallback: iniciar respiración directamente si no hay UI
+            try {
+              if (window.lr_helpers && typeof window.lr_helpers.startBreathFlow === 'function') { window.lr_helpers.startBreathFlow(); return; }
+            } catch (errHelpers) { /* ignore */ }
+            try {
+              if (typeof window.startBreathFlowInternal === 'function') { window.startBreathFlowInternal(); return; }
+            } catch (errHelpers2) { /* ignore */ }
 
-            try { showToast && typeof showToast === 'function' && showToast('Función de respiración no disponible'); } catch(e){}
+            // 4) Último recurso: notificar al usuario
+            try { window.lr_showToast && typeof window.lr_showToast === 'function' && window.lr_showToast('Función de respiración no disponible'); } catch(e){}
           } catch (err) { console.warn('breathBtn click error', err); }
         });
 
