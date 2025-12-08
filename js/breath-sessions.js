@@ -49,13 +49,11 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
   // Initialize BreathOverlay if available
   try {
     if (window.BreathOverlay && typeof window.BreathOverlay.init === 'function') {
-      try { 
-        window.BreathOverlay.init({ username: window.CLIENT_USER?.nombre || '' }); 
-      } catch(e) { 
-        console.warn('BreathOverlay.init failed', e); 
-      }
+      window.BreathOverlay.init({ username: window.CLIENT_USER?.nombre || '' }); 
     }
-  } catch(e){}
+  } catch(e){ 
+    console.warn('BreathOverlay.init failed', e); 
+  }
 
   // ---------------------------------------------------------------------------
   // Utilities
@@ -166,9 +164,11 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
       // Show overlay for inhale phase
       try {
         if (window.BreathOverlay && typeof window.BreathOverlay.showPhase === 'function') {
-          try { BreathOverlay.showPhase('inhale', 4); } catch(e){ console.warn('BreathOverlay.showPhase start failed', e); }
+          BreathOverlay.showPhase('inhale', 4);
         }
-      } catch(e){}
+      } catch(e){ 
+        console.warn('BreathOverlay.showPhase start failed', e); 
+      }
 
       remainingSeconds = seconds > 0 ? seconds : Infinity;
       if(remainingSeconds !== Infinity){
@@ -197,9 +197,11 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
     // Show hold phase when pausing
     try {
       if (window.BreathOverlay && typeof window.BreathOverlay.showPhase === 'function') {
-        try { BreathOverlay.showPhase('hold', 0); } catch(e) { console.warn('BreathOverlay.showPhase pause failed', e); }
+        BreathOverlay.showPhase('hold', 0);
       }
-    } catch(e){}
+    } catch(e) { 
+      console.warn('BreathOverlay.showPhase pause failed', e); 
+    }
     
     updatePauseButton();
   }
@@ -222,9 +224,11 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
     // Show inhale phase when resuming
     try {
       if (window.BreathOverlay && typeof window.BreathOverlay.showPhase === 'function') {
-        try { BreathOverlay.showPhase('inhale', 4); } catch(e) { console.warn('BreathOverlay.showPhase resume failed', e); }
+        BreathOverlay.showPhase('inhale', 4);
       }
-    } catch(e){}
+    } catch(e) { 
+      console.warn('BreathOverlay.showPhase resume failed', e); 
+    }
     
     updatePauseButton();
   }
@@ -239,9 +243,11 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
     // Hide overlay when stopping session
     try {
       if (window.BreathOverlay && typeof window.BreathOverlay.hide === 'function') {
-        try { BreathOverlay.hide(); } catch(e) { console.warn('BreathOverlay.hide failed', e); }
+        BreathOverlay.hide();
       }
-    } catch(e){}
+    } catch(e) { 
+      console.warn('BreathOverlay.hide failed', e); 
+    }
     
     removeSessionControls();
   }

@@ -6,6 +6,9 @@
   'use strict';
 
   const DEFAULT_COLORS = { inhale: "#6BCB77", exhale: "#FF6B6B", hold: "#4D96FF" };
+  const MAX_OVERLAY_Z_INDEX = 2147483850;  // Very high z-index to ensure overlay is above all UI
+  const COLOR_REAPPLY_DELAY_SHORT = 60;    // ms - first reapplication delay
+  const COLOR_REAPPLY_DELAY_LONG = 300;    // ms - second reapplication delay
 
   let state = {
     inited: false,
@@ -328,7 +331,7 @@
           state.overlay.style.left = '0';
           state.overlay.style.right = '0';
           state.overlay.style.bottom = '0';
-          state.overlay.style.zIndex = '2147483850';
+          state.overlay.style.zIndex = String(MAX_OVERLAY_Z_INDEX);
           // Show flex so CSS rules for children apply
           state.overlay.style.display = 'flex';
           state.overlay.style.pointerEvents = 'none';
@@ -344,8 +347,8 @@
           const color = colors[type] || DEFAULT_COLORS.inhale;
           state.overlay.style.background = color;
           // Reapply after short delays to resist rapid CSS overrides
-          setTimeout(function(){ try{ state.overlay.style.background = color; }catch(e){} }, 60);
-          setTimeout(function(){ try{ state.overlay.style.background = color; }catch(e){} }, 300);
+          setTimeout(function(){ try{ state.overlay.style.background = color; }catch(e){} }, COLOR_REAPPLY_DELAY_SHORT);
+          setTimeout(function(){ try{ state.overlay.style.background = color; }catch(e){} }, COLOR_REAPPLY_DELAY_LONG);
         } catch (e) {}
         
         updatePhaseText(type);
