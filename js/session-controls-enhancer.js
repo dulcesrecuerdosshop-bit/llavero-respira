@@ -1,6 +1,6 @@
-// session-controls-enhancer.js - improved robust enhancer (v2) with clearer minimize button
+// session-controls-enhancer.js - improved robust enhancer (v3)
 // - Detects breath-sessions panel (#lr_session_controls) and makes it draggable + minimizable.
-// - This revision improves the minimize button visibility and avoids overlapping UI.
+// - This revision repositions the minimize button to avoid overlapping the modal's internal close "X".
 // - Non-invasive: does not modify breath-sessions.js logic or event handlers.
 // - Include this script AFTER breath-sessions.js (defer) in index.html.
 
@@ -16,6 +16,7 @@
 
   // small util helpers
   function qs(selector, root) { return (root || document).querySelector(selector); }
+  function qsa(selector, root) { return Array.from((root || document).querySelectorAll(selector)); }
   function on(el, ev, fn, opts) { try { el.addEventListener(ev, fn, opts || false); } catch(e){} }
   function off(el, ev, fn, opts) { try { el.removeEventListener(ev, fn, opts || false); } catch(e){} }
   function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
@@ -144,6 +145,40 @@
     on(window, 'touchend', function (t) { pointerUp(t.changedTouches ? t.changedTouches[0] : t); }, { passive:false });
   }
 
+  // Reposition minimize button to avoid overlap with modal close X
+  function positionMinBtn(panel, minBtn) {
+    try {
+      // detect an internal close button inside panel (modal close or similar)
+      const closeSelectors = ['.lr-modal-close', '[aria-label="Cerrar"]', '.modal-close', '.close'];
+      let closeBtn = null;
+      for (const sel of closeSelectors) {
+        closeBtn = panel.querySelector(sel);
+        if (closeBtn) break;
+      }
+
+      // default placement: slightly outside top-right
+      minBtn.style.position = 'absolute';
+      minBtn.style.top = '-12px';
+      minBtn.style.zIndex = '2147483701';
+      // If there's a close button, prefer placing minimize on the opposite (left) side to avoid overlap
+      if (closeBtn) {
+        minBtn.style.left = '-12px';
+        minBtn.style.right = 'auto';
+      } else {
+        minBtn.style.right = '-12px';
+        minBtn.style.left = 'auto';
+      }
+
+      // safety: if panel is narrow, push minBtn further out
+      const pRect = panel.getBoundingClientRect();
+      if (pRect.width < 220) {
+        // push it further out so it doesn't overlay content
+        if (minBtn.style.left !== 'auto') minBtn.style.left = '-20px';
+        if (minBtn.style.right !== 'auto') minBtn.style.right = '-20px';
+      }
+    } catch (e) { /* non-fatal */ }
+  }
+
   // Enhance the panel element (add handle, minimize button, etc.)
   function enhancePanel(panel) {
     if (!panel || panel.dataset?.lrEnhanced === '1') return;
@@ -176,18 +211,15 @@
         handle.style.padding = handle.style.padding || '6px';
       } catch (e){}
 
-      // add a clearly visible minimize button (floating circular) that doesn't blend with modal close
+      // add a clearly visible minimize button (floating circular) that avoids overlapping internal close
       let minBtn = panel.querySelector('.lr-session-min-btn');
       if (!minBtn) {
         minBtn = document.createElement('button');
         minBtn.type = 'button';
         minBtn.className = 'lr-session-min-btn';
         minBtn.setAttribute('aria-label','Minimizar controles de sesión');
-        // Place it slightly outside the top-right corner to avoid overlapping modal internal close
+        // base style; exact placement adjusted by positionMinBtn()
         minBtn.style.cssText = [
-          'position:absolute',
-          'right:-12px',
-          'top:-12px',
           'width:36px',
           'height:36px',
           'border-radius:50%',
@@ -203,16 +235,8 @@
           'font-size:16px',
           'padding:0'
         ].join(';');
-        // Use a clear "minimize" icon (Unicode minus)
         minBtn.innerHTML = '<span aria-hidden="true">−</span>';
         panel.appendChild(minBtn);
-      } else {
-        // If exists, ensure style updated
-        minBtn.style.position = 'absolute';
-        minBtn.style.right = minBtn.style.right || '-12px';
-        minBtn.style.top = minBtn.style.top || '-12px';
-        minBtn.style.zIndex = '2147483701';
-        minBtn.style.width = minBtn.style.width || '36px';
       }
 
       // create FAB
@@ -234,6 +258,18 @@
       // make draggable by handle
       makeDraggable(handle, panel);
 
+      // position minimize button carefully to avoid overlap
+      positionMinBtn(panel, minBtn);
+
+      // observe panel children for presence of close button and adjust
+      const innerMo = new MutationObserver(function () {
+        positionMinBtn(panel, minBtn);
+      });
+      try { innerMo.observe(panel, { childList:true, subtree:true, attributes:false }); } catch(e){}
+
+      // position adjust on resize
+      on(window, 'resize', function(){ positionMinBtn(panel, minBtn); });
+
       // ensure FAB visibility respects minimized state saved earlier
       try {
         const minState = localStorage.getItem(STORAGE_KEY_MIN);
@@ -244,6 +280,7 @@
           fab.style.display = 'none';
         }
       } catch(e){}
+
     } catch (err) {
       console.warn('[lr-enhancer] enhancePanel error', err);
     }
@@ -314,6 +351,6 @@
   on(window, 'beforeunload', function () { try { mo.disconnect(); if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } } catch(e){} });
 
   // expose for debugging
-  try { window.__lr_session_enhancer = { enhancePanel: enhancePanel }; } catch(e){}
+  try { window.__lr_session_enhancer = { enhancePanel: enhancePanel, positionMinBtn: positionMinBtn }; } catch(e){}
 
 })();
