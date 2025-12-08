@@ -28,7 +28,7 @@
         try {
           const all = window.ClientPhrases.getAll();
           if (Array.isArray(all) && all.length) return all.slice(0);
-        } catch(e){}
+        } catch (e) {}
       }
 
       // 2) categorías conocidas mediante get()
@@ -37,10 +37,10 @@
       try {
         if (typeof window.ClientPhrases.get === 'function') {
           commonCats.forEach(c => {
-            try { const arr = window.ClientPhrases.get(c); if (Array.isArray(arr) && arr.length) acc.push(...arr); } catch(e){}
+            try { const arr = window.ClientPhrases.get(c); if (Array.isArray(arr) && arr.length) acc.push(...arr); } catch (e) {}
           });
         }
-      } catch(e){}
+      } catch (e) {}
 
       if (acc.length) return acc;
 
@@ -53,11 +53,11 @@
             try {
               const p = window.ClientPhrases.random('rutina') || window.ClientPhrases.random();
               if (p && !seen.has(p)) { seen.add(p); out.push(p); }
-            } catch(e){}
+            } catch (e) {}
           }
           if (out.length) return out;
         }
-      } catch(e){}
+      } catch (e) {}
 
       // 4) último recurso: explorar propiedades internas
       try {
@@ -66,10 +66,10 @@
           const v = window.ClientPhrases[k];
           if (Array.isArray(v) && v.length && typeof v[0] === 'string') return v.slice(0);
         }
-      } catch(e){}
+      } catch (e) {}
 
       return null;
-    } catch(e){
+    } catch (e) {
       return null;
     }
   }
@@ -83,7 +83,7 @@
       } else {
         window._phrases_list = SAFE_FALLBACK_PHRASES.slice(0);
       }
-    } catch(e) {
+    } catch (e) {
       window._phrases_list = SAFE_FALLBACK_PHRASES.slice(0);
     }
   })();
@@ -126,7 +126,7 @@
       window._phrases_image_check = results;
       results.forEach(r => { if (r.ok) fondosDisponibles.push(r.src); });
       window.fondosDisponibles = fondosDisponibles;
-    } catch(e){ console.warn('[phrases] initFondos', e); }
+    } catch (e) { console.warn('[phrases] initFondos', e); }
   }
 
   // ---------------------------------------------------------------------------
@@ -171,9 +171,9 @@
       const isDark = luminance < 0.45;
 
       if (isDark) containerEl.classList.remove('dark-bg'); else containerEl.classList.add('dark-bg');
-      try { canvas.width = canvas.height = 0; } catch(e){}
+      try { canvas.width = canvas.height = 0; } catch (e) {}
     } catch (e) {
-      try { document.querySelector('.frase-card') && document.querySelector('.frase-card').classList.add('dark-bg'); } catch(_) {}
+      try { document.querySelector('.frase-card') && document.querySelector('.frase-card').classList.add('dark-bg'); } catch (_) {}
       console.warn('detectContrastAndToggleDarkBg failed', e);
     }
   }
@@ -212,10 +212,10 @@
             }
             if (res && res.updatedClient) {
               window.CLIENT_USER = Object.assign({}, window.CLIENT_USER || {}, res.updatedClient);
-              try { window.saveClientRuntime && window.saveClientRuntime(res.updatedClient); } catch(e){ try { localStorage.setItem('lr_client_runtime_user', JSON.stringify(window.CLIENT_USER)); } catch(_){} }
-              if (res.category) { try { window.CLIENT_USER.ultimaCategoriaMostrada = res.category; window.saveClientRuntime && window.saveClientRuntime({ ultimaCategoriaMostrada: res.category }); } catch(e){} }
+              try { window.saveClientRuntime && window.saveClientRuntime(res.updatedClient); } catch (e) { try { localStorage.setItem('lr_client_runtime_user', JSON.stringify(window.CLIENT_USER)); } catch (_) {} }
+              if (res.category) { try { window.CLIENT_USER.ultimaCategoriaMostrada = res.category; window.saveClientRuntime && window.saveClientRuntime({ ultimaCategoriaMostrada: res.category }); } catch (e) {} }
             }
-          } catch(e){ console.warn('PhraseSelector.selectAndMark fallo', e); }
+          } catch (e) { console.warn('PhraseSelector.selectAndMark fallo', e); }
         }
 
         if ((!chosenPhrase || !chosenPhrase.trim()) && window.ClientPhrases && typeof window.ClientPhrases.random === 'function') {
@@ -226,14 +226,14 @@
             else if (estado.indexOf('ansiedad') !== -1 || estado.indexOf('tenso') !== -1) fallbackCategory = 'calma';
             var cpPhrase = window.ClientPhrases.random(fallbackCategory) || window.ClientPhrases.random('rutina');
             if (cpPhrase) chosenPhrase = cpPhrase;
-          } catch(e){ /* ignore */ }
+          } catch (e) { /* ignore */ }
         }
 
-        if (fEl) { try { fEl.textContent = chosenPhrase; } catch(e){ try { fEl.innerText = chosenPhrase; } catch(_){} } }
-        try { window._phrases_current = chosenPhrase; window._phrases_currentIndex = (typeof i === 'number' && chosenPhrase === frasesLocal[i]) ? i : -1; } catch(e){}
-      } catch(e){
-        try { fEl.textContent = frasesLocal[i] || SAFE_FALLBACK_PHRASES[0]; } catch(_) {}
-        try { window._phrases_current = frasesLocal[i] || SAFE_FALLBACK_PHRASES[0]; window._phrases_currentIndex = 0; } catch(_) {}
+        if (fEl) { try { fEl.textContent = chosenPhrase; } catch (e) { try { fEl.innerText = chosenPhrase; } catch (_) {} } }
+        try { window._phrases_current = chosenPhrase; window._phrases_currentIndex = (typeof i === 'number' && chosenPhrase === frasesLocal[i]) ? i : -1; } catch (e) {}
+      } catch (e) {
+        try { fEl.textContent = frasesLocal[i] || SAFE_FALLBACK_PHRASES[0]; } catch (_) { }
+        try { window._phrases_current = frasesLocal[i] || SAFE_FALLBACK_PHRASES[0]; window._phrases_currentIndex = 0; } catch (_) { }
       }
 
       const bgValue = fondosDisponibles[j] || gradientFondos[j % gradientFondos.length];
@@ -242,18 +242,18 @@
         try {
           const imageUrl = (/\.(jpe?g|png|webp|avif)$/i.test(bgValue)) ? bgValue : null;
           if (typeof detectContrastAndToggleDarkBg === 'function') detectContrastAndToggleDarkBg(imageUrl, document.querySelector('.frase-card'));
-        } catch(e){ console.warn('contrast toggle call failed', e); }
+        } catch (e) { console.warn('contrast toggle call failed', e); }
       } else {
-        try { document.querySelector('.frase-card') && document.querySelector('.frase-card').classList.remove('dark-bg'); } catch(_) {}
+        try { document.querySelector('.frase-card') && document.querySelector('.frase-card').classList.remove('dark-bg'); } catch (_) { }
       }
 
-      try { const card = document.querySelector('.frase-card'); if (card && !card.classList.contains('fullscreen')) card.classList.add('fullscreen'); } catch(e){}
+      try { const card = document.querySelector('.frase-card'); if (card && !card.classList.contains('fullscreen')) card.classList.add('fullscreen'); } catch (e) { }
 
       fEl.style.opacity = 1;
 
-      try { const hintEl = document.querySelector('.hint'); if (hintEl) hintEl.remove(); } catch(e){}
+      try { const hintEl = document.querySelector('.hint'); if (hintEl) hintEl.remove(); } catch (e) { }
 
-      if (typeof window.onFraseMostrada === 'function') try{ window.onFraseMostrada(window._phrases_current); }catch(e){}
+      if (typeof window.onFraseMostrada === 'function') try { window.onFraseMostrada(window._phrases_current); } catch (e) { }
     }, 160);
   }
 
@@ -286,12 +286,114 @@
               var ps = document.querySelector('.breathing-suggestion');
               if (ps) ps.style.display = '';
             }
-          } catch(e){}
+          } catch (e) {}
         }
-      } catch(e){ console.warn('showDailyPhraseInto failed', e); }
+      } catch (e) { console.warn('showDailyPhraseInto failed', e); }
     }
     window.showDailyPhraseInto = showDailyPhraseInto;
     window.mostrarFrase = function(){ return window.showDailyPhraseInto && window.showDailyPhraseInto('.frase-text'); };
+  })();
+
+  // ---------------------------------------------------------------------------
+  // Finalizer: reintenta si algo (por timing o por otros scripts) deja vacía la lista
+  // ---------------------------------------------------------------------------
+  (function finalizer(){
+    function rebuildIfEmpty(){
+      try {
+        if (!window._phrases_list || !window._phrases_list.length) {
+          const from = (function(){
+            try {
+              if (!window.ClientPhrases) return null;
+              if (typeof window.ClientPhrases.getAll === 'function') {
+                const all = window.ClientPhrases.getAll();
+                if (Array.isArray(all) && all.length) return all.slice(0);
+              }
+              const collected = [];
+              const cats = ['rutina','calma','validacion','bienvenida','crisis','amor','gratitud','autoayuda'];
+              try {
+                if (typeof window.ClientPhrases.get === 'function') {
+                  cats.forEach(c => { try { const a = window.ClientPhrases.get(c); if (Array.isArray(a)) collected.push(...a); } catch(e){} });
+                }
+              } catch(e){}
+              try {
+                if (!collected.length && typeof window.ClientPhrases.random === 'function') {
+                  const seen = new Set();
+                  for (let k=0;k<10;k++){
+                    try {
+                      const p = window.ClientPhrases.random('rutina') || window.ClientPhrases.random();
+                      if (p && !seen.has(p)) { seen.add(p); collected.push(p); }
+                    } catch(e){}
+                  }
+                }
+              } catch(e){}
+              try {
+                if (!collected.length) {
+                  for (const k in window.ClientPhrases) {
+                    if (!Object.prototype.hasOwnProperty.call(window.ClientPhrases,k)) continue;
+                    const v = window.ClientPhrases[k];
+                    if (Array.isArray(v) && v.length && typeof v[0] === 'string') collected.push(...v);
+                  }
+                }
+              } catch(e){}
+              return collected.length ? Array.from(new Set(collected)) : null;
+            } catch(e){ return null; }
+          })();
+          if (Array.isArray(from) && from.length) {
+            window._phrases_list = from.slice(0);
+            return true;
+          } else {
+            window._phrases_list = SAFE_FALLBACK_PHRASES.slice(0);
+            return false;
+          }
+        }
+        return true;
+      } catch(e){ console.warn('rebuildIfEmpty fail', e); return false; }
+    }
+
+    function ensureFondos(){
+      try {
+        if (!window.fondosDisponibles || !window.fondosDisponibles.length) window.fondosDisponibles = [...gradientFondos];
+        candidateImages.forEach(i => { if (!window.fondosDisponibles.includes(i)) window.fondosDisponibles.push(i); });
+      } catch(e){ /* silent */ }
+    }
+
+    function ensureMostrarFn(){
+      try {
+        if (typeof window.mostrarFrase !== 'function') {
+          window.mostrarFrase = mostrarFrase;
+        }
+      } catch(e){ /* silent */ }
+    }
+
+    function runInit(){
+      try {
+        const ok = rebuildIfEmpty();
+        ensureFondos();
+        ensureMostrarFn();
+        try { window.mostrarFrase && window.mostrarFrase(); } catch(e){}
+        return ok;
+      } catch(e){ return false; }
+    }
+
+    // run shortly after load, and again as a safety net
+    if (document.readyState === 'complete') {
+      setTimeout(runInit, 200);
+    } else {
+      window.addEventListener('load', () => setTimeout(runInit, 200));
+    }
+    // also try a couple of times in case other scripts run slightly later
+    setTimeout(runInit, 800);
+    setTimeout(runInit, 1600);
+    // periodic guard: if something wipes the list later, we try to restore
+    const guard = setInterval(() => {
+      try {
+        if (!window._phrases_list || !window._phrases_list.length) {
+          runInit();
+        }
+      } catch(e){}
+    }, 5000);
+    // stop guard after 2 minutes to avoid infinite work
+    setTimeout(() => clearInterval(guard), 2 * 60 * 1000);
   })();
 
 })();
