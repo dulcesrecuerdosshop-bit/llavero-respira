@@ -1,14 +1,6 @@
-// BREATH SESSIONS — versión completa, corregida y autocontenida
-// - Mantiene la implementación original y sólo cambia lo estrictamente necesario:
-//   * Asegura que la UI "hotfix" pueda mostrarse aunque helpers.v2.js registre un observer que la suprima
-//   * Expone explícitamente window.openBreathHotfix para que phrases.js / botones puedan invocarla
-//   * Conserva la cola para openSessionModal si se llama antes de la inicialización
-// - Preserva todas las funciones originales (injection, modal ephemeral, floating hotfix, session control)
-// - No modifica la lógica de audio/resume ni presets salvo lo mínimo para compatibilidad
-//
-// Nota: este archivo es la versión "completa y autocontenida". Si tu repo ya tenía una versión similar,
-// reemplaza el fichero por este contenido y limpia cache / service worker en el navegador antes de probar.
-
+// BREATH SESSIONS — versión centrada en la lógica original (sin integración forzada con overlay)
+// - Esta variante elimina las llamadas defensivas a BreathOverlay y el hotfix flotante
+// - Conserva la cola para openSessionModal y el resto de la lógica de sesiones
 
 // --- STUB para llamadas tempranas a openSessionModal (si phrases.js lo llama antes de que este script cargue)
 if (!window.__lr_openSession_queue) window.__lr_openSession_queue = [];
@@ -17,7 +9,6 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
     try {
       window.__lr_openSession_queue = window.__lr_openSession_queue || [];
       window.__lr_openSession_queue.push(opts || {});
-      // mensaje informativo (no error)
       console.warn('[lr] openSessionModal queued (breath-sessions not yet initialized)');
     } catch(e){ console.warn('[lr] openSessionModal queue error', e); }
   };
@@ -46,15 +37,7 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
   let sessionInterval = null;
   let remainingSeconds = Infinity;
 
-  // Initialize BreathOverlay if available
-  try {
-    if (window.BreathOverlay && typeof window.BreathOverlay.init === 'function') {
-      const username = (window.CLIENT_USER && window.CLIENT_USER.nombre) ? window.CLIENT_USER.nombre : '';
-      window.BreathOverlay.init({ username: username }); 
-    }
-  } catch(e){ 
-    console.warn('BreathOverlay.init failed', e); 
-  }
+  // NOTA: no forzamos BreathOverlay.init aquí; si el overlay está disponible otros scripts pueden inicializarlo.
 
   // ---------------------------------------------------------------------------
   // Utilities
@@ -162,15 +145,6 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
         showToast('Iniciando sesión (sin audio/guía)');
       }
 
-      // Show overlay for inhale phase
-      try {
-        if (window.BreathOverlay && typeof window.BreathOverlay.showPhase === 'function') {
-          BreathOverlay.showPhase('inhale', 4);
-        }
-      } catch(e){ 
-        console.warn('BreathOverlay.showPhase start failed', e); 
-      }
-
       remainingSeconds = seconds > 0 ? seconds : Infinity;
       if(remainingSeconds !== Infinity){
         sessionEndsAt = Date.now() + remainingSeconds * 1000;
@@ -193,17 +167,7 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
     if(!sessionActive) return; 
     sessionPaused = true; 
     clearInterval(sessionInterval); 
-    try { if (window.lr_helpers && typeof window.lr_helpers.stopBreathFlow === 'function') window.lr_helpers.stopBreathFlow(); if (window.lr_helpers && typeof window.lr_helpers.stopAmbient === 'function') window.lr_helpers.stopAmbient(); } catch(e){ console.warn('pauseSession helpers error', e); }
-    
-    // Show hold phase when pausing
-    try {
-      if (window.BreathOverlay && typeof window.BreathOverlay.showPhase === 'function') {
-        BreathOverlay.showPhase('hold', 0);
-      }
-    } catch(e) { 
-      console.warn('BreathOverlay.showPhase pause failed', e); 
-    }
-    
+    try { if (window.lr_helpers && typeof window.lr_helpers.stopBreathFlow === 'function') window.lr_helpers.stopBreathFlow(); if (window.lr_helpers && typeof window.lr_helpers.stopAmbient === 'function') window.lr_helpers.stopAmbient(); } catch(e){}
     updatePauseButton();
   }
 
@@ -221,16 +185,6 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
       }, 1000); 
     }
     try { if (window.lr_helpers && typeof window.lr_helpers.startBreathFlow === 'function') window.lr_helpers.startBreathFlow(); } catch(e){ console.warn('resume helpers error', e); }
-    
-    // Show inhale phase when resuming
-    try {
-      if (window.BreathOverlay && typeof window.BreathOverlay.showPhase === 'function') {
-        BreathOverlay.showPhase('inhale', 4);
-      }
-    } catch(e) { 
-      console.warn('BreathOverlay.showPhase resume failed', e); 
-    }
-    
     updatePauseButton();
   }
 
@@ -239,17 +193,7 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
   function stopSession(){ 
     sessionActive = false; sessionPaused = false; 
     clearInterval(sessionInterval); sessionInterval = null; remainingSeconds = Infinity; sessionEndsAt = 0;
-    try { if (window.lr_helpers && typeof window.lr_helpers.stopBreathFlow === 'function') window.lr_helpers.stopBreathFlow(); if (window.lr_helpers && typeof window.lr_helpers.stopAmbient === 'function') window.lr_helpers.stopAmbient(); } catch(e){ console.warn('stopSession helpers error', e); } 
-    
-    // Hide overlay when stopping session
-    try {
-      if (window.BreathOverlay && typeof window.BreathOverlay.hide === 'function') {
-        BreathOverlay.hide();
-      }
-    } catch(e) { 
-      console.warn('BreathOverlay.hide failed', e); 
-    }
-    
+    try { if (window.lr_helpers && typeof window.lr_helpers.stopBreathFlow === 'function') window.lr_helpers.stopBreathFlow(); if (window.lr_helpers && typeof window.lr_helpers.stopAmbient === 'function') window.lr_helpers.stopAmbient(); } catch(e){}
     removeSessionControls();
   }
 
@@ -257,6 +201,7 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
 
   // ---------------------------------------------------------------------------
   // Injection helpers: settings block build & injection into modals/cards
+  // (mismo código que antes)
   // ---------------------------------------------------------------------------
   function clearStaleFlag(card){
     if(!card) return;
@@ -358,7 +303,6 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
       try { built.container.setAttribute('data-lr-session-block','1'); } catch(e){}
       card.appendChild(built.container);
       try { card.dataset.sessionsLoaded = "1"; } catch(e){ card.setAttribute('data-sessions-loaded','1'); }
-      const hf = document.getElementById('__lr_hotfix_floating'); if(hf) hf.remove();
       window.__lr_last_session_ids = { selectId: built.selectId, startId: built.startId, presetsId: built.presetsId, uid: built.uid };
       return true;
     } catch(e){
@@ -374,7 +318,7 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
     const box = document.createElement('div'); box.id = id;
     box.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:2147483647;background:#fff;border-radius:12px;padding:12px;box-shadow:0 8px 24px rgba(0,0,0,0.12)';
     // Build inner content fully to avoid truncated HTML issues
-    box.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><strong>Sesión (fallback)</strong><button id="${id}_close" style="background:none;border:none;cursor:pointer">✕</button></div>
+    box.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><strong>Sesión (fallback)</strong><button id="${id}_close" style="background:none;border:none;cursor:po[...]
       <div style="margin-top:8px"><div id="${id}_time">00:00</div>
       <div style="display:flex;gap:8px;margin-top:8px">
         <button id="${id}_stop" style="padding:8px;border-radius:8px;border:1px solid rgba(0,0,0,0.08);background:white;cursor:pointer">Salir</button>
@@ -387,7 +331,7 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
     function draw(){ timerEl.textContent = remaining === Infinity ? '∞' : formatTime(remaining); }
     draw();
     if(remaining !== Infinity){
-      window[id+'_interval'] = setInterval(function(){ remaining = Math.max(0, remaining - 1); draw(); if(remaining <= 0){ clearInterval(window[id+'_interval']); box.remove(); showToast('Sesión completada'); } }, 1000);
+      window[id+'_interval'] = setInterval(function(){ remaining = Math.max(0, remaining - 1); draw(); if(remaining <= 0){ clearInterval(window[id+'_interval']); box.remove(); showToast('Sesión compl[...]
     }
   }
 
@@ -440,133 +384,16 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
   }
 
   // ---------------------------------------------------------------------------
-  // HOTFIX FLOTANTE: creación, apertura y cierre
-  // - IMPORTANT: helpers.v2.js puede registrar un MutationObserver que elimina el nodo visual.
-  //   Para evitarlo, detenemos esa supresión si existe (window.__stop_hotfix_suppression) ANTES de appendChild.
-  // ---------------------------------------------------------------------------
-  function ensureStopHotfixSuppression(){
-    try {
-      if (typeof window.__stop_hotfix_suppression === 'function') {
-        try { window.__stop_hotfix_suppression(); } catch(e){ /* ignore */ }
-      }
-    } catch(e){}
-  }
-
-  function buildFloatingHotfix(){
-    const wrap = document.createElement('div');
-    wrap.id = '__lr_hotfix_floating';
-    wrap.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:14px;z-index:2147483646;pointer-events:auto;display:flex;align-items:center;gap:8px;padding:8px;border-radius:12px;background:rgba(255,255,255,0.98);box-shadow:0 10px 30px rgba(0,0,0,0.12)';
-    // duration selector
-    const sel = document.createElement('select');
-    sel.id = '__lr_hotfix_select';
-    sel.setAttribute('aria-label','Temporizador de sesión');
-    SESSION_OPTIONS.forEach(o => { const opt = document.createElement('option'); opt.value = String(o.seconds); opt.textContent = o.label; sel.appendChild(opt); });
-    try { const saved = localStorage.getItem('lr_session_seconds'); if (saved) sel.value = saved; } catch(e){}
-    sel.style.cssText = 'padding:8px;border-radius:8px;border:1px solid rgba(0,0,0,0.08);background:white';
-
-    // presets
-    const presetsWrap = document.createElement('div');
-    presetsWrap.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;align-items:center';
-    Object.keys(PRESET_LABELS).forEach(k => {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = '__lr_hot_preset';
-      b.dataset.preset = k;
-      b.textContent = PRESET_LABELS[k];
-      b.style.cssText = 'padding:8px 10px;border-radius:8px;border:1px solid rgba(0,0,0,0.08);background:white;cursor:pointer;font-weight:600';
-      b.addEventListener('click', () => {
-        try {
-          if (window.lr_helpers && typeof window.lr_helpers.setBreathPattern === 'function') {
-            window.lr_helpers.setBreathPattern(k);
-            try { showToast && showToast('Preset: ' + PRESET_LABELS[k]); } catch(e){}
-          }
-        } catch(e){}
-      }, { passive: true });
-      presetsWrap.appendChild(b);
-    });
-
-    // start button
-    const startBtn = document.createElement('button');
-    startBtn.id = '__lr_hotfix_start';
-    startBtn.type = 'button';
-    startBtn.textContent = 'Iniciar sesión (hotfix)';
-    startBtn.style.cssText = 'padding:10px 14px;border-radius:8px;border:none;background:linear-gradient(90deg,#56c0ff,#8ee7c8);font-weight:700;cursor:pointer';
-    startBtn.addEventListener('click', function(e){
-      try {
-        try { localStorage.setItem('lr_session_seconds', sel.value); } catch(e){}
-        const seconds = parseInt(sel.value||'0',10) || 0;
-        if (window.lr_breathSessions && typeof window.lr_breathSessions.startSession === 'function') {
-          window.lr_breathSessions.startSession(seconds);
-        } else if (window.lr_helpers && typeof window.lr_helpers.startBreathFlow === 'function') {
-          window.lr_helpers.startBreathFlow();
-        } else {
-          openSessionModal({ seconds: seconds });
-        }
-      } catch(err){ console.warn('hotfix start error', err); }
-    }, { passive: true });
-
-    // close
-    const closeBtn = document.createElement('button');
-    closeBtn.type = 'button';
-    closeBtn.id = '__lr_hotfix_close';
-    closeBtn.textContent = 'Cerrar';
-    closeBtn.style.cssText = 'padding:8px;border-radius:8px;border:1px solid rgba(0,0,0,0.06);background:white;cursor:pointer';
-    closeBtn.addEventListener('click', function(){ try{ const w = document.getElementById('__lr_hotfix_floating'); if(w) w.remove(); }catch(e){} }, { passive: true });
-
-    const left = document.createElement('div'); left.style.display='flex'; left.style.flexDirection='column'; left.style.gap='6px'; left.appendChild(presetsWrap);
-    const right = document.createElement('div'); right.style.display='flex'; right.style.alignItems='center'; right.style.gap='8px'; right.appendChild(sel); right.appendChild(startBtn); right.appendChild(closeBtn);
-    wrap.appendChild(left); wrap.appendChild(right);
-
-    // Accessibility
-    try { wrap.querySelectorAll('button,select').forEach((el,i)=>el.tabIndex = 0); } catch(e){}
-
-    return wrap;
-  }
-
-  function ensureFloatingHotfix(){
-    // If ALLOW_HOTFIX_UI is false, helpers.v2 may actively suppress visuals.
-    // We still expose API and create the UI only when requested (openBreathHotfix).
-    if (document.getElementById('__lr_hotfix_floating')) return;
-    // do not auto-append here; defer to openBreathHotfix to handle suppression concerns
-  }
-
-  function openBreathHotfix(){
-    try {
-      // Stop suppression if present (helpers.v2 may have set an observer to remove nodes).
-      try { if (typeof window.__stop_hotfix_suppression === 'function') { window.__stop_hotfix_suppression(); } } catch(e){}
-      // If exists, show it and return
-      const existing = document.getElementById('__lr_hotfix_floating');
-      if (existing) {
-        existing.style.display = '';
-        existing.removeAttribute && existing.removeAttribute('aria-hidden');
-        return existing;
-      }
-      const w = buildFloatingHotfix();
-      document.body.appendChild(w);
-      return w;
-    } catch(e){ console.warn('openBreathHotfix failed', e); return null; }
-  }
-
-  // expose close for convenience
-  function closeBreathHotfix(){
-    try { const w = document.getElementById('__lr_hotfix_floating'); if (w && w.parentNode) w.parentNode.removeChild(w); } catch(e){}
-  }
-
-  // ---------------------------------------------------------------------------
   // Expose API globally (so phrases.js and other scripts can call them)
   // ---------------------------------------------------------------------------
-  window.openBreathHotfix = openBreathHotfix;
-  window.closeBreathHotfix = closeBreathHotfix;
-
   window.lr_breathSessions_inject = injectSettingsUIInto;
   window.lr_breathSessions = Object.assign(window.lr_breathSessions || {}, {
     startSession: startSession,
     stopSession: stopSession,
     pauseSession: pauseSession,
     resumeSession: resumeSession,
-    openHotfix: openBreathHotfix,
     openSessionModal: function(opts){ return openSessionModal(opts); },
-    buildFloatingHotfix: buildFloatingHotfix
+    buildFloatingHotfix: function(){ return null; } // hotfix UI removed in this variant
   });
 
   // ---------------------------------------------------------------------------
@@ -575,7 +402,6 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
   window.openSessionModal = function(opts){
     try {
       opts = opts || {};
-      // remove any previous temp modal
       const prev = document.getElementById('__lr_temp_session_modal');
       if(prev) prev.remove();
 
@@ -591,20 +417,16 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
       const card = wrapper.querySelector('.lr-modal-card');
       if(!card){ wrapper.remove(); return null; }
 
-      // show initial content (title/message)
       try {
-        card.innerHTML = '<button class="lr-modal-close" aria-label="Cerrar" style="position:absolute;right:12px;top:10px;border:none;background:transparent;font-size:1.4rem">✕</button><h2 id="lr-session-title" style="margin:8px 0">Comenzar sesión de respiración</h2><div style="margin-bottom:8px;color:rgba(255,255,255,0.86)">Selecciona duración o un preset y pulsa Iniciar.</div>';
+        card.innerHTML = '<button class="lr-modal-close" aria-label="Cerrar" style="position:absolute;right:12px;top:10px;border:none;background:transparent;font-size:1.4rem">✕</button><h2 id="lr-session-title">Temporizador de sesión</h2><div id="lr-session-body"></div>';
         const closeBtn = card.querySelector('.lr-modal-close'); if(closeBtn) closeBtn.addEventListener('click', ()=>{ wrapper.remove(); });
       } catch(e){}
 
-      // Now inject the settings UI into the card
       const injected = (injectSettingsUIInto(card) || injectSettingsUIInto(wrapper) || injectSettingsUIInto(document.body));
-      // wire cleanup: when a start button inside this card is clicked, remove wrapper after short delay
       try {
         const startBtn = card.querySelector('[data-lr="session-start"], [id^="lr_session_start_btn_"]');
         if (startBtn) { startBtn.addEventListener('click', function(){ setTimeout(()=>{ try{ wrapper.remove(); }catch(e){} }, 300); }, { once: true }); }
         else {
-          // delegate: remove on first click of any child button that looks like start
           const onClickDelegate = function(ev){
             const el = ev.target;
             if(!el) return;
@@ -614,18 +436,17 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
           };
           card.addEventListener('click', onClickDelegate, { once: true });
         }
-      } catch(e){ /* ignore */ }
+      } catch(e){}
 
       if(opts && opts.suggestedType) wrapper.dataset.suggestedType = opts.suggestedType;
       wrapper.setAttribute('aria-hidden','false');
 
-      // Process any queued openSessionModal calls that arrived before initialization
       try {
         if (Array.isArray(window.__lr_openSession_queue) && window.__lr_openSession_queue.length) {
           const q = window.__lr_openSession_queue.slice(0);
           window.__lr_openSession_queue = [];
           q.forEach(function(o){
-            try { // openSessionModal is now defined: call it for queued opts
+            try {
               if (o && typeof o === 'object') {
                 setTimeout(()=>{ try{ window.openSessionModal(o); }catch(e){ console.warn('queued openSessionModal failed', e); } }, 150);
               } else {
@@ -640,16 +461,8 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
     } catch(e){ console.error('openSessionModal failed', e); return null; }
   };
 
-  // ---------------------------------------------------------------------------
   // Initial attempts to prepare UI (non-intrusive)
-  // ---------------------------------------------------------------------------
-  try{ ensureFloatingHotfix(); }catch(e){}
   try{ tryInjectNow(); }catch(e){}
-
-  // ---------------------------------------------------------------------------
-  // Re-define helper functions at end (keeps file structure tidy)
-  // ---------------------------------------------------------------------------
-  // (tryInjectNow and waitForVisible defined above; ensureFloatingHotfix minimal no-op here)
 
   // Attach minimal settings-menu listener fallback (already attempted above)
   (function attachListener(){
