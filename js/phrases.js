@@ -400,42 +400,61 @@ function ensureBreathButton(){
     // estilos básicos (ajusta si quieres)
     btn.style.cssText = 'padding:10px 16px;border-radius:12px;border:none;background:linear-gradient(90deg,#ffc371,#ff6b6b);color:#04232a;font-weight:700;cursor:pointer;margin-left:10px;box-shadow:0 6px 18px rgba(0,0,0,0.12)';
 
-    // handler: preferir lr_helpers, fallback a funciones internas
-    btn.addEventListener('click', function (e) {
+    // handler: intentar mostrar UI (hotfix) primero; si no, fallback a startBreathFlow
+    const handler = function (e) {
       try {
-        if (window.lr_helpers && typeof window.lr_helpers.startBreathFlow === 'function') {
-          window.lr_helpers.startBreathFlow();
-        } else if (typeof window.startBreathFlowInternal === 'function') {
-          window.startBreathFlowInternal();
-        } else if (typeof window.openBreathHotfix === 'function') {
-          window.openBreathHotfix();
-        } else {
-          console.warn('[breathBtn] función de respiración no disponible');
-          showToast && typeof showToast === 'function' && showToast('Función de respiración no disponible');
-        }
+        // permitir prevenir el default si hace falta
+        try { e && typeof e.preventDefault === 'function' && e.preventDefault(); } catch (_) {}
+
+        // 1) intentar detener la supresión del hotfix (si helpers.v2 la creó)
+        try { if (typeof window.__stop_hotfix_suppression === 'function') { window.__stop_hotfix_suppression(); } } catch (e) {}
+
+        // 2) intentar abrir la UI de programación (hotfix) si está disponible
+        try {
+          if (typeof window.openBreathHotfix === 'function') {
+            const wrap = window.openBreathHotfix();
+            // si se devolvió el wrapper, intentar mostrarlo (algunas implementaciones lo crean pero lo ocultan)
+            if (wrap) {
+              try { wrap.style.display = ''; wrap.removeAttribute && wrap.removeAttribute('aria-hidden'); } catch(e){}
+              return;
+            }
+          }
+        } catch (e) { /* ignore & continue to fallback */ }
+
+        // 3) fallback: preferir API pública lr_helpers.startBreathFlow
+        try {
+          if (window.lr_helpers && typeof window.lr_helpers.startBreathFlow === 'function') {
+            window.lr_helpers.startBreathFlow();
+            return;
+          }
+        } catch(e){}
+
+        // 4) último fallback: funciones internas si existen
+        try {
+          if (typeof window.startBreathFlowInternal === 'function') {
+            window.startBreathFlowInternal();
+            return;
+          }
+        } catch(e){}
+
+        // 5) si nada disponible, avisar al usuario
+        try { showToast && typeof showToast === 'function' && showToast('Función de respiración no disponible'); } catch(e){}
       } catch (err) { console.warn('breathBtn click error', err); }
-      // prevenir "doble" acciones
-      try { e.preventDefault(); e.stopPropagation(); } catch(_) {}
-    }, { passive: true });
+    };
+
+    // Usar opciones sin passive para que preventDefault funcione
+    try { btn.addEventListener('click', handler, false); } catch(e){ btn.addEventListener('click', handler); }
+    // Añadimos touchend con passive: false para móviles (si browser soporta opciones)
+    try {
+      btn.addEventListener('touchend', function(e){ handler(e); }, { passive: false });
+    } catch(e){
+      // navegadores antiguos - añadir sin options
+      try { btn.addEventListener('touchend', function(e){ handler(e); }); } catch(_) {}
+    }
 
     // insertarlo al principio o al final según convenga
     try { controls.insertBefore(btn, controls.firstChild); } catch(e){ try { controls.appendChild(btn); } catch(_){} }
   } catch(e) { console.warn('ensureBreathButton error', e); }
-}
-
-// y desde runInit() (donde ya llamas a ensureMostrarFn), añade una llamada:
-ensureBreathButton();
-    function runInit(){
-  try {
-    const ok = rebuildIfEmpty();
-    ensureFondos();
-    ensureMostrarFn();
-    // === AÑADIDO: asegurar que el botón "Respirar" se crea cuando la inicialización ocurre ===
-    try { typeof ensureBreathButton === 'function' && ensureBreathButton(); } catch(e) { /* silencioso */ }
-    // =======================================================================
-    try { window.mostrarFrase && window.mostrarFrase(); } catch(e){}
-    return ok;
-  } catch(e){ return false; }
 }
     // run shortly after load, and again as a safety net
     if (document.readyState === 'complete') {
