@@ -46,6 +46,17 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
   let sessionInterval = null;
   let remainingSeconds = Infinity;
 
+  // Initialize BreathOverlay if available
+  try {
+    if (window.BreathOverlay && typeof window.BreathOverlay.init === 'function') {
+      try { 
+        window.BreathOverlay.init({ username: window.CLIENT_USER?.nombre || '' }); 
+      } catch(e) { 
+        console.warn('BreathOverlay.init failed', e); 
+      }
+    }
+  } catch(e){}
+
   // ---------------------------------------------------------------------------
   // Utilities
   // ---------------------------------------------------------------------------
@@ -152,6 +163,13 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
         showToast('Iniciando sesión (sin audio/guía)');
       }
 
+      // Show overlay for inhale phase
+      try {
+        if (window.BreathOverlay && typeof window.BreathOverlay.showPhase === 'function') {
+          try { BreathOverlay.showPhase('inhale', 4); } catch(e){ console.warn('BreathOverlay.showPhase start failed', e); }
+        }
+      } catch(e){}
+
       remainingSeconds = seconds > 0 ? seconds : Infinity;
       if(remainingSeconds !== Infinity){
         sessionEndsAt = Date.now() + remainingSeconds * 1000;
@@ -175,6 +193,14 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
     sessionPaused = true; 
     clearInterval(sessionInterval); 
     try { if (window.lr_helpers && typeof window.lr_helpers.stopBreathFlow === 'function') window.lr_helpers.stopBreathFlow(); if (window.lr_helpers && typeof window.lr_helpers.stopAmbient === 'function') window.lr_helpers.stopAmbient(); } catch(e){ console.warn('pauseSession helpers error', e); }
+    
+    // Show hold phase when pausing
+    try {
+      if (window.BreathOverlay && typeof window.BreathOverlay.showPhase === 'function') {
+        try { BreathOverlay.showPhase('hold', 0); } catch(e) { console.warn('BreathOverlay.showPhase pause failed', e); }
+      }
+    } catch(e){}
+    
     updatePauseButton();
   }
 
@@ -192,6 +218,14 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
       }, 1000); 
     }
     try { if (window.lr_helpers && typeof window.lr_helpers.startBreathFlow === 'function') window.lr_helpers.startBreathFlow(); } catch(e){ console.warn('resume helpers error', e); }
+    
+    // Show inhale phase when resuming
+    try {
+      if (window.BreathOverlay && typeof window.BreathOverlay.showPhase === 'function') {
+        try { BreathOverlay.showPhase('inhale', 4); } catch(e) { console.warn('BreathOverlay.showPhase resume failed', e); }
+      }
+    } catch(e){}
+    
     updatePauseButton();
   }
 
@@ -201,6 +235,14 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
     sessionActive = false; sessionPaused = false; 
     clearInterval(sessionInterval); sessionInterval = null; remainingSeconds = Infinity; sessionEndsAt = 0;
     try { if (window.lr_helpers && typeof window.lr_helpers.stopBreathFlow === 'function') window.lr_helpers.stopBreathFlow(); if (window.lr_helpers && typeof window.lr_helpers.stopAmbient === 'function') window.lr_helpers.stopAmbient(); } catch(e){ console.warn('stopSession helpers error', e); } 
+    
+    // Hide overlay when stopping session
+    try {
+      if (window.BreathOverlay && typeof window.BreathOverlay.hide === 'function') {
+        try { BreathOverlay.hide(); } catch(e) { console.warn('BreathOverlay.hide failed', e); }
+      }
+    } catch(e){}
+    
     removeSessionControls();
   }
 
