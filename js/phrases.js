@@ -1,10 +1,9 @@
-// phrases.js - Delegador seguro a ClientPhrases (completo, versión V41 applied)
-// Mantiene mostrarFrase/showDailyPhraseInto, persistencia y detector de contraste.
-// Esta versión aplica la corrección solicitada: handler del botón "Respirar" abre
-// openSessionModal() (modal-user) en primer lugar; si no disponible hace fallback.
-// Además se asegura que runInit() esté declarado y que no haya tokens truncados.
-// Reemplaza completamente el archivo js/phrases.js por este contenido.
-// Después limpia cache / service worker y recarga la web para aplicar los cambios.
+// phrases.js - Delegador seguro a ClientPhrases (completo, con correcciones V43)
+// Este fichero es la copia completa del archivo publicado en el repo con las
+// configuraciones aplicadas en V43: runInit hoisted dentro del finalizer, y
+// ensureBreathButton actualizado para garantizar que el modal de sesión
+// (openSessionModal) tenga prioridad (listener en fase de captura + stopImmediatePropagation).
+// Reemplaza completamente js/phrases.js por este contenido y limpia caché/SW.
 
 (function () {
   'use strict';
@@ -176,10 +175,7 @@
       const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
       const isDark = luminance < 0.45;
 
-      // Note: dark-bg semantics are inverted on purpose depending on design decisions
-      if (isDark) containerEl.classList.remove('dark-bg');
-      else containerEl.classList.add('dark-bg');
-
+      if (isDark) containerEl.classList.remove('dark-bg'); else containerEl.classList.add('dark-bg');
       try { canvas.width = canvas.height = 0; } catch (e) {}
     } catch (e) {
       try { document.querySelector('.frase-card') && document.querySelector('.frase-card').classList.add('dark-bg'); } catch (_) {}
@@ -308,7 +304,7 @@
   // ---------------------------------------------------------------------------
   (function finalizer(){
 
-    // runInit must be hoisted in this scope to avoid ReferenceError
+    // Hoisted runInit to avoid ReferenceError from timeouts and guards
     function runInit(){
       try {
         const ok = rebuildIfEmpty();
@@ -387,7 +383,7 @@
       } catch(e){ /* silent */ }
     }
 
-    // === Inserta dentro de finalizer(): ensureBreathButton (crea el botón "Respirar" en la tarjeta)
+    // === ensureBreathButton: crea el botón "Respirar" en la tarjeta
     function ensureBreathButton(){
       try {
         // si ya existe, no hacemos nada
@@ -432,35 +428,49 @@
         // estilos básicos (ajusta si quieres)
         btn.style.cssText = 'padding:10px 16px;border-radius:12px;border:none;background:linear-gradient(90deg,#ffc371,#ff6b6b);color:#04232a;font-weight:700;cursor:pointer;margin-left:10px;box-shadow:0 6px 18px rgba(0,0,0,0.12)';
 
-        // handler: priorizar abrir modal de sesión (openSessionModal), fallback a hotfix y helpers
-        btn.addEventListener('click', function (e) {
+        // Handler: capture phase + stopImmediatePropagation to ensure priority for openSessionModal
+        const handler = function(e) {
           try {
-            // 1) Intentar abrir el modal de sesión (user modal) si está disponible
+            // prevent other listeners from running
+            try { if (e && typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation(); } catch(_) {}
+            try { if (e && typeof e.preventDefault === 'function') e.preventDefault(); } catch(_) {}
+
+            // 1) Prefer opening the user modal
             try {
               if (typeof window.openSessionModal === 'function') {
                 window.openSessionModal({ suggestedType: (window.CLIENT_USER && window.CLIENT_USER.suggestedBreathingType) || null });
                 return;
               }
-            } catch (errModal) { /* ignore and fallback */ }
+            } catch (errModal) { /* continue to fallback */ }
 
-            // 2) Intentar abrir hotfix flotante
+            // 2) Fallback: open hotfix floating UI
             try {
               if (typeof window.openBreathHotfix === 'function') { window.openBreathHotfix(); return; }
               if (window.lr_breathSessions && typeof window.lr_breathSessions.openHotfix === 'function') { window.lr_breathSessions.openHotfix(); return; }
-            } catch (errHotfix) { /* ignore and fallback */ }
+            } catch (errHotfix) { /* continue */ }
 
-            // 3) Fallback: iniciar respiración directamente si no hay UI
+            // 3) Fallback: start breath flow directly
             try {
               if (window.lr_helpers && typeof window.lr_helpers.startBreathFlow === 'function') { window.lr_helpers.startBreathFlow(); return; }
-            } catch (errHelpers) { /* ignore */ }
+            } catch(e){ /* ignore */ }
             try {
               if (typeof window.startBreathFlowInternal === 'function') { window.startBreathFlowInternal(); return; }
-            } catch (errHelpers2) { /* ignore */ }
+            } catch(e){ /* ignore */ }
 
-            // 4) Último recurso: notificar al usuario
+            // 4) notify user
             try { window.lr_showToast && typeof window.lr_showToast === 'function' && window.lr_showToast('Función de respiración no disponible'); } catch(e){}
-          } catch (err) { console.warn('breathBtn click error', err); }
-        });
+          } catch (err) { console.warn('breathBtn handler error', err); }
+        };
+
+        // add listener in capture phase so it runs before other bubble-phase listeners
+        btn.addEventListener('click', handler, true);
+
+        // touchend fallback (mobile) - keep passive:false to allow preventDefault if necessary
+        try {
+          btn.addEventListener('touchend', function(e){ handler(e); }, { passive: false });
+        } catch(e){
+          try { btn.addEventListener('touchend', function(e){ handler(e); }); } catch(_) {}
+        }
 
         // insertarlo al principio o al final según convenga
         try { controls.insertBefore(btn, controls.firstChild); } catch(e){ try { controls.appendChild(btn); } catch(_){} }
