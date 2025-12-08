@@ -49,7 +49,8 @@ if (!window.openSessionModal || typeof window.openSessionModal !== 'function') {
   // Initialize BreathOverlay if available
   try {
     if (window.BreathOverlay && typeof window.BreathOverlay.init === 'function') {
-      window.BreathOverlay.init({ username: window.CLIENT_USER?.nombre || '' }); 
+      const username = (window.CLIENT_USER && window.CLIENT_USER.nombre) ? window.CLIENT_USER.nombre : '';
+      window.BreathOverlay.init({ username: username }); 
     }
   } catch(e){ 
     console.warn('BreathOverlay.init failed', e); 

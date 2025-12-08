@@ -97,17 +97,16 @@
     if (!state.overlay) return;
     const colors = state.colors || DEFAULT_COLORS;
     let color = colors[type] || DEFAULT_COLORS.inhale;
-    try {
-      // solid background as requested (no transparency)
-      state.overlay.style.background = color;
-    } catch (e) {}
-
+    
+    // Apply circle classes for CSS animations
     try {
       state.circle.classList.remove('phase-inhale', 'phase-exhale', 'phase-hold');
       if (type === 'inhale') state.circle.classList.add('phase-inhale');
       else if (type === 'exhale') state.circle.classList.add('phase-exhale');
       else state.circle.classList.add('phase-hold');
     } catch (e) {}
+    
+    return color; // Return color for caller to apply with hardening
   }
 
   function updatePhaseText(type) {
@@ -342,6 +341,7 @@
         applyPhaseVisual(type);
         
         // Force background color inline and reapply with timeouts to resist overrides
+        // Get color from state after applyPhaseVisual sets the phase classes
         try {
           const colors = state.colors || DEFAULT_COLORS;
           const color = colors[type] || DEFAULT_COLORS.inhale;
