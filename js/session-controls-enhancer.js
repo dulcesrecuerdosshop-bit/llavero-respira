@@ -1,8 +1,8 @@
-// session-controls-enhancer.js - improved robust enhancer (v2)
+// session-controls-enhancer.js - improved robust enhancer (v2) with clearer minimize button
 // - Detects breath-sessions panel (#lr_session_controls) and makes it draggable + minimizable.
-// - Uses MutationObserver + polling fallback to be robust to timing.
+// - This revision improves the minimize button visibility and avoids overlapping UI.
 // - Non-invasive: does not modify breath-sessions.js logic or event handlers.
-// - Include this script AFTER breath-sessions.js in your HTML.
+// - Include this script AFTER breath-sessions.js (defer) in index.html.
 
 (function () {
   'use strict';
@@ -43,7 +43,9 @@
       'border:none',
       'box-shadow:0 8px 24px rgba(0,0,0,0.12)',
       'cursor:pointer',
-      'font-weight:800'
+      'font-weight:800',
+      'font-size:20px',
+      'color:#072032'
     ].join(';');
     fab.textContent = '●';
     document.body.appendChild(fab);
@@ -148,7 +150,7 @@
     try {
       panel.dataset.lrEnhanced = '1';
 
-      // ensure absolute/fixed positioning so moving is meaningful
+      // ensure fixed positioning so moving is meaningful
       const cs = getComputedStyle(panel);
       if (cs.position === 'static' || !cs.position) {
         panel.style.position = 'fixed';
@@ -157,32 +159,60 @@
       }
       panel.style.zIndex = panel.style.zIndex || '2147483647';
       panel.style.touchAction = panel.style.touchAction || 'none';
+      panel.style.minWidth = panel.style.minWidth || '220px';
 
-      // add handle: try to find an obvious header (strong or first child), else add a small handle area
+      // find or create a handle (prefer an existing header)
       let handle = panel.querySelector('.lr-session-handle') || panel.querySelector('div');
       if (!handle) {
         handle = document.createElement('div');
         handle.className = 'lr-session-handle';
         panel.insertBefore(handle, panel.firstChild);
       }
-      // styling to make it visible/usable
+
+      // style handle for usability
       try {
         handle.style.cursor = handle.style.cursor || 'grab';
         handle.style.userSelect = handle.style.userSelect || 'none';
         handle.style.padding = handle.style.padding || '6px';
-      } catch(e){}
+      } catch (e){}
 
-      // add minimize button (top-right inside panel) if not present
+      // add a clearly visible minimize button (floating circular) that doesn't blend with modal close
       let minBtn = panel.querySelector('.lr-session-min-btn');
       if (!minBtn) {
         minBtn = document.createElement('button');
         minBtn.type = 'button';
         minBtn.className = 'lr-session-min-btn';
-        minBtn.title = 'Minimizar controles';
-        minBtn.innerHTML = '&#x23F5;'; // icon
-        // ensure visible above panel content
-        minBtn.style.cssText = 'position:absolute;right:10px;top:8px;background:rgba(255,255,255,0.06);border:none;padding:6px;border-radius:6px;cursor:pointer;z-index:2147483700';
+        minBtn.setAttribute('aria-label','Minimizar controles de sesión');
+        // Place it slightly outside the top-right corner to avoid overlapping modal internal close
+        minBtn.style.cssText = [
+          'position:absolute',
+          'right:-12px',
+          'top:-12px',
+          'width:36px',
+          'height:36px',
+          'border-radius:50%',
+          'display:flex',
+          'align-items:center',
+          'justify-content:center',
+          'background:#ffffff',
+          'color:#072032',
+          'border:1px solid rgba(0,0,0,0.08)',
+          'box-shadow:0 6px 18px rgba(0,0,0,0.12)',
+          'cursor:pointer',
+          'z-index:2147483701',
+          'font-size:16px',
+          'padding:0'
+        ].join(';');
+        // Use a clear "minimize" icon (Unicode minus)
+        minBtn.innerHTML = '<span aria-hidden="true">−</span>';
         panel.appendChild(minBtn);
+      } else {
+        // If exists, ensure style updated
+        minBtn.style.position = 'absolute';
+        minBtn.style.right = minBtn.style.right || '-12px';
+        minBtn.style.top = minBtn.style.top || '-12px';
+        minBtn.style.zIndex = '2147483701';
+        minBtn.style.width = minBtn.style.width || '36px';
       }
 
       // create FAB
@@ -214,7 +244,6 @@
           fab.style.display = 'none';
         }
       } catch(e){}
-
     } catch (err) {
       console.warn('[lr-enhancer] enhancePanel error', err);
     }
@@ -230,17 +259,14 @@
   const mo = new MutationObserver(function (mutations) {
     try {
       mutations.forEach(m => {
-        // added nodes
         (m.addedNodes || []).forEach(node => {
           try {
             if (!(node instanceof Element)) return;
             if (node.id === CONTROL_ID) { enhancePanel(node); return; }
-            // maybe nested
             const nested = node.querySelector && (node.querySelector('#' + CONTROL_ID) || node.querySelector('[id="lr_session_controls"]'));
             if (nested) enhancePanel(nested);
           } catch(e){}
         });
-        // removed nodes: cleanup fab
         (m.removedNodes || []).forEach(node => {
           try {
             if (!(node instanceof Element)) return;
@@ -263,7 +289,7 @@
     }
   }
 
-  // Polling fallback in case the panel is created via innerHTML on existing node and not caught by mutation
+  // Polling fallback in case panel insertion is not caught
   let pollTimer = null;
   function startPolling() {
     const start = Date.now();
