@@ -215,7 +215,7 @@
             }
             if (res && res.updatedClient) {
               window.CLIENT_USER = Object.assign({}, window.CLIENT_USER || {}, res.updatedClient);
-              try { window.saveClientRuntime && window.saveClientRuntime(res.updatedClient); } catch (e) { try { localStorage.setItem('lr_client_runtime_user', JSON.stringify(window.CLIENT_USER)); } catch(_){} }
+              try { window.saveClientRuntime && window.saveClientRuntime(res.updatedClient); } catch (e) { try { localStorage.setItem('lr_client_runtime_user', JSON.stringify(window.CLIENT_USER)); } catch(_){ } }
               if (res.category) { try { window.CLIENT_USER.ultimaCategoriaMostrada = res.category; window.saveClientRuntime && window.saveClientRuntime({ ultimaCategoriaMostrada: res.category }); } catch(e){} }
             }
           } catch (e) { console.warn('PhraseSelector.selectAndMark fallo', e); }
