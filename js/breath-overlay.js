@@ -27,8 +27,28 @@
     o.className = 'hidden';
     o.setAttribute('aria-hidden', 'true');
 
+    // Ensure full-screen fixed positioning and that CSS rules are applied even if stylesheet is missing
+    // pointer-events none so it doesn't block controls; change if you need it interactive
+    o.style.position = 'fixed';
+    o.style.top = '0';
+    o.style.left = '0';
+    o.style.right = '0';
+    o.style.bottom = '0';
+    o.style.width = '100%';
+    o.style.height = '100%';
+    o.style.display = 'none';
+    o.style.alignItems = 'center';
+    o.style.justifyContent = 'center';
+    o.style.flexDirection = 'column';
+    o.style.zIndex = '2147483700'; // ensure above most UI elements
+    o.style.pointerEvents = 'none';
+    o.style.transition = 'background 400ms ease';
+    o.style.boxSizing = 'border-box';
+
     const circle = document.createElement('div');
     circle.className = 'breath-circle';
+    // Circle should not block pointer events (so underlying buttons still clickable)
+    circle.style.pointerEvents = 'none';
     o.appendChild(circle);
 
     const phase = document.createElement('div');
@@ -39,7 +59,12 @@
     countdown.className = 'breath-countdown';
     o.appendChild(countdown);
 
-    container.appendChild(o);
+    // Append to container (usually document.body)
+    try {
+      (container || document.body).appendChild(o);
+    } catch (e) {
+      try { document.body.appendChild(o); } catch (err) { /* ignore */ }
+    }
 
     state.overlay = o;
     state.circle = circle;
@@ -70,6 +95,7 @@
     const colors = state.colors || DEFAULT_COLORS;
     let color = colors[type] || DEFAULT_COLORS.inhale;
     try {
+      // solid background as requested (no transparency)
       state.overlay.style.background = color;
     } catch (e) {}
 
@@ -110,6 +136,15 @@
     } catch (e) { console.warn('BreathOverlay countdown error', e); }
   }
 
+  // Defensive helper to stop known suppression mechanisms in the app (if present)
+  function stopSuppressionIfAny() {
+    try {
+      if (typeof window.__stop_hotfix_suppression === 'function') {
+        try { window.__stop_hotfix_suppression(); console.debug('[BreathOverlay] __stop_hotfix_suppression called'); } catch(e){ console.debug('[BreathOverlay] stop suppression failed', e); }
+      }
+    } catch (e) {}
+  }
+
   // Public API
   window.BreathOverlay = window.BreathOverlay || {
     init: function (options) {
@@ -120,20 +155,47 @@
         state.username = options.username || '';
         state.colors = Object.assign({}, DEFAULT_COLORS, options.colors || {});
         createDOM(container);
-        state.overlay.classList.add('hidden');
-        state.overlay.style.display = '';
+        // ensure hidden but ready
+        try {
+          state.overlay.classList.add('hidden');
+          state.overlay.style.display = 'none';
+          state.overlay.setAttribute('aria-hidden', 'true');
+        } catch (e) {}
         state.inited = true;
       } catch (e) { console.warn('BreathOverlay.init error', e); }
     },
 
     showPhase: function (type, seconds) {
       try {
+        // defensive: stop suppression and ensure DOM present
+        stopSuppressionIfAny();
+
         if (!state.inited) {
           this.init({ username: '', container: document.body, colors: DEFAULT_COLORS });
         }
         if (!state.overlay) createDOM(document.body);
-        state.overlay.classList.remove('hidden');
-        state.overlay.setAttribute('aria-hidden', 'false');
+
+        // re-append if removed by observers
+        try {
+          if (!document.body.contains(state.overlay)) {
+            document.body.appendChild(state.overlay);
+            console.debug('[BreathOverlay] overlay re-appended to body');
+          }
+        } catch (e) {}
+
+        // Guarantee positioning & stacking above UI
+        try {
+          state.overlay.style.position = 'fixed';
+          state.overlay.style.top = '0';
+          state.overlay.style.left = '0';
+          state.overlay.style.right = '0';
+          state.overlay.style.bottom = '0';
+          state.overlay.style.zIndex = '2147483700';
+          // Show flex so CSS rules for children apply
+          state.overlay.style.display = 'flex';
+          state.overlay.classList.remove('hidden');
+          state.overlay.setAttribute('aria-hidden', 'false');
+        } catch (e) {}
 
         applyPhaseVisual(type);
         updatePhaseText(type);
@@ -144,8 +206,12 @@
     hide: function () {
       try {
         if (!state.overlay) return;
-        state.overlay.classList.add('hidden');
-        state.overlay.setAttribute('aria-hidden', 'true');
+        // hide visually but keep in DOM
+        try {
+          state.overlay.classList.add('hidden');
+          state.overlay.style.display = 'none';
+          state.overlay.setAttribute('aria-hidden', 'true');
+        } catch (e) {}
         clearCountdown();
         try { state.circle.classList.remove('phase-inhale', 'phase-exhale', 'phase-hold'); } catch (e) {}
       } catch (e) { console.warn('BreathOverlay.hide error', e); }
