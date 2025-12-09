@@ -1,104 +1,294 @@
-/* frase-controls-float.css (corregido)
-   - posiciona verticalmente controles a la derecha
-   - excluye botón principal #breathBtn (Respirar)
-   - icon-only con círculo de 36x36px detrás
+/* frase-controls-float-final.css
+   Estilos robustos para los clones flotantes (no tocan el layout original).
 */
-
-.frase-card { position: relative !important; }
-
-/* asegurar que el contenedor se comporta como overlay */
-.frase-card .frase-controls {
+#frc-safe-float-final {
   position: absolute !important;
   right: 14px !important;
   top: 50% !important;
   transform: translateY(-50%) !important;
   display: flex !important;
   flex-direction: column !important;
-  gap: 10px !important;
-  z-index: 60 !important;
+  gap: 12px !important;
+  z-index: 9999 !important;
   align-items: center !important;
   pointer-events: auto !important;
 }
 
-/* Selección: todos los botones dentro de frase-controls excepto el respirar (#breathBtn) */
-.frase-card .frase-controls > *:not(#breathBtn):not(.breath-btn) {
-  position: relative !important;
-  z-index: 2 !important;
+#frc-safe-float-final .frc-clone {
   width: 36px !important;
   height: 36px !important;
   min-width: 36px !important;
   min-height: 36px !important;
   border-radius: 50% !important;
-  padding: 0 !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  background: transparent !important;
-  color: #072b2a !important;
-  border: 0 !important;
-  box-shadow: none !important;
-  cursor: pointer !important;
-  font-size: 16px !important;
-  line-height: 1 !important;
-  overflow: visible !important;
-}
-
-/* icon wrapper */
-.frase-card .frase-controls > *:not(#breathBtn) .btn-icon {
-  pointer-events: none !important;
-  font-size: 16px !important;
-  line-height: 1 !important;
-}
-
-/* círculo detrás del botón */
-.frase-card .frase-controls > *:not(#breathBtn)::before {
-  content: "" !important;
-  position: absolute !important;
-  left: 50% !important;
-  top: 50% !important;
-  transform: translate(-50%, -50%) !important;
-  width: 36px !important;
-  height: 36px !important;
-  border-radius: 50% !important;
+  position: relative !important;
   background: rgba(255,255,255,0.95) !important;
   box-shadow: 0 6px 16px rgba(6,10,9,0.12) !important;
-  z-index: 1 !important;
-  pointer-events: none !important;
+  cursor: pointer !important;
+  font-size: 18px !important;
+  color: #072b2a !important;
+  border: 0 !important;
 }
 
-/* ocultar texto excepto .btn-icon al aplicar clase icon-only (defensivo) */
-.frase-card .frase-controls > *:not(#breathBtn).icon-only > *:not(.btn-icon) { display: none !important; }
+/* icon inside */
+#frc-safe-float-final .frc-clone .btn-icon { pointer-events: none !important; z-index: 2 !important; }
 
-/* hover/focus */
-.frase-card .frase-controls > *:not(#breathBtn):hover,
-.frase-card .frase-controls > *:not(#breathBtn):focus {
-  transform: translateY(-3px) !important;
-}
-.frase-card .frase-controls > *:not(#breathBtn):hover::before,
-.frase-card .frase-controls > *:not(#breathBtn):focus::before {
-  background: linear-gradient(90deg,#fff7ef,#fff0e6) !important;
-}
-
-/* estado pressed (favorito) */
-.frase-card .frase-controls > *:not(#breathBtn)[aria-pressed="true"]::before {
-  background: linear-gradient(90deg,#ffd6a5,#ffc09f) !important;
-}
-
-/* responsive */
-@media (max-width: 520px) {
-  .frase-card .frase-controls { right: 8px !important; gap: 8px !important; }
-  .frase-card .frase-controls > *:not(#breathBtn) { width: 36px !important; height: 36px !important; font-size: 15px !important; }
-  .frase-card .frase-controls > *:not(#breathBtn)::before { width: 36px !important; height: 36px !important; }
-}
-/* Estilos para marcar visualmente el clone de favorito como "pressed" */
-#frc-safe-float .frc-clone.frc-pressed {
+/* pressed state */
+#frc-safe-float-final .frc-clone.frc-pressed {
   background: linear-gradient(90deg,#ff9a76,#ff6b6b) !important;
-  color: white !important;
-  box-shadow: 0 8px 22px rgba(255,107,107,0.18) !important;
+  color: #fff !important;
   transform: translateY(-2px) !important;
+  box-shadow: 0 8px 22px rgba(255,107,107,0.18) !important;
 }
+#frc-safe-float-final .frc-clone.frc-pressed .btn-icon { color: #fff !important; font-weight:700 !important; }
 
-#frc-safe-float .frc-clone.frc-pressed .btn-icon {
-  color: white !important;
-  font-weight: 700 !important;
+/* responsive tweaks */
+@media (max-width: 520px) {
+  #frc-safe-float-final { right: 8px !important; gap: 8px !important; }
+  #frc-safe-float-final .frc-clone { width: 36px !important; height: 36px !important; font-size: 17px !important; }
 }
+```
+
+
+```javascript name=js/frase-controls-float-final.js
+// frase-controls-float-final.js
+// Versión final segura: crea clones flotantes, no mueve originales, sincroniza estado favorito.
+// Pegar en consola para probar o subir al repo y cargar al final del body.
+// API: window.FloatingControlsFinal.apply() / .restore()
+
+(function(){
+  'use strict';
+
+  var CONTAINER_ID = 'frc-safe-float-final';
+  var STYLE_ID = 'frc-safe-float-final-style';
+  var CLONE_ATTR = 'data-frc-clone-for';
+  var HIDDEN_ATTR = 'data-frc-hidden-original';
+  var IDS = ['ttsBtn','favBtn','downloadBtn','shareBtn']; // botones a "exponer"
+  var ICON_MAP = { ttsBtn: '🔊', favBtn: '♡', downloadBtn: '⬇️', shareBtn: '🔗' };
+
+  // ---- helpers ----
+  function q(sel){ return document.querySelector(sel); }
+  function qa(sel){ return Array.from(document.querySelectorAll(sel)); }
+
+  function injCSS(css){
+    if(document.getElementById(STYLE_ID)) return;
+    var s = document.createElement('style');
+    s.id = STYLE_ID;
+    s.textContent = css;
+    (document.head||document.documentElement).appendChild(s);
+  }
+
+  // If you prefer to use external CSS, skip injCSS and include the CSS file.
+  var cssText = '';
+  try { cssText = fetch && typeof fetch === 'function' ? null : null; } catch(e){ cssText = null; }
+  // we won't fetch remote; expect user to upload CSS OR inject default styles below:
+  var defaultCSS = '\
+  #' + CONTAINER_ID + ' { position: absolute !important; right: 14px !important; top: 50% !important; transform: translateY(-50%) !important; display:flex !important; flex-direction:column !important; gap:12px !important; z-index:9999 !important; align-items:center !important; pointer-events:auto !important; }\
+  #' + CONTAINER_ID + ' .frc-clone { width:36px !important; height:36px !important; min-width:36px !important; min-height:36px !important; border-radius:50% !important; display:inline-flex !important; align-items:center !important; justify-content:center !important; position:relative !important; background: rgba(255,255,255,0.95) !important; box-shadow:0 6px 16px rgba(6,10,9,0.12) !important; cursor:pointer !important; font-size:18px !important; color:#072b2a !important; border:0 !important; }\
+  #' + CONTAINER_ID + ' .frc-clone .btn-icon{ pointer-events:none !important; z-index:2 !important; }\
+  #' + CONTAINER_ID + ' .frc-clone.frc-pressed{ background: linear-gradient(90deg,#ff9a76,#ff6b6b) !important; color:#fff !important; transform: translateY(-2px) !important; box-shadow:0 8px 22px rgba(255,107,107,0.18) !important; }\
+  #' + CONTAINER_ID + ' .frc-clone.frc-pressed .btn-icon{ color:#fff !important; font-weight:700 !important; }\
+  ';
+
+  // ---- find original button by id or data-action fallback ----
+  function findOriginal(id){
+    var el = document.getElementById(id);
+    if(el) return el;
+    var action = id === 'ttsBtn' ? 'tts' : id.replace(/Btn$/,'').toLowerCase();
+    return document.querySelector('.frase-controls [data-action="'+action+'"]') || document.querySelector('[data-action="'+action+'"]') || null;
+  }
+
+  // ---- cleanup previous injected container and styles ----
+  function cleanup(){
+    var c = document.getElementById(CONTAINER_ID);
+    if(c && c.parentNode) c.parentNode.removeChild(c);
+    var s = document.getElementById(STYLE_ID);
+    if(s && s.parentNode) s.parentNode.removeChild(s);
+    // unhide originals
+    IDS.forEach(function(id){
+      var orig = findOriginal(id);
+      if(orig && orig.getAttribute(HIDDEN_ATTR) === '1'){
+        orig.style.visibility = '';
+        orig.removeAttribute(HIDDEN_ATTR);
+      }
+    });
+  }
+
+  // ---- build clones container ----
+  function ensureContainer(){
+    var card = document.querySelector('.frase-card') || document.getElementById('frase-card') || document.body;
+    var c = document.getElementById(CONTAINER_ID);
+    if(c) return c;
+    c = document.createElement('div');
+    c.id = CONTAINER_ID;
+    // append at the end of frase-card so it's visually on top but doesn't affect layout
+    card.appendChild(c);
+    return c;
+  }
+
+  // ---- extract icon from original safely ----
+  function pickIconFor(orig, id){
+    if(!orig) return ICON_MAP[id] || id.slice(0,1);
+    // prefer existing svg/img inside original
+    var svg = orig.querySelector('svg, img, i');
+    if(svg) {
+      try { return svg.cloneNode(true); } catch(e) {}
+    }
+    // try first token emoji
+    var txt = (orig.textContent || '').trim();
+    var tok = txt.split(/\s+/)[0] || '';
+    if(/[^A-Za-z0-9\s]/.test(tok) || tok.length <= 2) return tok;
+    // fallback map
+    return ICON_MAP[id] || txt.slice(0,1) || '';
+  }
+
+  // ---- create one clone for a given original element ----
+  function createCloneFor(orig, id, container){
+    if(!orig || !container) return null;
+    // create button clone
+    var clone = document.createElement('button');
+    clone.type = 'button';
+    clone.className = 'frc-clone';
+    clone.setAttribute(CLONE_ATTR, id);
+    // create icon content
+    var iconNode = pickIconFor(orig, id);
+    if(typeof iconNode === 'string'){
+      var s = document.createElement('span');
+      s.className = 'btn-icon';
+      s.textContent = iconNode;
+      clone.appendChild(s);
+    } else {
+      // svg/node case
+      var wrapper = document.createElement('span');
+      wrapper.className = 'btn-icon';
+      try { wrapper.appendChild(iconNode); } catch(e){ wrapper.textContent = ICON_MAP[id] || ''; }
+      clone.appendChild(wrapper);
+    }
+    // label/title
+    var label = orig.getAttribute('aria-label') || orig.title || (orig.textContent || '').trim() || '';
+    if(label) { clone.setAttribute('title', label); clone.setAttribute('aria-label', label); }
+
+    // clicking clone triggers original click
+    clone.addEventListener('click', function(e){
+      try {
+        if(typeof orig.click === 'function') orig.click();
+        else orig.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,view:window}));
+      } catch(err){}
+      // after short delay, sync pressed state for favorite
+      setTimeout(function(){ syncFavForId(id, clone, orig); }, 80);
+    });
+
+    // append and return
+    container.appendChild(clone);
+    // hide original visually but preserve layout
+    try { orig.style.visibility = 'hidden'; orig.setAttribute(HIDDEN_ATTR, '1'); } catch(e){}
+    return clone;
+  }
+
+  // ---- sync favorite clone visual from original ----
+  function syncFavForId(id, clone, orig){
+    if(id !== 'favBtn') return;
+    if(!clone || !orig) return;
+    var pressed = orig.getAttribute('aria-pressed') === 'true';
+    var span = clone.querySelector('.btn-icon');
+    if(span) {
+      // if it's a node with children (svg) don't override; else set char
+      if(span.children.length === 0) span.textContent = pressed ? '♥' : '♡';
+    }
+    if(pressed) clone.classList.add('frc-pressed'); else clone.classList.remove('frc-pressed');
+  }
+
+  // ---- observe original favorite for changes ----
+  var favObserver = null;
+  function observeFavorite(orig, clone){
+    if(!orig || !clone) return;
+    // disconnect previous
+    if(favObserver) { try { favObserver.disconnect(); } catch(e){} favObserver = null; }
+    favObserver = new MutationObserver(function(muts){
+      // sync any attribute change
+      syncFavForId('favBtn', clone, orig);
+    });
+    try { favObserver.observe(orig, { attributes: true, attributeFilter: ['aria-pressed','class'] }); } catch(e){}
+  }
+
+  // ---- apply: create all clones safely ----
+  function apply(){
+    // cleanup first
+    cleanup();
+    // inject css (only if user didn't include file); prefer external CSS in repo, but fallback to default
+    injCSS(defaultCSS);
+    var container = ensureContainer();
+    if(!container) return { ok:false, reason:'no-card' };
+    var created = [];
+    IDS.forEach(function(id){
+      var orig = findOriginal(id);
+      if(!orig) return;
+      var clone = createCloneFor(orig, id, container);
+      if(clone) created.push({ id:id, clone:clone, orig:orig });
+      // if favorite, sync initial state and observe
+      if(id === 'favBtn' && clone) {
+        syncFavForId('favBtn', clone, orig);
+        observeFavorite(orig, clone);
+      }
+    });
+    // tiny safety: position container relative to .frase-card boundaries
+    // ensure container appended once and absolute, so no layout change
+    return { ok:true, created: created.map(c=>c.id) };
+  }
+
+  // ---- restore: remove clones and reveal originals ----
+  function restore(){
+    // remove container
+    var c = document.getElementById(CONTAINER_ID);
+    if(c && c.parentNode) c.parentNode.removeChild(c);
+    // unhide originals
+    IDS.forEach(function(id){
+      var orig = findOriginal(id);
+      if(orig && orig.getAttribute(HIDDEN_ATTR) === '1'){ orig.style.visibility = ''; orig.removeAttribute(HIDDEN_ATTR); }
+    });
+    // remove injected style
+    var s = document.getElementById(STYLE_ID); if(s && s.parentNode) s.parentNode.removeChild(s);
+    // disconnect fav observer
+    if(favObserver) { try { favObserver.disconnect(); } catch(e){} favObserver = null; }
+    return { ok:true };
+  }
+
+  // ---- public api ----
+  window.FloatingControlsFinal = window.FloatingControlsFinal || {};
+  window.FloatingControlsFinal.apply = apply;
+  window.FloatingControlsFinal.restore = restore;
+
+  // auto-run a short while after load so page scripts can initialize
+  setTimeout(function(){
+    try { var r = apply(); console.log('[FloatingControlsFinal] applied ->', r); } catch(e){ console.warn('FloatingControlsFinal apply failed', e); }
+  }, 120);
+
+  console.debug('[FloatingControlsFinal] ready: call FloatingControlsFinal.apply() or .restore().');
+})();
+```
+
+Qué probar ahora (sin tocar el repo)
+1) Abre la consola y ejecuta (en orden):
+   - Pegar el contenido del CSS en un style temporal:
+     var s=document.createElement('style'); s.id='frc-temp-css'; s.textContent = `...` (pega el CSS del primer bloque); document.head.appendChild(s);
+   - Pegar y ejecutar el JS (segundo bloque).
+2) Observa:
+   - No debería crearse espacio blanco ni moverse el botón "Respirar".
+   - Verás los cuatro iconos a la derecha (🔊, ♡/♥, ⬇️, 🔗).
+   - Al pulsar el clone de favorito, el comportamiento original se ejecuta y el clone cambia a ♥ y recibe la clase visual (gradiente rojo).
+3) Si algo falla, pega en la consola estas salidas para que lo ajuste al detalle:
+   - document.getElementById('frc-safe-float-final')?.outerHTML
+   - Array.from(document.querySelectorAll('[data-frc-clone-for]')).map(n => ({ id: n.getAttribute('data-frc-clone-for'), html: n.outerHTML.slice(0,200) }))
+   - document.getElementById('favBtn')?.outerHTML
+   - Resultado de getComputedStyle(document.querySelector('#frc-safe-float-final .frc-clone')).width
+
+Siguiente paso para el repo
+- Si quieres que lo suba y haga el PR, lo dejo así:
+  - /css/frase-controls-float-final.css (contenido CSS)
+  - /js/frase-controls-float-final.js (contenido JS)
+  - Añadir en index.html justo antes de </body>:
+    <script src="/llavero-respira/js/frase-controls-float-final.js" defer></script>
+    y en <head> el link al CSS (con ?v= para busting).
+Dime si quieres que suba el PR (lo hago y añado el ?v= para evitar problemas con SW). También dime si prefieres que incluya el CSS dentro del JS (inyección) en vez de un archivo separado.
