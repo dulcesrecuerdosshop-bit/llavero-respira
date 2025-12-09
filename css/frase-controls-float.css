@@ -1,12 +1,12 @@
-/* frase-controls-float.css
-   Posiciona los controles a la derecha en vertical, icon-only y añade un círculo 36x36px detrás.
+/* frase-controls-float.css (corregido)
+   - posiciona verticalmente controles a la derecha
+   - excluye botón principal #breathBtn (Respirar)
+   - icon-only con círculo de 36x36px detrás
 */
 
-.frase-card {
-  position: relative !important;
-}
+.frase-card { position: relative !important; }
 
-/* Contenedor vertical en la derecha de la tarjeta */
+/* asegurar que el contenedor se comporta como overlay */
 .frase-card .frase-controls {
   position: absolute !important;
   right: 14px !important;
@@ -15,13 +15,13 @@
   display: flex !important;
   flex-direction: column !important;
   gap: 10px !important;
-  z-index: 60 !important; /* por encima del footer */
-  pointer-events: auto !important;
+  z-index: 60 !important;
   align-items: center !important;
+  pointer-events: auto !important;
 }
 
-/* Botones reducidos: icon-only */
-.frase-card .frase-controls .control {
+/* Selección: todos los botones dentro de frase-controls excepto el respirar (#breathBtn) */
+.frase-card .frase-controls > *:not(#breathBtn):not(.breath-btn) {
   position: relative !important;
   z-index: 2 !important;
   width: 36px !important;
@@ -33,27 +33,25 @@
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  background: transparent !important; /* background del botón será transparente para dejar ver el círculo */
+  background: transparent !important;
   color: #072b2a !important;
   border: 0 !important;
   box-shadow: none !important;
   cursor: pointer !important;
-  transition: transform 120ms ease, box-shadow 120ms ease, background 120ms !important;
-  font-size: 16px !important; /* tamaño del icono */
+  font-size: 16px !important;
   line-height: 1 !important;
   overflow: visible !important;
 }
 
-/* El icono dentro (si usamos span.btn-icon como en el script) */
-.frase-card .frase-controls .control .btn-icon {
-  display: inline-block !important;
+/* icon wrapper */
+.frase-card .frase-controls > *:not(#breathBtn) .btn-icon {
+  pointer-events: none !important;
   font-size: 16px !important;
   line-height: 1 !important;
-  pointer-events: none !important;
 }
 
-/* Círculo de 36x36px detrás del botón */
-.frase-card .frase-controls .control::before {
+/* círculo detrás del botón */
+.frase-card .frase-controls > *:not(#breathBtn)::before {
   content: "" !important;
   position: absolute !important;
   left: 50% !important;
@@ -62,51 +60,33 @@
   width: 36px !important;
   height: 36px !important;
   border-radius: 50% !important;
-  background: rgba(255,255,255,0.95) !important; /* color del círculo (ajusta si deseas) */
+  background: rgba(255,255,255,0.95) !important;
   box-shadow: 0 6px 16px rgba(6,10,9,0.12) !important;
   z-index: 1 !important;
   pointer-events: none !important;
 }
 
-/* Hover / focus: elevar icono y cambiar color del círculo */
-.frase-card .frase-controls .control:hover,
-.frase-card .frase-controls .control:focus {
+/* ocultar texto excepto .btn-icon al aplicar clase icon-only (defensivo) */
+.frase-card .frase-controls > *:not(#breathBtn).icon-only > *:not(.btn-icon) { display: none !important; }
+
+/* hover/focus */
+.frase-card .frase-controls > *:not(#breathBtn):hover,
+.frase-card .frase-controls > *:not(#breathBtn):focus {
   transform: translateY(-3px) !important;
 }
-.frase-card .frase-controls .control:hover::before,
-.frase-card .frase-controls .control:focus::before {
+.frase-card .frase-controls > *:not(#breathBtn):hover::before,
+.frase-card .frase-controls > *:not(#breathBtn):focus::before {
   background: linear-gradient(90deg,#fff7ef,#fff0e6) !important;
 }
 
-/* Estado pressed (ej. favorito) */
-.frase-card .frase-controls .control[aria-pressed="true"]::before {
+/* estado pressed (favorito) */
+.frase-card .frase-controls > *:not(#breathBtn)[aria-pressed="true"]::before {
   background: linear-gradient(90deg,#ffd6a5,#ffc09f) !important;
 }
 
-/* Responsivo: en pantallas pequeñas, bajar tamaño y mover ligeramente */
+/* responsive */
 @media (max-width: 520px) {
-  .frase-card .frase-controls {
-    right: 8px !important;
-    gap: 8px !important;
-  }
-  .frase-card .frase-controls .control {
-    width: 36px !important;
-    height: 36px !important;
-    font-size: 15px !important;
-  }
-  .frase-card .frase-controls .control::before {
-    width: 36px !important;
-    height: 36px !important;
-  }
-}
-
-/* Si tu markup tiene botones con texto y no hay script para convertir a icon-only,
-   puedes esconder el texto dentro del botón (mostrando solo el primer emoji/span.btn-icon)
-*/
-.frase-card .frase-controls .control.icon-only > *:not(.btn-icon) { display: none !important; }
-
-/* Defender contra reglas más específicas en la app */
-:root .frase-card .frase-controls,
-body .frase-card .frase-controls { /* fuerza aplicacion */
-  /* no-op, esta regla solo ayuda a subir prioridad si es necesario */
+  .frase-card .frase-controls { right: 8px !important; gap: 8px !important; }
+  .frase-card .frase-controls > *:not(#breathBtn) { width: 36px !important; height: 36px !important; font-size: 15px !important; }
+  .frase-card .frase-controls > *:not(#breathBtn)::before { width: 36px !important; height: 36px !important; }
 }
