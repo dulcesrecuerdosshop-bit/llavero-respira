@@ -1,0 +1,85 @@
+/* frase-controls-float.css
+   Posiciona los controles de la tarjeta verticalmente a la derecha y los muestra como iconos.
+   Incluye reglas responsivas y evita quedar por debajo del footer (z-index).
+*/
+
+.frase-card {
+  position: relative; /* asegurar contenedor de referencia */
+}
+
+/* Contenedor vertical en la derecha de la tarjeta */
+.frase-card .frase-controls {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 60; /* por encima del footer */
+  pointer-events: auto;
+}
+
+/* Botones reducidos: icon-only */
+.frase-card .frase-controls .control {
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  min-height: 48px;
+  border-radius: 12px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,0.92);
+  color: #0b2b2a;
+  border: 0;
+  box-shadow: 0 6px 14px rgba(6,10,9,0.12);
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease, background 120ms;
+  font-size: 18px; /* tamaño del icono */
+  line-height: 1;
+}
+
+/* Icon wrapper */
+.frase-card .frase-controls .control .btn-icon {
+  display: inline-block;
+  font-size: 20px;
+  line-height: 1;
+}
+
+/* focus / hover */
+.frase-card .frase-controls .control:focus,
+.frase-card .frase-controls .control:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 26px rgba(6,10,9,0.16);
+  outline: none;
+}
+
+/* marca de estado (favorito/pressed) */
+.frase-card .frase-controls .control[aria-pressed="true"] {
+  background: linear-gradient(90deg,#ffd6a5,#ffc09f);
+}
+
+/* si se requiere mostrar tooltip/title */
+.frase-card .frase-controls .control[title] { cursor: pointer; }
+
+/* pequeños ajustes en pantallas pequeñas */
+@media (max-width: 600px) {
+  .frase-card .frase-controls {
+    right: 10px;
+    gap: 8px;
+  }
+  .frase-card .frase-controls .control {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
+    border-radius: 10px;
+    font-size: 16px;
+  }
+}
+
+/* Si se desea ocultar algún control extra en pantallas pequeñas, puedes añadir:
+.frase-card .frase-controls .control[data-hide-mobile="true"] { display: none; }
+*/
