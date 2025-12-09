@@ -1,18 +1,12 @@
-// clientPhrases-name-injector-final.js
-// Versión con AUTO-APPLY robusto:
-// - intenta aplicar la transformación automáticamente después de carga,
-// - reintenta varias veces si el DOM/ClientPhrases no están listos,
-// - mantiene runNow()/forceRefreshAndTransform() y restore().
-// Inclúyelo DESPUÉS de clientPhrases.js y phrases.js para mejores resultados.
+// clientPhrases-name-injector.js (FIX: evita reentrancia que provocaba bloqueo)
+// - Añade guard isApplying para que las mutaciones provocadas por la propia escritura no reentren.
 (function () {
   'use strict';
 
-  // ---- CONFIG ----
-  var AUTO_APPLY = true;           // si true intentará aplicar automáticamente al cargar
-  var AUTO_RETRY_COUNT = 12;       // número de reintentos
-  var AUTO_RETRY_INTERVAL_MS = 250; // intervalo entre intentos
+  var AUTO_APPLY = true;
+  var AUTO_RETRY_COUNT = 24;
+  var AUTO_RETRY_INTERVAL_MS = 250;
 
-  // ---- util ----
   function tryParseJSON(s) { try { return JSON.parse(s); } catch (e) { return null; } }
   function readRuntimeName() {
     try { if (window.CLIENT_USER && window.CLIENT_USER.nombre) return String(window.CLIENT_USER.nombre).trim(); } catch(e){}
@@ -21,7 +15,6 @@
     return null;
   }
 
-  // Lowercase first alphabetic char while preserving leading punctuation/whitespace
   function lowercaseFirstAlpha(str) {
     if (!str || typeof str !== 'string') return str;
     for (var i = 0; i < str.length; i++) {
@@ -33,14 +26,12 @@
     return str;
   }
 
-  // Personalize + lowercase main body
   function personalizeAndLowercase(phrase, explicitName) {
     try {
       if (!phrase || typeof phrase !== 'string') return phrase;
       var name = (explicitName && String(explicitName).trim()) || readRuntimeName();
       var p = String(phrase);
 
-      // Replace tokens {name}/{nombre} if present
       var tokenRE = /\{name\}|\{nombre\}/ig;
       var hasToken = tokenRE.test(p);
 
@@ -51,7 +42,6 @@
         p = name + ', ' + p.replace(/^\s+/, '');
       }
 
-      // If we prefixed the name, lowercase first alpha after prefix
       if (name && p.toLowerCase().indexOf((name + ',').toLowerCase()) === 0) {
         var prefixRE = new RegExp('^\\s*' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*,\\s*', 'i');
         var m = p.match(prefixRE);
@@ -69,7 +59,6 @@
     }
   }
 
-  // ---- DOM target helpers ----
   var TARGET_SELECTORS = [
     '#frase-text',
     '#frase',
@@ -85,7 +74,6 @@
         if (el) return el;
       } catch (e) {}
     }
-    // fallback: any element with large text inside .frase-card
     try {
       var card = document.querySelector('.frase-card');
       if (card) {
@@ -99,29 +87,77 @@
     return null;
   }
 
+  // Guard para evitar reentrancia del observer (mutaciones provocadas por nosotros mismos)
+  var isApplying = false;
+  var observer = null;
+
+  // safe write: disconnect observer while writing, or use isApplying guard
+  function writeTextSafe(el, text) {
+    try {
+      if (!observer) {
+        el.textContent = text;
+        return;
+      }
+      // Temporarily stop observing to prevent reentrancy
+      var obs = observer;
+      try { obs.disconnect(); } catch (e) {}
+      try { el.textContent = text; } catch (e) {}
+      try { obs.observe(document.documentElement || document.body, { childList: true, subtree: true, characterData: true }); } catch (e) {}
+    } catch (e) {
+      try { el.textContent = text; } catch (ee) {}
+    }
+  }
+
+  // ---------- transformElement con protección ----------
   function transformElement(el, explicitName) {
     if (!el) return { ok: false, reason: 'no-element' };
     try {
+      // backup original HTML once
       if (!el.hasAttribute('data-name-injector-original')) {
         try { el.setAttribute('data-name-injector-original', el.innerHTML); } catch(e){}
       }
-      var originalText = (el.textContent || '').trim();
-      if (!originalText) return { ok: false, reason: 'empty-text' };
 
-      if (el.getAttribute('data-name-injector-applied') === '1') {
-        var lastName = el.getAttribute('data-name-injector-name') || '';
-        var runtimeName = explicitName || readRuntimeName() || '';
-        if (runtimeName === lastName) return { ok: true, skipped: true };
+      // read the current text in DOM (we must operate on the current visible text)
+      var currentText = (el.textContent || '').trim();
+      if (!currentText) return { ok: false, reason: 'empty-text' };
+
+      // compute personalized text for the current DOM text
+      var newText = personalizeAndLowercase(currentText, explicitName);
+
+      // If already identical, nothing to do (but ensure flags)
+      if (newText === currentText) {
+        try {
+          if (el.getAttribute('data-name-injector-applied') !== '1') {
+            el.setAttribute('data-name-injector-applied', '1');
+            el.setAttribute('data-name-injector-name', explicitName || readRuntimeName() || '');
+          }
+        } catch (e) {}
+        return { ok: true, skipped: true };
       }
 
-      var newText = personalizeAndLowercase(originalText, explicitName);
-      el.textContent = newText;
-      try { el.setAttribute('data-name-injector-applied', '1'); el.setAttribute('data-name-injector-name', (explicitName || readRuntimeName() || '')); } catch(e){}
+      // Avoid reentrancy: mark and write safely
+      if (isApplying) {
+        // if currently applying elsewhere, skip this attempt
+        return { ok: false, reason: 'reentrancy-skip' };
+      }
+      isApplying = true;
+      try {
+        writeTextSafe(el, newText);
+        try {
+          el.setAttribute('data-name-injector-applied', '1');
+          el.setAttribute('data-name-injector-name', explicitName || readRuntimeName() || '');
+        } catch (e) {}
+      } finally {
+        // small delay to avoid immediate observer re-trigger processing race
+        setTimeout(function(){ isApplying = false; }, 40);
+      }
       return { ok: true, newText: newText };
     } catch (e) {
+      isApplying = false;
       return { ok: false, reason: String(e) };
     }
   }
+  // --------------------------------------------
 
   function restoreElement(el) {
     if (!el) return { ok: false, reason: 'no-element' };
@@ -140,17 +176,14 @@
     }
   }
 
-  // ---- observer ----
-  var observer = null;
   function startObserver() {
     if (observer) return;
     try {
       observer = new MutationObserver(function (muts) {
+        if (isApplying) return; // skip while we are applying changes
         try {
           var el = findPhraseElement();
-          if (el) {
-            transformElement(el);
-          }
+          if (el) transformElement(el);
         } catch (e) {}
       });
       observer.observe(document.documentElement || document.body, { childList: true, subtree: true, characterData: true });
@@ -158,7 +191,6 @@
   }
   function stopObserver() { try { if (observer) { observer.disconnect(); observer = null; } } catch(e){} }
 
-  // ---- public runner ----
   function runNow(opts) {
     opts = opts || {};
     var explicitName = typeof opts === 'string' ? opts : (opts.name || null);
@@ -183,33 +215,29 @@
     }, 180);
   }
 
-  // ---- auto-apply with retries ----
   function autoApplyOnce(maxAttempts, intervalMs) {
     var attempts = 0;
     var timer = null;
+    function stopTimer(){ try{ if(timer) { clearInterval(timer); timer = null; } }catch(e){} }
     function tryApply() {
       attempts++;
       var el = findPhraseElement();
       var name = readRuntimeName();
-      // If we have a target element and either a runtime name or the element already has text to transform, apply.
       if (el && (name || (el.textContent || '').trim())) {
-        var res = transformElement(el);
+        transformElement(el);
         stopTimer();
-        return res;
+        return;
       }
       if (attempts >= maxAttempts) {
         stopTimer();
-        return { ok: false, reason: 'max-attempts' };
+        return;
       }
     }
-    function stopTimer(){ try{ if(timer) { clearInterval(timer); timer = null; } }catch(e){} }
     timer = setInterval(tryApply, intervalMs);
-    // also call immediately
     tryApply();
     return { ok: true, started: true };
   }
 
-  // ---- expose API ----
   window.NameInjector = window.NameInjector || {};
   window.NameInjector.runNow = function (opts) { return runNow(opts); };
   window.NameInjector.transformNow = function (opts) { return runNow(opts); };
@@ -233,14 +261,11 @@
     };
   };
 
-  // ---- start observer and optionally auto-apply ----
   startObserver();
   if (AUTO_APPLY) {
-    // attempt auto-apply with retries to cover timing issues
     autoApplyOnce(AUTO_RETRY_COUNT, AUTO_RETRY_INTERVAL_MS);
-    // also try a final attempt on window.load
     try { window.addEventListener('load', function(){ setTimeout(function(){ autoApplyOnce(6, 300); }, 120); }); } catch(e){}
   }
 
-  console.debug('[NameInjector] loaded: run window.NameInjector.runNow() or .forceRefreshAndTransform() to apply.');
+  console.debug('[NameInjector] loaded (safe): run window.NameInjector.runNow() or .forceRefreshAndTransform() to apply.');
 })();
