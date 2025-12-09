@@ -90,3 +90,15 @@
   .frase-card .frase-controls > *:not(#breathBtn) { width: 36px !important; height: 36px !important; font-size: 15px !important; }
   .frase-card .frase-controls > *:not(#breathBtn)::before { width: 36px !important; height: 36px !important; }
 }
+/* Estilos para marcar visualmente el clone de favorito como "pressed" */
+#frc-safe-float .frc-clone.frc-pressed {
+  background: linear-gradient(90deg,#ff9a76,#ff6b6b) !important;
+  color: white !important;
+  box-shadow: 0 8px 22px rgba(255,107,107,0.18) !important;
+  transform: translateY(-2px) !important;
+}
+
+#frc-safe-float .frc-clone.frc-pressed .btn-icon {
+  color: white !important;
+  font-weight: 700 !important;
+}
