@@ -1,5 +1,6 @@
-// clientPhrases-name-injector.js (FIX: evita reentrancia que provocaba bloqueo)
-// - Añade guard isApplying para que las mutaciones provocadas por la propia escritura no reentren.
+// clientPhrases-name-injector.js
+// FIX: evita prefijos repetidos del nombre (normaliza múltiples apariciones como "María, María, María")
+// Mantén este archivo cargado justo después de clientPhrases.js y preferiblemente antes de phraseSelector/phrases.
 (function () {
   'use strict';
 
@@ -15,6 +16,8 @@
     return null;
   }
 
+  function escapeRegExp(s){ return (s+'').replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); }
+
   function lowercaseFirstAlpha(str) {
     if (!str || typeof str !== 'string') return str;
     for (var i = 0; i < str.length; i++) {
@@ -26,33 +29,70 @@
     return str;
   }
 
+  // PERSONALIZA y normaliza prefijos repetidos de nombre.
+  // - Si la frase contiene {name}/{nombre} reemplaza token(es).
+  // - Si no contiene token y hay un nombre runtime, elimina cualquier ocurrencia repetida
+  //   del nombre al principio (p. ej. "María, María, maría, ") y lo normaliza a una sola ocurrencia.
+  // - Aplica lowercase a la primera letra significativa del cuerpo (después del prefijo).
   function personalizeAndLowercase(phrase, explicitName) {
     try {
       if (!phrase || typeof phrase !== 'string') return phrase;
       var name = (explicitName && String(explicitName).trim()) || readRuntimeName();
       var p = String(phrase);
 
+      // 1) si contiene tokens {name}/{nombre} -> reemplazarlos (o eliminarlos si no hay nombre)
       var tokenRE = /\{name\}|\{nombre\}/ig;
-      var hasToken = tokenRE.test(p);
-
-      if (hasToken) {
-        if (name) p = p.replace(/\{name\}/ig, name).replace(/\{nombre\}/ig, name);
-        else p = p.replace(tokenRE, '').replace(/^\s+|\s+$/g, '');
-      } else if (name) {
-        p = name + ', ' + p.replace(/^\s+/, '');
+      if (tokenRE.test(p)) {
+        if (name) {
+          p = p.replace(/\{name\}/ig, name).replace(/\{nombre\}/ig, name);
+        } else {
+          p = p.replace(tokenRE, '').replace(/^\s+|\s+$/g,'');
+        }
+        // después de token replacement, aplicar lowercasing al primer alpha del cuerpo (sin tocar el resto)
+        // si el resultado empieza con "Name, " ya será manejado por la lógica siguiente al hacer prefix normalizado.
       }
 
-      if (name && p.toLowerCase().indexOf((name + ',').toLowerCase()) === 0) {
-        var prefixRE = new RegExp('^\\s*' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*,\\s*', 'i');
-        var m = p.match(prefixRE);
-        if (m && m[0]) {
-          var prefix = m[0];
+      // 2) Si no hay nombre disponible -> sólo normalizar primera letra
+      if (!name) {
+        return lowercaseFirstAlpha(p);
+      }
+
+      // 3) Normalizar múltiples apariciones del nombre al principio.
+      //    Crear regex que capture cualquier número de repeticiones de "name" al inicio,
+      //    permitiendo comas y espacios entre ellas, case-insensitive.
+      var nameEsc = escapeRegExp(name);
+      var repeatedPrefixRE = new RegExp('^\\s*(?:' + nameEsc + '\\s*(?:,\\s*)?)+', 'i');
+      if (repeatedPrefixRE.test(p)) {
+        // quitar todas las apariciones iniciales
+        p = p.replace(repeatedPrefixRE, '').replace(/^\s+/, '');
+        // volver a prefixar sólo una vez más abajo
+      } else {
+        // Si ya empieza con el name seguido de coma/spacio pero no múltiples repeticiones,
+        // detectarlo para evitar double prefix (por ejemplo "María, ...")
+        var singlePrefixRE = new RegExp('^\\s*' + nameEsc + '(?:\\s*,\\s*|\\s+)', 'i');
+        if (singlePrefixRE.test(p)) {
+          // la frase ya comienza con el nombre (posible distinto case); no vamos a prefijar otra vez.
+          // Sin embargo, necesitamos asegurarnos de que el texto siguiente tenga la primera letra en minúscula.
+          // Separar el prefijo que coincide y aplicar lowercase al resto.
+          var m = p.match(singlePrefixRE);
+          var prefix = (m && m[0]) ? m[0] : name + ', ';
           var rest = p.slice(prefix.length);
           rest = lowercaseFirstAlpha(rest);
           return prefix + rest;
         }
       }
 
+      // 4) Prefixar única vez el nombre y aplicar lowercasing al resto
+      p = name + ', ' + p.replace(/^\s+/, '');
+      // encontrar el prefijo y lowercasing del resto por seguridad (aunque la línea previa ya lo hace)
+      var prefixRE = new RegExp('^\\s*' + nameEsc + '\\s*,\\s*', 'i');
+      var m2 = p.match(prefixRE);
+      if (m2 && m2[0]) {
+        var prefix2 = m2[0];
+        var rest2 = p.slice(prefix2.length);
+        rest2 = lowercaseFirstAlpha(rest2);
+        return prefix2 + rest2;
+      }
       return lowercaseFirstAlpha(p);
     } catch (e) {
       return phrase;
@@ -87,18 +127,16 @@
     return null;
   }
 
-  // Guard para evitar reentrancia del observer (mutaciones provocadas por nosotros mismos)
+  // guard for reentrancy
   var isApplying = false;
   var observer = null;
 
-  // safe write: disconnect observer while writing, or use isApplying guard
   function writeTextSafe(el, text) {
     try {
       if (!observer) {
         el.textContent = text;
         return;
       }
-      // Temporarily stop observing to prevent reentrancy
       var obs = observer;
       try { obs.disconnect(); } catch (e) {}
       try { el.textContent = text; } catch (e) {}
@@ -108,23 +146,17 @@
     }
   }
 
-  // ---------- transformElement con protección ----------
   function transformElement(el, explicitName) {
     if (!el) return { ok: false, reason: 'no-element' };
     try {
-      // backup original HTML once
       if (!el.hasAttribute('data-name-injector-original')) {
         try { el.setAttribute('data-name-injector-original', el.innerHTML); } catch(e){}
       }
-
-      // read the current text in DOM (we must operate on the current visible text)
       var currentText = (el.textContent || '').trim();
       if (!currentText) return { ok: false, reason: 'empty-text' };
 
-      // compute personalized text for the current DOM text
       var newText = personalizeAndLowercase(currentText, explicitName);
 
-      // If already identical, nothing to do (but ensure flags)
       if (newText === currentText) {
         try {
           if (el.getAttribute('data-name-injector-applied') !== '1') {
@@ -135,11 +167,7 @@
         return { ok: true, skipped: true };
       }
 
-      // Avoid reentrancy: mark and write safely
-      if (isApplying) {
-        // if currently applying elsewhere, skip this attempt
-        return { ok: false, reason: 'reentrancy-skip' };
-      }
+      if (isApplying) return { ok: false, reason: 'reentrancy-skip' };
       isApplying = true;
       try {
         writeTextSafe(el, newText);
@@ -148,7 +176,6 @@
           el.setAttribute('data-name-injector-name', explicitName || readRuntimeName() || '');
         } catch (e) {}
       } finally {
-        // small delay to avoid immediate observer re-trigger processing race
         setTimeout(function(){ isApplying = false; }, 40);
       }
       return { ok: true, newText: newText };
@@ -157,7 +184,6 @@
       return { ok: false, reason: String(e) };
     }
   }
-  // --------------------------------------------
 
   function restoreElement(el) {
     if (!el) return { ok: false, reason: 'no-element' };
@@ -180,7 +206,7 @@
     if (observer) return;
     try {
       observer = new MutationObserver(function (muts) {
-        if (isApplying) return; // skip while we are applying changes
+        if (isApplying) return;
         try {
           var el = findPhraseElement();
           if (el) transformElement(el);
@@ -267,5 +293,5 @@
     try { window.addEventListener('load', function(){ setTimeout(function(){ autoApplyOnce(6, 300); }, 120); }); } catch(e){}
   }
 
-  console.debug('[NameInjector] loaded (safe): run window.NameInjector.runNow() or .forceRefreshAndTransform() to apply.');
+  console.debug('[NameInjector] loaded (normalized prefixes): run window.NameInjector.runNow() or .forceRefreshAndTransform() to apply.');
 })();
