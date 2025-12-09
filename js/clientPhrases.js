@@ -7,20 +7,51 @@
   window.ClientPhrases = (function(){
     const phrases = {
       calma: [
-        "A veces la calma no llega corriendo.\nLlega despacio, casi tímida,\ncuando dejas de pelear con lo que sientes.\nRespira.\nLo estás haciendo mejor de lo que crees.",
-    "Pon la mano en tu pecho.\nSiente cómo sube… y cómo baja.\nNo tienes que acelerar nada dentro de ti.\nAcompáñate un momento.\nTu cuerpo recuerda el camino.",
-    "Relaja la mandíbula.\nSuelta los hombros.\nAfloja un poco el mundo por dentro.\nLa calma es un acto de amor,\nno de control.",
-    "No hace falta arreglarlo todo hoy.\nNi entenderlo.\nSolo necesitas un respiro consciente\npara recordar que aún tienes espacio\npara sentirte mejor.",
-    "Cuando todo parezca demasiado,\inhala contando hasta cuatro\ny exhala un poco más lento.\nAhí, en ese segundo extra,\nla calma empieza a abrir la puerta.",
-    "Permite que tu respiración haga por ti\nlo que tu cabeza no puede ahora mismo.\nNo pienses.\nSolo siente.\nLa calma empieza en el cuerpo.",
-    "La paz llega vestida de silencio interno,\nde pausas pequeñas,\nde segundos que te das sin prisa.\nRegálate uno ahora.",
-    "Respira profundo, como abriendo una ventana\ndentro de tu pecho.\nLa tensión no se va de golpe,\npero cede cuando la miras con suavidad.",
-    "Imagina que el aire que entra\nes luz,\ny el que sale\nse lleva un poco de peso.\nHazlo dos veces más.\nNota la diferencia.",
-    "Hoy no tienes que ser fuerte.\nSolo presente.\nLa calma se acerca cuando sueltas\nla obligación de aparentar que estás bien.",
-    "Cierra los ojos un instante.\nEscucha el ritmo de tu respiración.\nTodo está más lento ahí dentro.\nEsa es la puerta que te devuelve la paz.",
-    "Cuando sientas que no puedes más,\ndetente.\nRespira.\nTu alma también necesita descansar\nentre batalla y batalla.",
-    "La calma no es ausencia de ruido,\nes poder escucharte a ti\npor encima de él.",
-    "Tu respiración nunca te abandona.\nEs tu amiga más constante.\nVuelve a ella cuando todo se tambalee.",
+        "{name} a veces la calma no llega corriendo.
+        \nLlega despacio, casi tímida,\ncuando dejas de pelear con lo que sientes.
+        \nRespira.\nLo estás haciendo mejor de lo que crees.",
+    "{name} pon la mano en tu pecho.\nSiente cómo sube… y cómo baja.
+      \nNo tienes que acelerar nada dentro de ti.
+      \nAcompáñate un momento.
+      \nTu cuerpo recuerda el camino.",
+    "{name} relaja la mandíbula.\nSuelta los hombros.
+      \nAfloja un poco el mundo por dentro.
+      \nLa calma es un acto de amor,\nno de control.",
+    "{name} no hace falta arreglarlo todo hoy.\nNi entenderlo.
+      \nSolo necesitas un respiro consciente
+      \npara recordar que aún tienes espacio\npara sentirte mejor.",
+    "{name} cuando todo parezca demasiado,
+        \inhala contando hasta cuatro\ny exhala un poco más lento.
+        \nAhí, en ese segundo extra,\nla calma empieza a abrir la puerta.",
+    "{name} permite que tu respiración haga por ti
+        \nlo que tu cabeza no puede ahora mismo.
+        \nNo pienses.\nSolo siente.\nLa calma empieza en el cuerpo.",
+    "{name} la paz llega vestida de silencio interno,
+        \nde pausas pequeñas,
+        \nde segundos que te das sin prisa.
+        \nRegálate uno ahora.",
+    "{name} respira profundo, como abriendo una ventana
+        \ndentro de tu pecho.\nLa tensión no se va de golpe,
+        \npero cede cuando la miras con suavidad.",
+    "{name} imagina que el aire que entra\nes luz,
+        \ny el que sale\nse lleva un poco de peso.
+        \nHazlo dos veces más.\nNota la diferencia.",
+    "{name} hoy no tienes que ser fuerte.
+        \nSolo presente.
+        \nLa calma se acerca cuando sueltas
+        \nla obligación de aparentar que estás bien.",
+    "{name} cierra los ojos un instante.\nEscucha el ritmo de tu respiración.
+          \nTodo está más lento ahí dentro.
+          \nEsa es la puerta que te devuelve la paz.",
+    "{name} Cuando sientas que no puedes más,
+          \ndetente.\nRespira.
+          \nTu alma también necesita descansar\nentre batalla y batalla.",
+    "{name} la calma no es ausencia de ruido,
+          \nes poder escucharte a ti
+          \npor encima de él.",
+    "{name} tu respiración nunca te abandona.
+            \nEs tu amiga más constante.
+            \nVuelve a ella cuando todo se tambalee.",
     "Permite que tu pecho se expanda.\nDeja que entre un poco más de aire.\nA veces la calma empieza\ncon un simple 'sí, puedo'.",
     "Tu mente corre rápido,\npero tu cuerpo puede enseñarle a frenar.\nRespira lento.\nMuy lento.\nY quédate ahí.",
     "No te exijas paz inmediata.\nLa calma también necesita tiempo\npara llegar y acomodarse en ti.",
