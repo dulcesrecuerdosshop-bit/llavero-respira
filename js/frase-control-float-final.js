@@ -1,6 +1,18 @@
-// frase-controls-float-final-v5.js
-// v5 corregido: añade pickIconFor (fix ReferenceError) y mantiene la mejora para no leer controles.
-// Clones flotantes, favorito sincronizado, TTS sincronizado con voz española preferente.
+// frase-controls-float-final.js (v6)
+// Corrección: el botón "Descargar" ahora descarga la frase VISIBLE actual (texto limpio),
+// en lugar de depender de phrases.js. Mantiene:
+// - clones flotantes (no mueve los originales)
+// - favorito sincronizado (♡/♥ y estilo pressed)
+// - TTS sincronizado y override seguro que fuerza la lectura de la frase visible
+// - selección preferente de voz en español más natural disponible
+//
+// Nota importante sobre "Descargar":
+// - Para asegurar que se descarga exactamente la frase que el usuario ve, el clon de descarga
+//   NO llama a orig.click() (porque orig puede leer desde phrases.js).
+// - En su lugar el clon crea y descarga un archivo .txt con la frase visible.
+// - Si prefieres recuperar la descarga original (por ejemplo, descarga de imagen), házmelo saber
+//   y lo adaptamos para intentar conservar ambos comportamientos (pero puede provocar duplicados).
+//
 // API: window.FloatingControlsFinal.apply() / .restore()
 
 (function(){
@@ -206,7 +218,7 @@
         utter.lang = (selectedVoice && selectedVoice.lang) ? selectedVoice.lang : 'es-ES';
         window.speechSynthesis.speak(utter);
         return true;
-      } catch(e){ console.warn('[FloatingControlsV5] speak error', e); return false; }
+      } catch(e){ console.warn('[FloatingControls] speak error', e); return false; }
     }).catch(function(){ return false; });
   }
 
@@ -219,7 +231,7 @@
 
   function installSpeakOverride(){
     if(!('speechSynthesis' in window)) return;
-    if(window._frc_speak_patched_v5) return;
+    if(window._frc_speak_patched_v6) return;
     var originalSpeak = window.speechSynthesis.speak.bind(window.speechSynthesis);
     window.speechSynthesis.speak = function(utter){
       try {
@@ -229,13 +241,13 @@
             try { utter.text = visible; } catch(e){}
           }
         }
-      } catch(e){ console.warn('[FloatingControlsV5] speak override error', e); }
+      } catch(e){ console.warn('[FloatingControls] speak override error', e); }
       return originalSpeak(utter);
     };
-    window._frc_speak_patched_v5 = true;
+    window._frc_speak_patched_v6 = true;
   }
 
-  // ------------------ Icon helper (FIXED: previously missing) ------------------
+  // ------------------ Icon helper ------------------
   function pickIconFor(orig, id){
     if(!orig) return ICON_MAP[id] || id.slice(0,1);
     var svg = orig.querySelector('svg, img, i');
@@ -248,6 +260,25 @@
     return ICON_MAP[id] || txt.slice(0,1) || '';
   }
 
+  // ------------------ Download helper (creates .txt with visible phrase) ------------------
+  function sanitizeFilename(s){
+    return (s || 'frase').replace(/[^\w\- ]+/g,'').trim().slice(0,40).replace(/\s+/g,'-').toLowerCase() || 'frase';
+  }
+  function downloadTextAsFile(text){
+    try {
+      var filename = sanitizeFilename(text.split(/\s+/).slice(0,6).join('-')) + '-' + (new Date()).toISOString().slice(0,19).replace(/[:T]/g,'-') + '.txt';
+      var blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function(){ try { a.parentNode && a.parentNode.removeChild(a); URL.revokeObjectURL(url); } catch(e){} }, 500);
+      return true;
+    } catch(e){ console.warn('[FloatingControls] download failed', e); return false; }
+  }
+
   // ------------------ clones creation and behavior ------------------
 
   function findOriginal(id){
@@ -258,12 +289,14 @@
   }
 
   function createCloneFor(orig, id, container){
-    if(!orig || !container) return null;
+    if(!container) return null;
     var clone = document.createElement('button');
     clone.type = 'button';
     clone.className = 'frc-clone';
     clone.setAttribute(CLONE_ATTR, id);
-    var iconNode = pickIconFor(orig, id);
+
+    // icon
+    var iconNode = orig ? pickIconFor(orig, id) : ICON_MAP[id] || id.slice(0,1);
     if(typeof iconNode === 'string'){
       var s = document.createElement('span'); s.className = 'btn-icon'; s.textContent = iconNode; clone.appendChild(s);
     } else {
@@ -271,25 +304,56 @@
       try { wrapper.appendChild(iconNode); } catch(e){ wrapper.textContent = ICON_MAP[id] || ''; }
       clone.appendChild(wrapper);
     }
-    var label = orig.getAttribute('aria-label') || orig.title || (orig.textContent || '').trim() || '';
+
+    // label/title
+    var label = (orig && (orig.getAttribute('aria-label') || orig.title)) || '';
     if(label) { clone.setAttribute('title', label); clone.setAttribute('aria-label', label); }
 
-    clone.addEventListener('click', function(e){
-      markForceRead(1800);
-      try {
-        if(typeof orig.click === 'function') orig.click();
-        else orig.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,view:window}));
-      } catch(err){}
-
-      setTimeout(function(){
-        if(isAnyAudioPlaying()) return;
+    // behavior per id
+    if(id === 'downloadBtn'){
+      // For download we DO NOT rely on orig.click() because orig may source phrases from phrases.js.
+      // Instead we generate a TXT with the visible phrase (cleaned).
+      clone.addEventListener('click', function(e){
         var phrase = getBestVisibleText();
-        if(phrase) speakFallbackWithVoice(phrase);
-      }, 300);
-    });
+        if(!phrase){
+          // fallback: try original click if present (best-effort)
+          if(orig && typeof orig.click === 'function'){
+            try { orig.click(); } catch(e){}
+            // still try to extract text after short delay
+            setTimeout(function(){
+              var p2 = getBestVisibleText();
+              if(p2) downloadTextAsFile(p2);
+            }, 220);
+            return;
+          }
+          return;
+        }
+        downloadTextAsFile(phrase);
+      }, { passive:true });
+    } else {
+      // default behavior for other clones (tts, fav, share): trigger original and apply fallback logic
+      clone.addEventListener('click', function(e){
+        if(id === 'ttsBtn') markForceRead(1800);
+        try {
+          if(orig && typeof orig.click === 'function') orig.click();
+          else if(orig) orig.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,view:window}));
+        } catch(err){}
+        // fallback behavior: for tts, speak visible phrase if no audio started
+        if(id === 'ttsBtn'){
+          setTimeout(function(){
+            if(isAnyAudioPlaying()) return;
+            var p = getBestVisibleText();
+            if(p) speakFallbackWithVoice(p);
+          }, 300);
+        }
+      }, { passive:true });
+    }
 
+    // append and hide original visually (preserve layout)
     container.appendChild(clone);
-    try { orig.style.visibility = 'hidden'; orig.setAttribute(HIDDEN_ATTR, '1'); } catch(e){}
+    if(orig){
+      try { orig.style.visibility = 'hidden'; orig.setAttribute(HIDDEN_ATTR, '1'); } catch(e){}
+    }
     return clone;
   }
 
@@ -345,7 +409,7 @@
     var created = [];
     IDS.forEach(function(id){
       var orig = findOriginal(id);
-      if(!orig) return;
+      if(!orig && id !== 'downloadBtn' /* allow download clone even if orig missing */) return;
       var clone = createCloneFor(orig, id, container);
       if(clone) created.push({id:id, clone:clone, orig:orig});
       if(id === 'favBtn' && clone){ syncFavForId('favBtn', clone, orig); observeFavorite(orig, clone); }
@@ -371,8 +435,9 @@
   window.FloatingControlsFinal.restore = restore;
 
   setTimeout(function(){
-    try { var r = apply(); console.log('[FloatingControlsV5] applied ->', r); } catch(e){ console.warn('FloatingControlsV5 apply failed', e); }
+    try { var r = apply(); console.log('[FloatingControlsFinal v6] applied ->', r); } catch(e){ console.warn('FloatingControlsFinal v6 apply failed', e); }
   }, 120);
 
-  console.debug('[FloatingControlsV5] ready: call FloatingControlsFinal.apply() or .restore().');
+  console.debug('[FloatingControlsFinal v6] ready: call FloatingControlsFinal.apply() or .restore().');
+})();
 })();
