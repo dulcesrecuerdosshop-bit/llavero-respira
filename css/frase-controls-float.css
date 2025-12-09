@@ -1,85 +1,112 @@
 /* frase-controls-float.css
-   Posiciona los controles de la tarjeta verticalmente a la derecha y los muestra como iconos.
-   Incluye reglas responsivas y evita quedar por debajo del footer (z-index).
+   Posiciona los controles a la derecha en vertical, icon-only y añade un círculo 36x36px detrás.
 */
 
 .frase-card {
-  position: relative; /* asegurar contenedor de referencia */
+  position: relative !important;
 }
 
 /* Contenedor vertical en la derecha de la tarjeta */
 .frase-card .frase-controls {
-  position: absolute;
-  right: 16px;
-  top: 50%;
-  transform: translateY(-50%);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  z-index: 60; /* por encima del footer */
-  pointer-events: auto;
+  position: absolute !important;
+  right: 14px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+  z-index: 60 !important; /* por encima del footer */
+  pointer-events: auto !important;
+  align-items: center !important;
 }
 
 /* Botones reducidos: icon-only */
 .frase-card .frase-controls .control {
-  width: 48px;
-  height: 48px;
-  min-width: 48px;
-  min-height: 48px;
-  border-radius: 12px;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(255,255,255,0.92);
-  color: #0b2b2a;
-  border: 0;
-  box-shadow: 0 6px 14px rgba(6,10,9,0.12);
-  cursor: pointer;
-  transition: transform 120ms ease, box-shadow 120ms ease, background 120ms;
-  font-size: 18px; /* tamaño del icono */
-  line-height: 1;
+  position: relative !important;
+  z-index: 2 !important;
+  width: 36px !important;
+  height: 36px !important;
+  min-width: 36px !important;
+  min-height: 36px !important;
+  border-radius: 50% !important;
+  padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: transparent !important; /* background del botón será transparente para dejar ver el círculo */
+  color: #072b2a !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  cursor: pointer !important;
+  transition: transform 120ms ease, box-shadow 120ms ease, background 120ms !important;
+  font-size: 16px !important; /* tamaño del icono */
+  line-height: 1 !important;
+  overflow: visible !important;
 }
 
-/* Icon wrapper */
+/* El icono dentro (si usamos span.btn-icon como en el script) */
 .frase-card .frase-controls .control .btn-icon {
-  display: inline-block;
-  font-size: 20px;
-  line-height: 1;
+  display: inline-block !important;
+  font-size: 16px !important;
+  line-height: 1 !important;
+  pointer-events: none !important;
 }
 
-/* focus / hover */
-.frase-card .frase-controls .control:focus,
-.frase-card .frase-controls .control:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 26px rgba(6,10,9,0.16);
-  outline: none;
+/* Círculo de 36x36px detrás del botón */
+.frase-card .frase-controls .control::before {
+  content: "" !important;
+  position: absolute !important;
+  left: 50% !important;
+  top: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 50% !important;
+  background: rgba(255,255,255,0.95) !important; /* color del círculo (ajusta si deseas) */
+  box-shadow: 0 6px 16px rgba(6,10,9,0.12) !important;
+  z-index: 1 !important;
+  pointer-events: none !important;
 }
 
-/* marca de estado (favorito/pressed) */
-.frase-card .frase-controls .control[aria-pressed="true"] {
-  background: linear-gradient(90deg,#ffd6a5,#ffc09f);
+/* Hover / focus: elevar icono y cambiar color del círculo */
+.frase-card .frase-controls .control:hover,
+.frase-card .frase-controls .control:focus {
+  transform: translateY(-3px) !important;
+}
+.frase-card .frase-controls .control:hover::before,
+.frase-card .frase-controls .control:focus::before {
+  background: linear-gradient(90deg,#fff7ef,#fff0e6) !important;
 }
 
-/* si se requiere mostrar tooltip/title */
-.frase-card .frase-controls .control[title] { cursor: pointer; }
+/* Estado pressed (ej. favorito) */
+.frase-card .frase-controls .control[aria-pressed="true"]::before {
+  background: linear-gradient(90deg,#ffd6a5,#ffc09f) !important;
+}
 
-/* pequeños ajustes en pantallas pequeñas */
-@media (max-width: 600px) {
+/* Responsivo: en pantallas pequeñas, bajar tamaño y mover ligeramente */
+@media (max-width: 520px) {
   .frase-card .frase-controls {
-    right: 10px;
-    gap: 8px;
+    right: 8px !important;
+    gap: 8px !important;
   }
   .frase-card .frase-controls .control {
-    width: 40px;
-    height: 40px;
-    min-width: 40px;
-    min-height: 40px;
-    border-radius: 10px;
-    font-size: 16px;
+    width: 36px !important;
+    height: 36px !important;
+    font-size: 15px !important;
+  }
+  .frase-card .frase-controls .control::before {
+    width: 36px !important;
+    height: 36px !important;
   }
 }
 
-/* Si se desea ocultar algún control extra en pantallas pequeñas, puedes añadir:
-.frase-card .frase-controls .control[data-hide-mobile="true"] { display: none; }
+/* Si tu markup tiene botones con texto y no hay script para convertir a icon-only,
+   puedes esconder el texto dentro del botón (mostrando solo el primer emoji/span.btn-icon)
 */
+.frase-card .frase-controls .control.icon-only > *:not(.btn-icon) { display: none !important; }
+
+/* Defender contra reglas más específicas en la app */
+:root .frase-card .frase-controls,
+body .frase-card .frase-controls { /* fuerza aplicacion */
+  /* no-op, esta regla solo ayuda a subir prioridad si es necesario */
+}
