@@ -1,43 +1,37 @@
-// frase-controls-float-final.js (v13 - FAVORITES FIXED: sync only real favorites sources)
-// Basado en v12; mejora la lógica que parchea favoritos para NO tocar arrays de phrases (*.js).
-// - Detecta y parchea únicamente fuentes de *favoritos* (window vars, localStorage keys y listas DOM)
-//   cuyo nombre/selector sugiere que son favoritos (contienen 'fav','favorite','favorit', 'favor')
-// - Reemplaza sólo las entradas NUEVAS agregadas tras pulsar el botón favorito
-// - Si no detecta estructuras, intenta parchear el modal/listado visible.
-// - Mantiene controles verticales y ocultación de shareBtn, TTS y descarga PNG.
-// API: window.FloatingControlsFinal.apply()/restore()/safeApply()
-
+// frase-controls-float-final.js (v14 - FAVORITES: evitar modificar header)
+// Basado en v13: arregla la causa por la que el header acababa mostrando la frase.
+// - Evita modificar cualquier elemento dentro del header/role=banner
+// - Sólo parchea estructuras que claramente son listas/dialogs de favoritos
+// - Mantiene TTS, descarga PNG y disposición vertical
 (function(){
   'use strict';
 
-  if (window._frc_v13_loaded) {
-    console.debug('[FloatingControlsV13] already loaded — skipping.');
+  if (window._frc_v14_loaded) {
+    console.debug('[FloatingControlsV14] already loaded — skipping.');
     return;
   }
-  window._frc_v13_loaded = true;
+  window._frc_v14_loaded = true;
 
-  // CONFIG
   var CONTAINER_ID = 'frc-safe-float-final';
   var STYLE_ID = 'frc-safe-float-final-style';
   var CLONE_ATTR = 'data-frc-clone-for';
   var HIDDEN_ATTR = 'data-frc-hidden-original';
-  var MANAGED_FLAG = 'data-frc-managed-v13';
-  var IDS = ['ttsBtn','favBtn','downloadBtn']; // shareBtn intentionally excluded
+  var MANAGED_FLAG = 'data-frc-managed-v14';
+  var IDS = ['ttsBtn','favBtn','downloadBtn']; // shareBtn excluded
   var ICON_MAP = { ttsBtn: '🔊', favBtn: '♡', downloadBtn: '⬇️' };
   var KNOWN_CONTAINER_IDS = ['frc-safe-float-final','frc-card-float','frc-float-controls-v2','frc-float-controls','frc-safe-float'];
+  var FAVOR_KEY_RE = /(fav|favorite|favorit|favor)/i;
 
-  // CSS
   var defaultCSS = '\
   #' + CONTAINER_ID + ' { position: absolute !important; right: 12px !important; top: 50% !important; transform: translateY(-50%) !important; display:flex !important; flex-direction:column !important; gap:12px !important; align-items:center !important; z-index:2147483000 !important; pointer-events:auto !important; }\
   #' + CONTAINER_ID + ' .frc-clone { display:block !important; width:44px !important; height:44px !important; border-radius:50% !important; align-items:center !important; justify-content:center !important; background: rgba(255,255,255,0.98) !important; box-shadow:0 6px 18px rgba(0,0,0,0.12) !important; cursor:pointer !important; border:0 !important; padding:0 !important; }\
   #' + CONTAINER_ID + ' .frc-clone .btn-icon{ pointer-events:none !important; font-size:18px !important; line-height:1 !important; }\
   #' + CONTAINER_ID + ' .frc-clone.frc-pressed{ background: linear-gradient(90deg,#ff9a76,#ff6b6b) !important; color:#fff !important; transform: translateY(-2px) !important; box-shadow:0 10px 26px rgba(255,107,107,0.18) !important; }\
-  @media (max-width:520px){ #' + CONTAINER_ID + ' { right:8px !important; } #' + CONTAINER_ID + ' .frc-clone { width:38px !important; height:38px !important; } }\
   ';
 
   function q(sel){ return document.querySelector(sel); }
   function qa(sel){ return Array.from(document.querySelectorAll(sel)); }
-  function log(){ try{ console.debug.apply(console, ['[FloatingControlsV13]'].concat(Array.from(arguments))); }catch(e){} }
+  function log(){ try{ console.debug.apply(console, ['[FloatingControlsV14]'].concat(Array.from(arguments))); }catch(e){} }
 
   function injCSS(){
     if(document.getElementById(STYLE_ID)) return;
@@ -69,6 +63,7 @@
           } catch(e){}
         });
       });
+      // dedupe clones
       qa('[data-frc-clone-for]').forEach(function(node){
         try {
           var key = node.getAttribute('data-frc-clone-for') || '__unknown';
@@ -80,10 +75,10 @@
           }
         } catch(e){}
       });
-    } catch(e){ console.warn('[FloatingControlsV13] removeLegacyContainers error', e); }
+    } catch(e){ console.warn('[FloatingControlsV14] removeLegacyContainers error', e); }
   }
 
-  // phrase extraction helpers
+  // phrase selection
   function isInteractiveAncestor(n){
     while(n && n !== document.body){
       try { if(n.matches && n.matches('button,a,[role="button"],input,textarea,select')) return true; } catch(e){}
@@ -133,7 +128,7 @@
   }
   function installSpeakOverride(){
     if(!('speechSynthesis' in window)) return;
-    if(window._frc_speak_patched_v13) return;
+    if(window._frc_speak_patched_v14) return;
     var originalSpeak = window.speechSynthesis.speak.bind(window.speechSynthesis);
     window.speechSynthesis.speak = function(utter){
       try {
@@ -144,7 +139,7 @@
       } catch(e){}
       return originalSpeak(utter);
     };
-    window._frc_speak_patched_v13 = true;
+    window._frc_speak_patched_v14 = true;
   }
 
   function pickIconFor(orig, id){
@@ -156,7 +151,7 @@
     return ICON_MAP[id] || txt.slice(0,1) || '';
   }
 
-  // download PNG helper
+  // download PNG
   function sanitizeFilename(s){ return (s||'frase').replace(/[^\w\- ]+/g,'').trim().slice(0,40).replace(/\s+/g,'-').toLowerCase() || 'frase'; }
   function downloadCardPNG(phrase){
     var card = document.querySelector('.frase-card');
@@ -215,257 +210,6 @@
     }
   }
 
-  // ensure container inside card and inline styles
-  function ensureContainer(){
-    try {
-      removeLegacyContainers();
-      injCSS();
-      var card = document.querySelector('.frase-card');
-      if(!card) return null;
-      var c = document.getElementById(CONTAINER_ID);
-      if(!c){
-        c = document.createElement('div'); c.id = CONTAINER_ID;
-        c.setAttribute(MANAGED_FLAG, '1');
-        c.style.position = 'absolute';
-        c.style.right = '12px';
-        c.style.top = '50%';
-        c.style.transform = 'translateY(-50%)';
-        c.style.display = 'flex';
-        c.style.flexDirection = 'column';
-        c.style.gap = '12px';
-        c.style.alignItems = 'center';
-        c.style.justifyContent = 'center';
-        c.style.zIndex = '2147483000';
-        try { var cs = window.getComputedStyle(card); if(cs.position === 'static') card.style.position = 'relative'; } catch(e){}
-        card.appendChild(c);
-      } else {
-        c.setAttribute(MANAGED_FLAG, '1');
-        c.style.position = 'absolute';
-        c.style.right = '12px';
-        c.style.top = '50%';
-        c.style.transform = 'translateY(-50%)';
-        c.style.display = 'flex';
-        c.style.flexDirection = 'column';
-        c.style.gap = '12px';
-        c.style.alignItems = 'center';
-        c.style.justifyContent = 'center';
-        c.style.zIndex = '2147483000';
-        if(c.parentElement !== card){ c.parentNode && c.parentNode.removeChild(c); card.appendChild(c); }
-      }
-      return c;
-    } catch(e){ console.warn('[FloatingControlsV13] ensureContainer error', e); return null; }
-  }
-
-  // --- FAVORITES: only target likely favorite sources (NEW improved) ---
-  var FAVOR_KEY_RE = /(fav|favorite|favorit|favor)/i;
-
-  function snapshotFavoriteCandidates(){
-    var winArrays = {}; // name -> length
-    try {
-      Object.keys(window).forEach(function(k){
-        try {
-          if(!FAVOR_KEY_RE.test(k)) return; // only names that look like favs
-          var v = window[k];
-          if(Array.isArray(v) && v.length >= 0 && v.every(it => typeof it === 'string' || typeof it === 'object')) {
-            winArrays[k] = v.length;
-          }
-        } catch(e){}
-      });
-    } catch(e){}
-    var localKeys = {}; // key -> length
-    try {
-      for(var i=0;i<localStorage.length;i++){
-        var key = localStorage.key(i);
-        if(!FAVOR_KEY_RE.test(key)) continue;
-        try {
-          var parsed = JSON.parse(localStorage.getItem(key));
-          if(Array.isArray(parsed)) localKeys[key] = parsed.length;
-        } catch(e){}
-      }
-    } catch(e){}
-    // DOM lists that look like favorites (class/attr contains fav/favorite)
-    var domLists = {};
-    try {
-      var candidates = qa('.favorites-list, .favorite-list, .favoritos, .fav-list, .favorites, [data-fav-list], [data-favorites]');
-      candidates.forEach(function(n, idx){
-        try { domLists['dom_'+idx] = n.childElementCount; } catch(e){}
-      });
-    } catch(e){}
-    return { winArrays: winArrays, localKeys: localKeys, domLists: domLists };
-  }
-
-  function patchNewFavoritesWithVisible(snapBefore, visible){
-    // patch window arrays that grew
-    try {
-      Object.keys(snapBefore.winArrays || {}).forEach(function(name){
-        try {
-          var arr = window[name];
-          if(!Array.isArray(arr)) return;
-          var beforeLen = snapBefore.winArrays[name] || 0;
-          if(arr.length > beforeLen){
-            // replace only the newly added items
-            for(var i=beforeLen;i<arr.length;i++){
-              arr[i] = visible;
-            }
-            log('Patched window favorites array', name, 'replaced indexes', beforeLen, '->', arr.length-1);
-          }
-        } catch(e){}
-      });
-    } catch(e){}
-
-    // patch localStorage arrays that grew
-    try {
-      Object.keys(snapBefore.localKeys || {}).forEach(function(key){
-        try {
-          var parsed = JSON.parse(localStorage.getItem(key) || '[]');
-          if(!Array.isArray(parsed)) return;
-          var beforeLen = snapBefore.localKeys[key] || 0;
-          if(parsed.length > beforeLen){
-            for(var j=beforeLen;j<parsed.length;j++) parsed[j] = visible;
-            localStorage.setItem(key, JSON.stringify(parsed));
-            log('Patched localStorage favorites key', key, 'updated last entries');
-          }
-        } catch(e){}
-      });
-    } catch(e){}
-
-    // patch DOM lists that grew
-    try {
-      var domCandidates = qa('.favorites-list, .favorite-list, .favoritos, .fav-list, .favorites, [data-fav-list], [data-favorites]');
-      domCandidates.forEach(function(n, idx){
-        try {
-          var id = 'dom_'+idx;
-          var before = snapBefore.domLists && snapBefore.domLists[id] || 0;
-          var after = n.childElementCount;
-          if(after > before){
-            // update new children text to visible
-            for(var c = before; c < after; c++){
-              var child = n.children[c];
-              if(child) {
-                // find textual node inside
-                var textTarget = child.querySelector && (child.querySelector('p') || child.querySelector('div') || child);
-                if(textTarget) textTarget.textContent = visible;
-              }
-            }
-            log('Patched DOM favorites list', n);
-          }
-        } catch(e){}
-      });
-    } catch(e){}
-  }
-
-  function patchFavoritesModalIfPresent(visible){
-    try {
-      var dialogs = qa('[role="dialog"], .modal, .dialog, .favoritos, .favorite-modal, .favorites-modal');
-      for(var i=0;i<dialogs.length;i++){
-        var d = dialogs[i];
-        try {
-          var header = d.querySelector && (d.querySelector('h1,h2,h3,h4,.modal-title,.title') || null);
-          if(header && /favorit/i.test(header.textContent || '')){
-            var body = d.querySelector && (d.querySelector('.modal-body') || d.querySelector('.body') || d.querySelector('p') || d.querySelector('div') || d);
-            if(body){
-              body.textContent = visible;
-              log('Patched favorites modal content to visible phrase');
-              return true;
-            }
-          }
-        } catch(e){}
-      }
-    } catch(e){}
-    return false;
-  }
-
-  // create clones idempotent with improved fav handler
-  function createCloneFor(orig, id, container){
-    if(!container) return null;
-    var existing = container.querySelector('[data-frc-clone-for="'+id+'"]');
-    if(existing) return existing;
-    var clone = document.createElement('button');
-    clone.type = 'button'; clone.className = 'frc-clone';
-    clone.setAttribute(CLONE_ATTR, id); clone.setAttribute(MANAGED_FLAG, '1');
-    var iconNode = orig ? pickIconFor(orig, id) : ICON_MAP[id] || id.slice(0,1);
-    if(typeof iconNode === 'string'){ var s = document.createElement('span'); s.className='btn-icon'; s.textContent = iconNode; clone.appendChild(s); }
-    else { var wrap = document.createElement('span'); wrap.className='btn-icon'; try{ wrap.appendChild(iconNode); } catch(e){ wrap.textContent = ICON_MAP[id] || ''; } clone.appendChild(wrap); }
-    var label = (orig && (orig.getAttribute('aria-label') || orig.title)) || '';
-    if(label){ clone.setAttribute('title', label); clone.setAttribute('aria-label', label); }
-
-    if(id === 'downloadBtn'){
-      clone.addEventListener('click', function(){ var phrase = getBestVisibleText(); if(!phrase && orig && typeof orig.click === 'function'){ try{ orig.click(); }catch(e){} setTimeout(function(){ var p2=getBestVisibleText(); if(p2) downloadCardPNG(p2); },220); return; } if(phrase) downloadCardPNG(phrase); }, { passive:true });
-    } else if(id === 'favBtn'){
-      clone.addEventListener('click', function(){
-        var visible = getBestVisibleText() || '';
-        // snapshot only likely favorites containers (by name/key/selector)
-        var snap = snapshotFavoriteCandidates();
-        // call original favorite logic
-        try { if(orig && typeof orig.click === 'function') orig.click(); } catch(e){ log('orig.click() for fav failed', e); }
-        // poll for changes limited times and patch only new entries
-        var attempts = 0, maxAttempts = 14;
-        var poll = setInterval(function(){
-          attempts++;
-          try {
-            // attempt to patch arrays/localStorage/dom that show growth
-            patchNewFavoritesWithVisible(snap, visible);
-            // try modal patching too
-            var modalPatched = patchFavoritesModalIfPresent(visible);
-            // detect if any candidate grew — if yes, stop early
-            var newSnap = snapshotFavoriteCandidates();
-            var changed = false;
-            Object.keys(snap.winArrays || {}).forEach(function(k){ if((newSnap.winArrays[k]||0) > (snap.winArrays[k]||0)) changed = true; });
-            Object.keys(snap.localKeys || {}).forEach(function(k){ if((newSnap.localKeys[k]||0) > (snap.localKeys[k]||0)) changed = true; });
-            Object.keys(snap.domLists || {}).forEach(function(k){ if((newSnap.domLists[k]||0) > (snap.domLists[k]||0)) changed = true; });
-            if(modalPatched || changed || attempts >= maxAttempts){
-              clearInterval(poll);
-              // final attempt: if favorites UI contains list items, replace last textual item to visible
-              try {
-                var favItems = qa('.favorites-list li, .favorite-item, .fav-item, .favorito li, .favorite-list li');
-                if(favItems && favItems.length){
-                  var last = favItems[favItems.length-1];
-                  if(last && (last.textContent||'').trim().length>0){
-                    last.textContent = visible || last.textContent;
-                  }
-                }
-              } catch(e){}
-            }
-          } catch(e){
-            if(attempts >= maxAttempts) clearInterval(poll);
-          }
-        }, 180);
-      }, { passive:true });
-      setTimeout(function(){ try { if(orig) syncFav(container.querySelector('[data-frc-clone-for="favBtn"]'), orig); } catch(e){} }, 60);
-    } else if(id === 'ttsBtn'){
-      clone.addEventListener('click', function(){ markForceRead(1800); try { if(orig && typeof orig.click === 'function') orig.click(); } catch(e){} setTimeout(function(){ if(isAnyAudioPlaying()) return; var p=getBestVisibleText(); if(p){ try{ var u=new SpeechSynthesisUtterance(p); u.lang='es-ES'; u.rate=0.95; u.pitch=1.02; window.speechSynthesis.cancel(); window.speechSynthesis.speak(u);}catch(e){} } }, 300); }, { passive:true });
-    } else {
-      clone.addEventListener('click', function(){ if(orig && typeof orig.click === 'function') orig.click(); }, { passive:true });
-    }
-
-    container.appendChild(clone);
-    if(orig){
-      try { orig.style.visibility = 'hidden'; orig.setAttribute(HIDDEN_ATTR, '1'); } catch(e){}
-    }
-    return clone;
-  }
-
-  // fav sync
-  var favObserver = null;
-  function syncFav(clone, orig){
-    if(!clone || !orig) return;
-    var pressed = orig.getAttribute && orig.getAttribute('aria-pressed') === 'true';
-    var span = clone.querySelector('.btn-icon');
-    if(span) span.textContent = pressed ? '♥' : '♡';
-    if(pressed) clone.classList.add('frc-pressed'); else clone.classList.remove('frc-pressed');
-  }
-  function observeFav(orig, clone){
-    if(!orig || !clone) return;
-    if(favObserver){ try{ favObserver.disconnect(); } catch(e){} favObserver = null; }
-    favObserver = new MutationObserver(function(){ syncFav(clone, orig); });
-    try { favObserver.observe(orig, { attributes:true, attributeFilter:['aria-pressed','class'] }); } catch(e) {}
-  }
-
-  // create clone wrapper (idempotent)
-  function createCloneForWrapper(orig, id, container){
-    try { return createCloneFor(orig, id, container); } catch(e){ console.warn('[FloatingControlsV13] createCloneFor error', e); return null; }
-  }
-
   // ensure container
   function ensureContainer(){
     try {
@@ -504,10 +248,241 @@
         if(c.parentElement !== card){ c.parentNode && c.parentNode.removeChild(c); card.appendChild(c); }
       }
       return c;
-    } catch(e){ console.warn('[FloatingControlsV13] ensureContainer error', e); return null; }
+    } catch(e){ console.warn('[FloatingControlsV14] ensureContainer error', e); return null; }
   }
 
-  // apply / restore / safeApply
+  // FAVORITES: candidate snapshot (only names / keys that contain fav-like token)
+  function snapshotFavoriteCandidates(){
+    var winArrays = {};
+    try {
+      Object.keys(window).forEach(function(k){
+        try {
+          if(!FAVOR_KEY_RE.test(k)) return;
+          var v = window[k];
+          if(Array.isArray(v)) winArrays[k] = v.length;
+        } catch(e){}
+      });
+    } catch(e){}
+    var localKeys = {};
+    try {
+      for(var i=0;i<localStorage.length;i++){
+        var key = localStorage.key(i);
+        if(!FAVOR_KEY_RE.test(key)) continue;
+        try {
+          var parsed = JSON.parse(localStorage.getItem(key));
+          if(Array.isArray(parsed)) localKeys[key] = parsed.length;
+        } catch(e){}
+      }
+    } catch(e){}
+    var domLists = {};
+    try {
+      var candidates = qa('.favorites-list, .favorite-list, .favoritos, .fav-list, .favorites, [data-fav-list], [data-favorites]');
+      candidates.forEach(function(n, idx){ try { domLists['dom_'+idx] = n.childElementCount; } catch(e){} });
+    } catch(e){}
+    return { winArrays: winArrays, localKeys: localKeys, domLists: domLists };
+  }
+
+  // patch only favorites candidates that grew AFTER click
+  function patchNewFavoritesWithVisible(snapBefore, visible){
+    // patch window arrays with fav-like names
+    try {
+      Object.keys(snapBefore.winArrays || {}).forEach(function(name){
+        try {
+          var arr = window[name];
+          if(!Array.isArray(arr)) return;
+          var beforeLen = snapBefore.winArrays[name] || 0;
+          if(arr.length > beforeLen){
+            for(var i=beforeLen;i<arr.length;i++){
+              arr[i] = visible;
+            }
+            log('Patched window favorites array', name);
+          }
+        } catch(e){}
+      });
+    } catch(e){}
+
+    // patch localStorage keys with fav-like names
+    try {
+      Object.keys(snapBefore.localKeys || {}).forEach(function(key){
+        try {
+          var parsed = JSON.parse(localStorage.getItem(key) || '[]');
+          if(!Array.isArray(parsed)) return;
+          var beforeLen = snapBefore.localKeys[key] || 0;
+          if(parsed.length > beforeLen){
+            for(var j=beforeLen;j<parsed.length;j++) parsed[j] = visible;
+            localStorage.setItem(key, JSON.stringify(parsed));
+            log('Patched localStorage favorites key', key);
+          }
+        } catch(e){}
+      });
+    } catch(e){}
+
+    // patch DOM lists (only lists with fav-like selectors)
+    try {
+      var domCandidates = qa('.favorites-list, .favorite-list, .favoritos, .fav-list, .favorites, [data-fav-list], [data-favorites]');
+      domCandidates.forEach(function(n, idx){
+        try {
+          var id = 'dom_'+idx;
+          var before = snapBefore.domLists && snapBefore.domLists[id] || 0;
+          var after = n.childElementCount;
+          if(after > before){
+            for(var c = before; c < after; c++){
+              var child = n.children[c];
+              if(child) {
+                // update only textual node inside child
+                var textTarget = child.querySelector && (child.querySelector('p') || child.querySelector('div') || child);
+                if(textTarget && !isInsideHeader(textTarget)) textTarget.textContent = visible;
+              }
+            }
+            log('Patched DOM favorites list', n);
+          }
+        } catch(e){}
+      });
+    } catch(e){}
+  }
+
+  // avoid touching header: true if node is inside any header/banner-like element
+  function isInsideHeader(node){
+    try {
+      if(!node) return false;
+      var header = node.closest && (node.closest('header, [role="banner"], .site-header, .masthead, .header, .topbar'));
+      return !!header;
+    } catch(e){ return false; }
+  }
+
+  // patch modal only if it's clearly a favorites modal AND not inside header
+  function patchFavoritesModalIfPresent(visible){
+    try {
+      var dialogs = qa('[role="dialog"], .modal, .dialog, .favoritos, .favorite-modal, .favorites-modal');
+      for(var i=0;i<dialogs.length;i++){
+        var d = dialogs[i];
+        try {
+          if(isInsideHeader(d)) continue; // never touch header-contained dialogs
+          var header = d.querySelector && (d.querySelector('h1,h2,h3,h4,.modal-title,.title') || null);
+          if(header && /favorit/i.test(header.textContent || '')){
+            var body = d.querySelector && (d.querySelector('.modal-body') || d.querySelector('.body') || d.querySelector('.favorites-list') || d.querySelector('p') || d.querySelector('div') || d);
+            if(body && !isInsideHeader(body)){
+              // if body is a list, update last item; else set visible text (safe)
+              var listItem = body.querySelector && (body.querySelector('li:last-child') || body.querySelector('.favorite-item:last-child') || null);
+              if(listItem){
+                var target = listItem.querySelector && (listItem.querySelector('p') || listItem.querySelector('div') || listItem);
+                if(target && !isInsideHeader(target)) target.textContent = visible;
+              } else {
+                // fallback: set a short summary, but avoid replacing headers
+                if(!isInsideHeader(body)) body.textContent = visible;
+              }
+              log('Patched favorites modal content to visible phrase (safe)');
+              return true;
+            }
+          }
+        } catch(e){}
+      }
+    } catch(e){}
+    return false;
+  }
+
+  // create clones with enhanced fav handler
+  var favObserver = null;
+  function syncFav(clone, orig){
+    if(!clone || !orig) return;
+    var pressed = orig.getAttribute && orig.getAttribute('aria-pressed') === 'true';
+    var span = clone.querySelector('.btn-icon');
+    if(span) span.textContent = pressed ? '♥' : '♡';
+    if(pressed) clone.classList.add('frc-pressed'); else clone.classList.remove('frc-pressed');
+  }
+  function observeFav(orig, clone){
+    if(!orig || !clone) return;
+    if(favObserver){ try{ favObserver.disconnect(); } catch(e){} favObserver = null; }
+    favObserver = new MutationObserver(function(){ syncFav(clone, orig); });
+    try { favObserver.observe(orig, { attributes:true, attributeFilter:['aria-pressed','class'] }); } catch(e) {}
+  }
+
+  function createCloneFor(orig, id, container){
+    if(!container) return null;
+    var existing = container.querySelector('[data-frc-clone-for="'+id+'"]');
+    if(existing) return existing;
+    var clone = document.createElement('button');
+    clone.type = 'button'; clone.className = 'frc-clone';
+    clone.setAttribute(CLONE_ATTR, id); clone.setAttribute(MANAGED_FLAG, '1');
+    var iconNode = orig ? pickIconFor(orig, id) : ICON_MAP[id] || id.slice(0,1);
+    if(typeof iconNode === 'string'){ var s = document.createElement('span'); s.className='btn-icon'; s.textContent = iconNode; clone.appendChild(s); }
+    else { var wrap = document.createElement('span'); wrap.className='btn-icon'; try{ wrap.appendChild(iconNode); } catch(e){ wrap.textContent = ICON_MAP[id] || ''; } clone.appendChild(wrap); }
+    var label = (orig && (orig.getAttribute('aria-label') || orig.title)) || '';
+    if(label){ clone.setAttribute('title', label); clone.setAttribute('aria-label', label); }
+
+    if(id === 'downloadBtn'){
+      clone.addEventListener('click', function(){ var phrase = getBestVisibleText(); if(!phrase && orig && typeof orig.click === 'function'){ try{ orig.click(); }catch(e){} setTimeout(function(){ var p2=getBestVisibleText(); if(p2) downloadCardPNG(p2); },220); return; } if(phrase) downloadCardPNG(phrase); }, { passive:true });
+    } else if(id === 'favBtn'){
+      clone.addEventListener('click', function(){
+        var visible = getBestVisibleText() || '';
+        var snap = snapshotFavoriteCandidates();
+        try { if(orig && typeof orig.click === 'function') orig.click(); } catch(e){ log('orig.click() for fav failed', e); }
+        // poll and patch only favorites candidates
+        var attempts = 0, maxAttempts = 14;
+        var poll = setInterval(function(){
+          attempts++;
+          try {
+            patchNewFavoritesWithVisible(snap, visible);
+            var modalPatched = patchFavoritesModalIfPresent(visible);
+            // get new snapshot and check growth only on fav-like keys
+            var newSnap = snapshotFavoriteCandidates();
+            var changed = false;
+            Object.keys(snap.winArrays || {}).forEach(function(k){ if((newSnap.winArrays[k]||0) > (snap.winArrays[k]||0)) changed = true; });
+            Object.keys(snap.localKeys || {}).forEach(function(k){ if((newSnap.localKeys[k]||0) > (snap.localKeys[k]||0)) changed = true; });
+            Object.keys(snap.domLists || {}).forEach(function(k){ if((newSnap.domLists[k]||0) > (snap.domLists[k]||0)) changed = true; });
+            // if something changed or modal patched, finish early
+            if(modalPatched || changed || attempts >= maxAttempts){
+              clearInterval(poll);
+              // final attempt: update visible favorites list items (safe)
+              try {
+                var favItems = qa('.favorites-list li, .favorite-item, .fav-item, .favorito li, .favorite-list li');
+                if(favItems && favItems.length){
+                  var last = favItems[favItems.length-1];
+                  if(last && (last.textContent||'').trim().length>0 && !isInsideHeader(last)){
+                    last.textContent = visible || last.textContent;
+                  }
+                }
+              } catch(e){}
+              // update clone pressed state reading original
+              setTimeout(function(){ try { if(orig) syncFav(container.querySelector('[data-frc-clone-for="favBtn"]'), orig); } catch(e){} }, 80);
+            }
+          } catch(e){
+            if(attempts >= maxAttempts) clearInterval(poll);
+          }
+        }, 180);
+      }, { passive:true });
+      // initial sync
+      setTimeout(function(){ try { if(orig) syncFav(container.querySelector('[data-frc-clone-for="favBtn"]'), orig); } catch(e){} }, 60);
+    } else if(id === 'ttsBtn'){
+      clone.addEventListener('click', function(){ markForceRead(1800); try { if(orig && typeof orig.click === 'function') orig.click(); } catch(e){} setTimeout(function(){ if(isAnyAudioPlaying()) return; var p=getBestVisibleText(); if(p){ try{ var u=new SpeechSynthesisUtterance(p); u.lang='es-ES'; u.rate=0.95; u.pitch=1.02; window.speechSynthesis.cancel(); window.speechSynthesis.speak(u);}catch(e){} } },300); }, { passive:true });
+    } else {
+      clone.addEventListener('click', function(){ if(orig && typeof orig.click === 'function') orig.click(); }, { passive:true });
+    }
+
+    container.appendChild(clone);
+    if(orig){
+      try { orig.style.visibility = 'hidden'; orig.setAttribute(HIDDEN_ATTR, '1'); } catch(e){}
+    }
+    return clone;
+  }
+
+  // sync fav helpers
+  var favObserver = null;
+  function syncFav(clone, orig){
+    if(!clone || !orig) return;
+    var pressed = orig.getAttribute && orig.getAttribute('aria-pressed') === 'true';
+    var span = clone.querySelector('.btn-icon');
+    if(span) span.textContent = pressed ? '♥' : '♡';
+    if(pressed) clone.classList.add('frc-pressed'); else clone.classList.remove('frc-pressed');
+  }
+  function observeFav(orig, clone){
+    if(!orig || !clone) return;
+    if(favObserver){ try{ favObserver.disconnect(); } catch(e){} favObserver = null; }
+    favObserver = new MutationObserver(function(){ syncFav(clone, orig); });
+    try { favObserver.observe(orig, { attributes:true, attributeFilter:['aria-pressed','class'] }); } catch(e) {}
+  }
+
+  // wrapper apply/ensure container
   function apply(){
     try {
       var container = ensureContainer();
@@ -519,25 +494,22 @@
         var orig = findOriginal(id);
         if(!orig && id !== 'downloadBtn'){ log('original missing for', id, '- skipping'); return; }
         try {
-          var clone = createCloneForWrapper(orig, id, container);
+          var clone = createCloneFor(orig, id, container);
           if(clone) created.push(id);
-          if(id === 'favBtn' && clone && orig){ syncFav(clone, orig); observeFav(orig, clone); }
-          if(id === 'ttsBtn' && orig && !orig._frc_marker_attached){ try{ orig.addEventListener('click', function(){ markForceRead(1800); }, { passive:true }); orig._frc_marker_attached = true; } catch(e){} }
+          if(id==='favBtn' && clone && orig){ syncFav(clone, orig); observeFav(orig, clone); }
+          if(id==='ttsBtn' && orig && !orig._frc_marker_attached){ try{ orig.addEventListener('click', function(){ markForceRead(1800); }, { passive:true }); orig._frc_marker_attached = true; } catch(e){} }
         } catch(e){ console.warn('[FloatingControlsV13] create clone error', id, e); }
       });
       log('apply created', created);
       return { ok:true, created: created };
-    } catch(e){ console.error('[FloatingControlsV13] apply error', e); return { ok:false, error: String(e) }; }
+    } catch(e){ console.error('[FloatingControlsV14] apply error', e); return { ok:false, error: String(e) }; }
   }
 
   function restore(){
     try {
       var c = document.getElementById(CONTAINER_ID);
       if(c && c.parentNode) c.parentNode.removeChild(c);
-      ['ttsBtn','favBtn','downloadBtn','shareBtn'].forEach(function(id){
-        var o = findOriginal(id);
-        if(o && o.getAttribute(HIDDEN_ATTR) === '1'){ try{ o.style.visibility = ''; o.removeAttribute(HIDDEN_ATTR); } catch(e){} }
-      });
+      ['ttsBtn','favBtn','downloadBtn','shareBtn'].forEach(function(id){ var o=findOriginal(id); if(o && o.getAttribute(HIDDEN_ATTR) === '1'){ try{ o.style.visibility = ''; o.removeAttribute(HIDDEN_ATTR); } catch(e){} } });
       window._frc_force_read_visible = 0;
       log('restore done');
       return { ok:true };
@@ -555,8 +527,8 @@
   window.FloatingControlsFinal.safeApply = safeApply;
   window.FloatingControlsFinal.__debug = { getBestVisibleText: getBestVisibleText, removeLegacyContainers: removeLegacyContainers, snapshotFavoriteCandidates: snapshotFavoriteCandidates };
 
-  // auto apply short delay
-  setTimeout(function(){ try { var r = safeApply(); console.log('[FloatingControlsV13] auto safeApply ->', r); } catch(e){ console.warn('[FloatingControlsV13] auto apply failed', e); } }, 120);
+  // auto apply
+  setTimeout(function(){ try { var r = safeApply(); console.log('[FloatingControlsV14] auto safeApply ->', r); } catch(e){ console.warn('[FloatingControlsV14] auto apply failed', e); } }, 120);
 
-  log('FloatingControlsV13 loaded');
+  log('FloatingControlsV14 loaded');
 })();
