@@ -1,374 +1,427 @@
-// favorites-interceptor-ui-v4-fix-storage-protect.js
-// v4 - Fix storage protection + robust copy/delete + paging
-// Variante con estructura más robusta para evitar errores de parseo al pegar en consola.
-// - Backup lr_favoritos_v1 antes de escribir
-// - No escribe en init salvo restore si backup existe
-// - Copiar/Eliminar trabajan sobre las cadenas exactas guardadas
-// - Paginado con "Cargar más" e infinite scroll
+// favorites-interceptor-final.js
+// v1.0 - Finalized favorites interceptor & fixes:
+// - Ensures the phrase saved is exactly the visible phrase on the card (overrides toggleFavorite).
+// - Prevents duplicate modals by overriding showFavoritesModal and actively removing the original modal (_lr_fav_modal)
+//   if the app creates it (MutationObserver).
+// - Keeps the visual modal we designed (single instance, paging, load-more, copy/delete working).
+// - Idempotent: safe to load multiple times; exposes window.FavoritesInterceptorFinal API.
+// - Install: replace previous interceptor file with this one and include in index.html (defer) or paste into console.
+//
+// Key design decisions:
+// - We override global toggleFavorite (if present) to force using the visible phrase text. This guarantees what is saved.
+// - We override showFavoritesModal to open our modal. We still keep a reference to the original as _orig_showFavoritesModal,
+//   but we never call it (we block original UI to avoid duplication).
+// - We observe DOM additions and remove original modal elements (_lr_fav_modal) immediately if created by app code.
+//
+// Usage / testing:
+// 1) Add this file to /js and <script src="/js/favorites-interceptor-final.js" defer></script> in index.html (before </body>).
+// 2) Reload page. Save a favorite (heart). Open Favoritos (menu). Check localStorage.getItem('lr_favoritos_v1') contains the visible phrase.
+// 3) Reload and verify persistence and that only one modal appears (our styled modal).
+//
+// NOTE: If you want me to submit this directly to the repo and open a PR, tell me the target branch and I will prepare the PR.
+
 (function(){
   'use strict';
 
-  if (window._favorites_interceptor_v4_loaded) {
-    console.debug('[FavoritesInterceptorV4] already loaded');
+  if (window._favorites_interceptor_final_loaded) {
+    console.debug('[FavoritesInterceptorFinal] already loaded');
     return;
   }
-  window._favorites_interceptor_v4_loaded = true;
+  window._favorites_interceptor_final_loaded = true;
 
-  const STORAGE_KEY_FAVS = 'lr_favoritos_v1';
-  const STORAGE_KEY_BACKUP = '_lr_favoritos_backup_v1';
-  const STORAGE_KEY_HISTORY = 'lr_historial_v1';
-  const MODAL_ID = '_fi_fav_modal_v4';
-  const BOX_ID = '_fi_fav_box_v4';
-  const STYLE_ID = '_fi_fav_style_v4';
-  const PAGE_SIZE = 6;
-  const LOAD_MORE_TEXT = 'Cargar más';
+  // CONFIG
+  var STORAGE_KEY_FAVS = 'lr_favoritos_v1';
+  var STORAGE_KEY_HISTORY = 'lr_historial_v1';
+  var ORIGINAL_MODAL_ID = '_lr_fav_modal';      // id used by original helpers
+  var MODAL_ID = '_fi_fav_modal_final';
+  var BOX_ID = '_fi_fav_box_final';
+  var STYLE_ID = '_fi_fav_style_final';
+  var PAGE_SIZE = 6;
+  var LOAD_MORE_TEXT = 'Cargar más';
 
-  const CSS = `
-  #${MODAL_ID} { position: fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(2,8,12,0.45); z-index:19999; padding:12px; }
-  #${BOX_ID} { width: min(640px,92%); max-height: 60vh; overflow:auto; background: linear-gradient(180deg,#ffffff,#fbfbfc); border-radius:12px; padding:14px; box-shadow:0 20px 60px rgba(2,10,18,0.16); border:1px solid rgba(6,20,20,0.03); color:#072b2a; }
-  #${BOX_ID} .fi-header{ display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px; }
-  #${BOX_ID} .fi-title{ font-weight:800; font-size:1.05rem; }
-  #${BOX_ID} .fi-close{ background:transparent; border:1px solid rgba(2,10,12,0.06); padding:6px 8px; border-radius:8px; cursor:pointer; }
-  #${BOX_ID} .fi-list{ display:flex; flex-direction:column; gap:10px; }
-  #${BOX_ID} .fi-item{ background:#fff; border-radius:10px; padding:10px; box-shadow:0 8px 20px rgba(2,10,18,0.04); border:1px solid rgba(6,20,20,0.03); }
-  #${BOX_ID} .fi-text{ font-weight:700; line-height:1.45; white-space:pre-wrap; word-break:break-word; color:#072b2a; }
-  #${BOX_ID} .fi-meta{ display:flex; justify-content:space-between; align-items:center; margin-top:8px; gap:8px; }
-  #${BOX_ID} .fi-actions{ display:flex; gap:8px; }
-  #${BOX_ID} .fi-copy{ padding:8px 12px; border-radius:10px; border:0; cursor:pointer; font-weight:800; color:#072b2a; background: linear-gradient(90deg,#ffb88c,#ff6b6b); box-shadow:0 10px 26px rgba(255,107,107,0.08); }
-  #${BOX_ID} .fi-del{ padding:8px 12px; border-radius:10px; border:1px solid rgba(2,10,12,0.06); background:transparent; cursor:pointer; }
-  #${BOX_ID} .fi-loadmore{ margin:8px auto 0 auto; display:inline-block; padding:8px 14px; border-radius:10px; border:0; background:#fff; color:#072b2a; cursor:pointer; box-shadow:0 6px 18px rgba(2,10,12,0.04); }
-  @media(max-width:520px){ #${BOX_ID} { width:96%; padding:12px } #${BOX_ID} .fi-text{ font-size:0.98rem } }
-  `;
+  // --- CSS (kept compact / similar to previous design) ---
+  var CSS = '\
+  #' + MODAL_ID + ' { position: fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(2,8,12,0.45); z-index:19999; padding:12px; }\
+  #' + BOX_ID + ' { width: min(720px,94%); max-height: 70vh; overflow:auto; background: linear-gradient(180deg,#ffffff,#fbfbfc); border-radius:12px; padding:18px; box-shadow:0 22px 68px rgba(2,10,18,0.18); border:1px solid rgba(6,20,20,0.04); color:#072b2a; }\
+  #' + BOX_ID + ' .fav-header{ display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; }\
+  #' + BOX_ID + ' .fav-title{ font-weight:800; font-size:1.15rem; }\
+  #' + BOX_ID + ' .fav-close{ background:transparent; border:1px solid rgba(2,10,12,0.06); padding:6px 10px; border-radius:8px; cursor:pointer; }\
+  #' + BOX_ID + ' .fav-list{ display:flex; flex-direction:column; gap:12px; }\
+  #' + BOX_ID + ' .fav-item{ background: linear-gradient(180deg, #ffffff, #fffdfd); border-radius:12px; padding:12px; box-shadow: 0 8px 22px rgba(2,10,18,0.05); border:1px solid rgba(6,20,20,0.03); }\
+  #' + BOX_ID + ' .fav-text{ font-weight:700; color:#072b2a; line-height:1.45; white-space:pre-wrap; }\
+  #' + BOX_ID + ' .fav-meta{ display:flex; justify-content:space-between; align-items:center; margin-top:8px; }\
+  #' + BOX_ID + ' .fav-actions{ display:flex; gap:8px; }\
+  #' + BOX_ID + ' .fav-btn{ padding:8px 12px; border-radius:10px; border:0; cursor:pointer; font-weight:800; color:#072b2a; background: linear-gradient(90deg,#ffb88c,#ff6b6b); }\
+  #' + BOX_ID + ' .fav-del{ padding:8px 12px; border-radius:10px; border:1px solid rgba(2,10,12,0.06); background:transparent; cursor:pointer; }\
+  #' + BOX_ID + ' .fav-load{ text-align:center; margin-top:10px }\
+  #' + BOX_ID + ' .fav-load button{ padding:8px 12px; border-radius:10px; border:0; background:#fff; box-shadow:0 6px 18px rgba(2,10,12,0.04); cursor:pointer }\
+  @media (max-width:520px){ #' + BOX_ID + '{ width:96%; padding:12px } }\
+  ';
 
-  // state
-  let _sortedFavs = [];
-  let _currentPage = 0;
-  let _modal = null;
-  let _loadBtn = null;
-  let _modalScrollHandler = null;
-
-  // util
+  // --- Utilities ---
   function injectStyle(){
     if (document.getElementById(STYLE_ID)) return;
-    const s = document.createElement('style');
+    var s = document.createElement('style');
     s.id = STYLE_ID;
     s.textContent = CSS;
     (document.head || document.documentElement).appendChild(s);
   }
+
   function safeParse(s){
     try { return JSON.parse(s); } catch(e){ return null; }
   }
 
-  // STORAGE HANDLERS (read-only except explicit writes)
+  // Visible phrase extraction: prefer #frase-text or .frase-text; fallback to largest text block in .frase-card
+  function getVisiblePhraseText(){
+    try {
+      var node = document.getElementById('frase-text') || document.querySelector('.frase-text');
+      if (node && (node.textContent||'').trim().length) return node.textContent.trim();
+      var card = document.querySelector('.frase-card') || document.getElementById('frase-card');
+      if (!card) return '';
+      var candidates = Array.from(card.querySelectorAll('p,div,span,blockquote,h1,h2,h3')).filter(function(el){
+        try { if(el.closest && el.closest('.frase-controls')) return false; return (el.textContent||'').trim().length > 6; } catch(e){ return false; }
+      });
+      if (candidates.length){
+        candidates.sort(function(a,b){
+          try {
+            var ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
+            return (rb.width*rb.height) - (ra.width*ra.height);
+          } catch(e){ return 0; }
+        });
+        return (candidates[0].textContent || '').trim();
+      }
+      return '';
+    } catch(e){ return ''; }
+  }
+
+  // Storage helpers (same key as app)
   function readFavorites(){
     try {
-      const raw = localStorage.getItem(STORAGE_KEY_FAVS);
+      var raw = localStorage.getItem(STORAGE_KEY_FAVS);
       if(!raw) return [];
-      const arr = safeParse(raw);
-      if(!Array.isArray(arr)) return [];
-      return arr.map(x => typeof x === 'string' ? x.trim() : (x && x.text ? String(x.text).trim() : String(x).trim()));
+      var arr = safeParse(raw);
+      return Array.isArray(arr) ? arr.slice(0) : [];
     } catch(e){ return []; }
   }
   function writeFavorites(arr){
-    try {
-      if(!Array.isArray(arr)) return;
-      localStorage.setItem(STORAGE_KEY_FAVS, JSON.stringify(arr.slice(0,200)));
-    } catch(e){}
+    try { if(!Array.isArray(arr)) return; localStorage.setItem(STORAGE_KEY_FAVS, JSON.stringify(arr.slice(0,200))); } catch(e){}
   }
-  function readBackup(){
-    try { const raw = localStorage.getItem(STORAGE_KEY_BACKUP); return safeParse(raw); } catch(e){ return null; }
-  }
-  // Install backup wrapper for setItem (lightweight and safe)
-  (function installBackupWrapper(){
-    if(window._lr_storage_backup_installed) return;
-    window._lr_storage_backup_installed = true;
-    const origSet = Storage.prototype.setItem;
-    Storage.prototype.setItem = function(key, value){
-      try {
-        if(String(key) === STORAGE_KEY_FAVS){
-          try {
-            const prev = this.getItem && this.getItem(key);
-            if(prev !== null && prev !== undefined){
-              // write backup using original method to avoid recursion issues
-              origSet.call(this, STORAGE_KEY_BACKUP, String(prev));
-            }
-          } catch(e){ /* ignore backup errors */ }
-        }
-      } catch(e){}
-      return origSet.call(this, key, value);
-    };
-  })();
 
-  // history map
+  // Read history map for ordering
   function readHistoryMap(){
-    const map = new Map();
+    var map = new Map();
     try {
-      const raw = localStorage.getItem(STORAGE_KEY_HISTORY);
+      var raw = localStorage.getItem(STORAGE_KEY_HISTORY);
       if(!raw) return map;
-      const arr = safeParse(raw);
+      var arr = safeParse(raw);
       if(!Array.isArray(arr)) return map;
-      arr.forEach(item => {
+      arr.forEach(function(it){
         try {
-          const text = (item && (item.text || item.t || item.phrase)) || '';
-          const at = (item && (item.at || item.time || item.timestamp)) || item && item.at || 0;
+          var text = (it && (it.text || it.phrase || it.t)) || '';
+          var at = (it && (it.at || it.time || it.timestamp)) || 0;
           if(!text) return;
-          const ts = Number(at) || (at ? new Date(at).getTime() : 0) || 0;
+          var ts = Number(at) || (at ? new Date(at).getTime() : 0) || 0;
           if(!map.has(text) || (ts && ts > map.get(text))) map.set(text, ts);
         } catch(e){}
       });
     } catch(e){}
     return map;
   }
-
   function sortFavoritesByRecency(favs){
-    const map = readHistoryMap();
-    const indexed = favs.map((t,i) => ({ t, i, ts: map.has(t) ? map.get(t) : 0 }));
-    indexed.sort((a,b) => a.ts === b.ts ? a.i - b.i : b.ts - a.ts);
+    var map = readHistoryMap();
+    var indexed = favs.map(function(t,i){ return { t, i, ts: map.has(t) ? map.get(t) : 0 }; });
+    indexed.sort(function(a,b){ if(a.ts === b.ts) return a.i - b.i; return b.ts - a.ts; });
     return indexed.map(x=>x.t);
   }
 
-  // clipboard
-  async function copyToClipboard(text){
-    try {
-      if(navigator.clipboard && navigator.clipboard.writeText){ await navigator.clipboard.writeText(text); return true; }
-      const ta = document.createElement('textarea'); ta.value = text; ta.style.position='fixed'; ta.style.left='-9999px'; document.body.appendChild(ta); ta.select();
-      let ok = false;
-      try{ ok = document.execCommand('copy'); }catch(e){ ok = false; }
-      document.body.removeChild(ta);
-      return !!ok;
-    } catch(e){ return false; }
+  // --- Modal UI (single instance) ---
+  var _sortedFavs = [];
+  var _currentPage = 0;
+  var _modal = null;
+  var _loadBtn = null;
+  var _scrollHandler = null;
+
+  function buildItemNode(text){
+    var item = document.createElement('div'); item.className = 'fav-item';
+    var t = document.createElement('div'); t.className = 'fav-text'; t.textContent = text;
+    var meta = document.createElement('div'); meta.className = 'fav-meta';
+    var actions = document.createElement('div'); actions.className = 'fav-actions';
+    var copyBtn = document.createElement('button'); copyBtn.className = 'fav-btn'; copyBtn.textContent = 'Copiar';
+    var delBtn = document.createElement('button'); delBtn.className = 'fav-del'; delBtn.textContent = 'Eliminar';
+
+    copyBtn.addEventListener('click', async function(ev){
+      ev && ev.stopPropagation && ev.stopPropagation();
+      try {
+        if(navigator.clipboard && navigator.clipboard.writeText){ await navigator.clipboard.writeText(text); }
+        else {
+          var ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+        }
+        if(typeof window.showToast === 'function') window.showToast('Copiado');
+        else uiTempFeedback(copyBtn, 'Copiado');
+      } catch(e){ uiTempFeedback(copyBtn, 'Copiar'); }
+    });
+
+    delBtn.addEventListener('click', function(ev){
+      ev && ev.stopPropagation && ev.stopPropagation();
+      var favs = readFavorites();
+      var idx = favs.indexOf(text);
+      if(idx === -1){
+        // tolerant match (collapse whitespace)
+        var target = normalize(text);
+        idx = favs.findIndex(function(f){ return normalize(f) === target; });
+      }
+      if(idx !== -1){
+        favs.splice(idx,1);
+        writeFavorites(favs);
+        // refresh local array and UI
+        _sortedFavs = _sortedFavs.filter(function(f){ return normalize(f) !== normalize(text); });
+        var totalPages = Math.ceil(_sortedFavs.length / PAGE_SIZE);
+        if(_currentPage >= totalPages) _currentPage = Math.max(0, totalPages - 1);
+        renderModalPage(_currentPage, true);
+        if(typeof window.showToast === 'function') window.showToast('Eliminado');
+      }
+    });
+
+    actions.appendChild(copyBtn); actions.appendChild(delBtn);
+    meta.appendChild(actions);
+    item.appendChild(t); item.appendChild(meta);
+    // clicking item also copies
+    item.addEventListener('click', function(){ copyBtn.click(); }, { passive:true });
+
+    return item;
   }
-  function uiFeedback(btn, msg){
+
+  function uiTempFeedback(btn, msg){
     try {
-      if(typeof window.showToast === 'function'){ window.showToast(msg); return; }
-      if(!btn){ try{ alert(msg); }catch(e){} return; }
-      const prev = btn.innerText; btn.innerText = msg; btn.disabled = true;
-      setTimeout(()=>{ try{ btn.innerText = prev; btn.disabled = false; }catch(e){} }, 900);
+      var prev = btn.innerText;
+      btn.innerText = msg;
+      btn.disabled = true;
+      setTimeout(function(){ btn.innerText = prev; btn.disabled = false; }, 900);
     } catch(e){}
   }
-  function normalizeForMatch(s){
-    try { return (s||'').toString().trim().replace(/\s+/g,' '); } catch(e){ return String(s||'').trim(); }
-  }
 
-  // build fragment for page
-  function buildPageFragment(page){
-    const start = page * PAGE_SIZE, end = start + PAGE_SIZE;
-    const slice = _sortedFavs.slice(start, end);
-    const frag = document.createDocumentFragment();
-    slice.forEach(text => {
-      const item = document.createElement('div'); item.className = 'fi-item';
-      const t = document.createElement('div'); t.className = 'fi-text'; t.textContent = text;
-      const meta = document.createElement('div'); meta.className = 'fi-meta';
-      const time = document.createElement('div'); time.className = 'fi-time';
-      const hist = readHistoryMap(); const ts = hist.has(text) ? hist.get(text) : null;
-      if(ts) try{ time.textContent = new Date(Number(ts)).toLocaleString(); } catch(e){}
-      const actions = document.createElement('div'); actions.className = 'fi-actions';
-      const copyBtn = document.createElement('button'); copyBtn.className = 'fi-copy'; copyBtn.textContent = 'Copiar';
-      const delBtn = document.createElement('button'); delBtn.className = 'fi-del'; delBtn.textContent = 'Eliminar';
-
-      copyBtn.addEventListener('click', async ev => {
-        ev && ev.stopPropagation && ev.stopPropagation();
-        const ok = await copyToClipboard(text);
-        uiFeedback(copyBtn, ok? 'Copiado' : 'Copiar');
-      }, false);
-
-      delBtn.addEventListener('click', ev => {
-        ev && ev.stopPropagation && ev.stopPropagation();
-        const favsCurrent = readFavorites();
-        let idx = favsCurrent.indexOf(text);
-        if(idx === -1){
-          const normTarget = normalizeForMatch(text);
-          idx = favsCurrent.findIndex(f => normalizeForMatch(f) === normTarget);
-        }
-        if(idx !== -1){
-          favsCurrent.splice(idx,1);
-          writeFavorites(favsCurrent); // explicit write on delete
-          _sortedFavs = _sortedFavs.filter(f => normalizeForMatch(f) !== normalizeForMatch(text));
-          const totalPages = Math.ceil(_sortedFavs.length / PAGE_SIZE);
-          if(_currentPage >= totalPages) _currentPage = Math.max(0, totalPages - 1);
-          renderModalPage(_currentPage, true);
-        } else {
-          console.warn('[FavoritesInterceptorV4] delete: item not found in storage', text);
-        }
-      }, false);
-
-      actions.appendChild(copyBtn); actions.appendChild(delBtn);
-      meta.appendChild(time); meta.appendChild(actions);
-      item.appendChild(t); item.appendChild(meta);
-      item.addEventListener('click', async () => {
-        const ok = await copyToClipboard(text);
-        uiFeedback(null, ok? 'Copiado' : 'Copiar');
-      }, { passive:true });
-
-      frag.appendChild(item);
-    });
-    return frag;
-  }
+  function normalize(s){ try { return (s||'').toString().trim().replace(/\s+/g,' '); } catch(e){ return String(s||'').trim(); } }
 
   function renderModalPage(pageIndex, preserveScroll){
-    const modal = document.getElementById(MODAL_ID); if(!modal) return;
-    const box = modal.querySelector('#' + BOX_ID); if(!box) return;
-    let list = box.querySelector('.fi-list'); if(!list){ list = document.createElement('div'); list.className = 'fi-list'; box.appendChild(list); }
-    const prevScroll = preserveScroll ? box.scrollTop : 0;
-
+    if(!_modal) return;
+    var box = document.getElementById(BOX_ID);
+    if(!box) return;
+    var list = box.querySelector('.fav-list');
+    if(!list){ list = document.createElement('div'); list.className = 'fav-list'; box.appendChild(list); }
+    var prevScroll = preserveScroll ? box.scrollTop : 0;
     if(pageIndex <= 0){
       list.innerHTML = '';
       _currentPage = 0;
-      const frag = buildPageFragment(0);
-      list.appendChild(frag);
+      var slice = _sortedFavs.slice(0, PAGE_SIZE);
+      slice.forEach(function(t){ list.appendChild(buildItemNode(t)); });
     } else {
-      const frag = buildPageFragment(pageIndex);
-      if(frag && frag.childNodes && frag.childNodes.length) list.appendChild(frag);
+      var start = pageIndex * PAGE_SIZE, end = start + PAGE_SIZE;
+      var slice2 = _sortedFavs.slice(start, end);
+      slice2.forEach(function(t){ list.appendChild(buildItemNode(t)); });
     }
-
-    let loadArea = box.querySelector('.fi-load-area'); if(!loadArea){ loadArea = document.createElement('div'); loadArea.className = 'fi-load-area'; loadArea.style.textAlign='center'; loadArea.style.marginTop='10px'; box.appendChild(loadArea); }
-    if(!_loadBtn){
-      _loadBtn = document.createElement('button'); _loadBtn.className = 'fi-loadmore'; _loadBtn.textContent = LOAD_MORE_TEXT;
-      _loadBtn.addEventListener('click', () => {
-        const totalPagesNow = Math.ceil(_sortedFavs.length / PAGE_SIZE);
-        if(_currentPage + 1 < totalPagesNow){
-          _currentPage++;
-          renderModalPage(_currentPage, false);
-        }
-      }, false);
+    // load area
+    var loadArea = box.querySelector('.fav-load');
+    if(!loadArea){
+      loadArea = document.createElement('div'); loadArea.className = 'fav-load';
+      box.appendChild(loadArea);
     }
     loadArea.innerHTML = '';
-    const totalPages = Math.ceil(_sortedFavs.length / PAGE_SIZE);
-    if(_currentPage + 1 < totalPages) loadArea.appendChild(_loadBtn);
-
-    if(!_modalScrollHandler){
-      _modalScrollHandler = function(){
+    var totalPages = Math.ceil(_sortedFavs.length / PAGE_SIZE);
+    if(_currentPage + 1 < totalPages){
+      var btn = document.createElement('button'); btn.textContent = LOAD_MORE_TEXT;
+      btn.addEventListener('click', function(){ _currentPage++; renderModalPage(_currentPage, false); });
+      loadArea.appendChild(btn);
+    }
+    // infinite scroll attach once
+    if(!_scrollHandler){
+      _scrollHandler = function(){
         try {
-          if(!box) return;
-          const threshold = 120;
+          var threshold = 120;
           if(box.scrollHeight - (box.scrollTop + box.clientHeight) < threshold){
-            const totalPagesNow = Math.ceil(_sortedFavs.length / PAGE_SIZE);
-            if(_currentPage + 1 < totalPagesNow){
-              _currentPage++;
-              renderModalPage(_currentPage, false);
-            }
+            var total = Math.ceil(_sortedFavs.length / PAGE_SIZE);
+            if(_currentPage + 1 < total){ _currentPage++; renderModalPage(_currentPage, false); }
           }
         } catch(e){}
       };
-      box.addEventListener('scroll', _modalScrollHandler, { passive:true });
+      box.addEventListener('scroll', _scrollHandler, { passive:true });
     }
-
     if(preserveScroll) box.scrollTop = prevScroll;
   }
 
-  // restore from backup if favorites empty
-  function restoreFromBackupIfNeeded(){
-    try {
-      const favs = readFavorites();
-      if(!favs || favs.length === 0){
-        const backup = readBackup();
-        if(Array.isArray(backup) && backup.length){
-          try { localStorage.setItem(STORAGE_KEY_FAVS, JSON.stringify(backup)); console.debug('[FavoritesInterceptorV4] restored favorites from backup'); return true; } catch(e){ console.warn('[FavoritesInterceptorV4] restore failed', e); }
-        }
-      }
-    } catch(e){}
-    return false;
-  }
-
-  // open / close modal
   function openModal(){
     injectStyle();
-    try { restoreFromBackupIfNeeded(); } catch(e){}
-    const orig = document.getElementById('_lr_fav_modal'); if(orig) try{ orig.parentNode && orig.parentNode.removeChild(orig); } catch(e){}
-    closeModal();
-
-    const favs = readFavorites();
+    // remove original modal if present
+    try {
+      var orig = document.getElementById(ORIGINAL_MODAL_ID);
+      if(orig) { orig.parentNode && orig.parentNode.removeChild(orig); }
+    } catch(e){}
+    // avoid duplicate
+    if(document.getElementById(MODAL_ID)) return;
+    // load data
+    var favs = readFavorites();
     _sortedFavs = sortFavoritesByRecency(favs);
     _currentPage = 0;
-
-    const modal = document.createElement('div'); modal.id = MODAL_ID; Object.assign(modal.style,{ position:'fixed', left:0, right:0, top:0, bottom:0, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(2,8,12,0.45)', zIndex:19999, padding:'12px' });
-    const box = document.createElement('div'); box.id = BOX_ID;
-    const header = document.createElement('div'); header.className = 'fi-header';
-    const title = document.createElement('div'); title.className = 'fi-title'; title.textContent = 'Favoritos';
-    const closeBtn = document.createElement('button'); closeBtn.className = 'fi-close'; closeBtn.textContent = 'Cerrar';
+    // build
+    var modal = document.createElement('div'); modal.id = MODAL_ID;
+    Object.assign(modal.style, { position:'fixed', left:0, right:0, top:0, bottom:0, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(2,8,12,0.45)', zIndex:19999, padding:'12px' });
+    var box = document.createElement('div'); box.id = BOX_ID;
+    // header
+    var header = document.createElement('div'); header.className = 'fav-header';
+    var title = document.createElement('div'); title.className = 'fav-title'; title.textContent = 'Favoritos';
+    var closeBtn = document.createElement('button'); closeBtn.className = 'fav-close'; closeBtn.textContent = 'Cerrar';
     closeBtn.addEventListener('click', closeModal, { passive:true });
     header.appendChild(title); header.appendChild(closeBtn);
-    const hr = document.createElement('hr'); hr.style.margin='8px 0';
-    box.appendChild(header); box.appendChild(hr);
+    box.appendChild(header);
+    box.appendChild(document.createElement('hr'));
     modal.appendChild(box);
     document.body.appendChild(modal);
-
-    modal._fi_key = function(e){ if(e.key === 'Escape') closeModal(); };
-    document.addEventListener('keydown', modal._fi_key, { passive:true });
-
+    modal._keyHandler = function(e){ if(e.key === 'Escape') closeModal(); };
+    document.addEventListener('keydown', modal._keyHandler, { passive:true });
     _modal = modal;
     renderModalPage(0, false);
   }
 
   function closeModal(){
     try {
-      const modal = document.getElementById(MODAL_ID); if(!modal) return;
-      if(modal._fi_key) try{ document.removeEventListener('keydown', modal._fi_key); } catch(e){}
-      const box = modal.querySelector('#' + BOX_ID); if(box && _modalScrollHandler) try{ box.removeEventListener('scroll', _modalScrollHandler); } catch(e){}
-      modal.parentNode && modal.parentNode.removeChild(modal);
-      _modal = null; _loadBtn = null; _modalScrollHandler = null;
+      var m = document.getElementById(MODAL_ID);
+      if(!m) return;
+      if(m._keyHandler) document.removeEventListener('keydown', m._keyHandler);
+      var box = document.getElementById(BOX_ID);
+      if(box && _scrollHandler) box.removeEventListener('scroll', _scrollHandler);
+      m.parentNode && m.parentNode.removeChild(m);
+      _modal = null; _loadBtn = null; _scrollHandler = null;
     } catch(e){}
   }
 
-  function menuInterceptor(ev){
+  // --- Prevent duplication: override showFavoritesModal and remove original modal when created ---
+  function overrideShowFavoritesModal(){
+    try { if(window._orig_showFavoritesModal_saved) return; } catch(e){}
     try {
-      const btn = ev.target && ev.target.closest ? ev.target.closest('button, a, [data-action]') : null;
+      window._orig_showFavoritesModal_saved = window.showFavoritesModal;
+    } catch(e){}
+    try {
+      window.showFavoritesModal = function(){
+        // Block original: always open our modal instead
+        try { openModal(); return true; } catch(e){ return false; }
+      };
+    } catch(e){}
+  }
+
+  // MutationObserver to remove any original modal element created by the app (race condition safety)
+  var _origModalObserver = null;
+  function startOrigModalRemover(){
+    try {
+      if(_origModalObserver) return;
+      _origModalObserver = new MutationObserver(function(muts){
+        muts.forEach(function(m){
+          if(m.addedNodes && m.addedNodes.length){
+            Array.from(m.addedNodes).forEach(function(n){
+              try {
+                if(n && n.id === ORIGINAL_MODAL_ID){
+                  console.debug('[FavoritesInterceptorFinal] removing original modal created by app');
+                  n.parentNode && n.parentNode.removeChild(n);
+                } else if(n && n.querySelector && n.querySelector('#' + ORIGINAL_MODAL_ID)){
+                  var inner = n.querySelector('#' + ORIGINAL_MODAL_ID);
+                  inner && inner.parentNode && inner.parentNode.removeChild(inner);
+                }
+              } catch(e){}
+            });
+          }
+        });
+      });
+      _origModalObserver.observe(document.body, { childList:true, subtree:true });
+    } catch(e){}
+  }
+
+  // --- Ensure saved phrase is the visible one: override toggleFavorite if present ---
+  function overrideToggleFavorite(){
+    try {
+      if(window._orig_toggleFavorite_saved) return;
+      if(typeof window.toggleFavorite === 'function'){
+        window._orig_toggleFavorite_saved = window.toggleFavorite;
+        window.toggleFavorite = function(text){
+          try {
+            var actual = getVisiblePhraseText();
+            if(!actual) return false;
+            return window._orig_toggleFavorite_saved(actual);
+          } catch(e){
+            try { return window._orig_toggleFavorite_saved(text); } catch(ex){ return false; }
+          }
+        };
+        console.debug('[FavoritesInterceptorFinal] toggleFavorite overridden to use visible phrase');
+        return;
+      }
+      var tries = 0;
+      var iid = setInterval(function(){
+        tries++;
+        if(typeof window.toggleFavorite === 'function'){
+          clearInterval(iid);
+          try {
+            window._orig_toggleFavorite_saved = window.toggleFavorite;
+            window.toggleFavorite = function(text){
+              try {
+                var actual = getVisiblePhraseText();
+                if(!actual) return false;
+                return window._orig_toggleFavorite_saved(actual);
+              } catch(e){
+                try { return window._orig_toggleFavorite_saved(text); } catch(ex){ return false; }
+              }
+            };
+            console.debug('[FavoritesInterceptorFinal] toggleFavorite overridden after wait');
+          } catch(e){ clearInterval(iid); }
+        } else if(tries > 25){
+          clearInterval(iid);
+        }
+      }, 120);
+    } catch(e){}
+  }
+
+  // Intercept menu clicks (capture) to open our modal and stop propagation
+  function menuClickInterceptor(ev){
+    try {
+      var btn = ev.target && ev.target.closest ? ev.target.closest('button, a, [data-action]') : null;
       if(!btn) return;
-      let isShowFav = false;
-      try {
-        if(btn.id && btn.id === 'showFavs_menu') isShowFav = true;
-        const da = (btn.getAttribute && btn.getAttribute('data-action')) || '';
-        if(da && da.toLowerCase().indexOf('show-fav') !== -1) isShowFav = true;
-        if((btn.textContent || '').toLowerCase().indexOf('favorit') !== -1 && btn.closest && btn.closest('#menuPanel')) isShowFav = true;
-      } catch(e){}
+      var da = (btn.getAttribute && btn.getAttribute('data-action')) || '';
+      var isShowFav = (btn.id === 'showFavs_menu') || (da && da.toLowerCase().indexOf('show-fav') !== -1) || ((btn.textContent||'').toLowerCase().indexOf('favorit') !== -1 && btn.closest && btn.closest('#menuPanel'));
       if(!isShowFav) return;
       try { if(ev.preventDefault) ev.preventDefault(); } catch(e){}
       try { if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); else if(ev.stopPropagation) ev.stopPropagation(); } catch(e){}
       openModal();
-    } catch(e){ console.warn('[FavoritesInterceptorV4] menu handler error', e); }
+    } catch(e){}
   }
 
-  function overrideGlobal(){
-    try { window._orig_showFavoritesModal = window.showFavoritesModal; } catch(e){}
-    window.showFavoritesModal = openModal;
-  }
-
-  function attachInterceptors(){
-    try { document.removeEventListener('click', menuInterceptor, true); } catch(e){}
-    document.addEventListener('click', menuInterceptor, true);
-    try { document.removeEventListener('pointerup', menuInterceptor, true); } catch(e){}
-    document.addEventListener('pointerup', menuInterceptor, true);
-  }
-
-  // public API
-  window.FavoritesInterceptorV4 = window.FavoritesInterceptorV4 || {};
-  window.FavoritesInterceptorV4.open = openModal;
-  window.FavoritesInterceptorV4.close = closeModal;
-  window.FavoritesInterceptorV4.restore = function(){
+  // Attach capturing listeners and initial overrides
+  function attachAll(){
     try {
+      document.removeEventListener('click', menuClickInterceptor, true);
+      document.addEventListener('click', menuClickInterceptor, true);
+      try { document.removeEventListener('pointerup', menuClickInterceptor, true); } catch(e){}
+      document.addEventListener('pointerup', menuClickInterceptor, true);
+    } catch(e){}
+    overrideShowFavoritesModal();
+    startOrigModalRemover();
+    overrideToggleFavorite();
+  }
+
+  // Public API
+  window.FavoritesInterceptorFinal = window.FavoritesInterceptorFinal || {};
+  window.FavoritesInterceptorFinal.open = openModal;
+  window.FavoritesInterceptorFinal.close = closeModal;
+  window.FavoritesInterceptorFinal.restore = function(){
+    try {
+      if(window._orig_showFavoritesModal_saved) window.showFavoritesModal = window._orig_showFavoritesModal_saved;
+      if(window._orig_toggleFavorite_saved) window.toggleFavorite = window._orig_toggleFavorite_saved;
+      try { if(_origModalObserver){ _origModalObserver.disconnect(); _origModalObserver = null; } } catch(e){}
       closeModal();
-      try{ document.removeEventListener('click', menuInterceptor, true); }catch(e){}
-      try{ document.removeEventListener('pointerup', menuInterceptor, true); }catch(e){}
-      if(window._orig_showFavoritesModal) window.showFavoritesModal = window._orig_showFavoritesModal;
-      const s = document.getElementById(STYLE_ID); if(s && s.parentNode) s.parentNode.removeChild(s);
-      window._favorites_interceptor_v4_loaded = false;
+      try { document.removeEventListener('click', menuClickInterceptor, true); } catch(e){}
+      try { document.removeEventListener('pointerup', menuClickInterceptor, true); } catch(e){}
+      var s = document.getElementById(STYLE_ID); if(s && s.parentNode) s.parentNode.removeChild(s);
+      window._favorites_interceptor_final_loaded = false;
       return true;
-    } catch(e){ return false; }
-  };
-  window.FavoritesInterceptorV4.restoreFromBackup = function(){
-    try {
-      const b = readBackup();
-      if(Array.isArray(b) && b.length){
-        writeFavorites(b);
-        return true;
-      }
-      return false;
     } catch(e){ return false; }
   };
 
   // init
-  injectStyle();
-  attachInterceptors();
-  overrideGlobal();
-  console.debug('[FavoritesInterceptorV4] loaded: storage-protected, safe copy/delete, paging');
+  setTimeout(function(){ injectStyle(); attachAll(); console.debug('[FavoritesInterceptorFinal] initialized'); }, 80);
+
 })();
