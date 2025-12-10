@@ -1,28 +1,32 @@
-// frase-controls-float-final.js (v12 - FIX favoritos sincronizados con frase visible)
-// Basado en v11: controles verticales a la derecha, hide shareBtn, TTS y descarga PNG.
-// Añade heurística para que "Favorito" guarde la FRASE VISIBLE (no la de phrases.js).
+// frase-controls-float-final.js (v13 - FAVORITES FIXED: sync only real favorites sources)
+// Basado en v12; mejora la lógica que parchea favoritos para NO tocar arrays de phrases (*.js).
+// - Detecta y parchea únicamente fuentes de *favoritos* (window vars, localStorage keys y listas DOM)
+//   cuyo nombre/selector sugiere que son favoritos (contienen 'fav','favorite','favorit', 'favor')
+// - Reemplaza sólo las entradas NUEVAS agregadas tras pulsar el botón favorito
+// - Si no detecta estructuras, intenta parchear el modal/listado visible.
+// - Mantiene controles verticales y ocultación de shareBtn, TTS y descarga PNG.
 // API: window.FloatingControlsFinal.apply()/restore()/safeApply()
 
 (function(){
   'use strict';
 
-  if (window._frc_v12_loaded) {
-    console.debug('[FloatingControlsV12] already loaded — skipping.');
+  if (window._frc_v13_loaded) {
+    console.debug('[FloatingControlsV13] already loaded — skipping.');
     return;
   }
-  window._frc_v12_loaded = true;
+  window._frc_v13_loaded = true;
 
   // CONFIG
   var CONTAINER_ID = 'frc-safe-float-final';
   var STYLE_ID = 'frc-safe-float-final-style';
   var CLONE_ATTR = 'data-frc-clone-for';
   var HIDDEN_ATTR = 'data-frc-hidden-original';
-  var MANAGED_FLAG = 'data-frc-managed-v12';
+  var MANAGED_FLAG = 'data-frc-managed-v13';
   var IDS = ['ttsBtn','favBtn','downloadBtn']; // shareBtn intentionally excluded
   var ICON_MAP = { ttsBtn: '🔊', favBtn: '♡', downloadBtn: '⬇️' };
   var KNOWN_CONTAINER_IDS = ['frc-safe-float-final','frc-card-float','frc-float-controls-v2','frc-float-controls','frc-safe-float'];
 
-  // CSS (strong)
+  // CSS
   var defaultCSS = '\
   #' + CONTAINER_ID + ' { position: absolute !important; right: 12px !important; top: 50% !important; transform: translateY(-50%) !important; display:flex !important; flex-direction:column !important; gap:12px !important; align-items:center !important; z-index:2147483000 !important; pointer-events:auto !important; }\
   #' + CONTAINER_ID + ' .frc-clone { display:block !important; width:44px !important; height:44px !important; border-radius:50% !important; align-items:center !important; justify-content:center !important; background: rgba(255,255,255,0.98) !important; box-shadow:0 6px 18px rgba(0,0,0,0.12) !important; cursor:pointer !important; border:0 !important; padding:0 !important; }\
@@ -31,10 +35,9 @@
   @media (max-width:520px){ #' + CONTAINER_ID + ' { right:8px !important; } #' + CONTAINER_ID + ' .frc-clone { width:38px !important; height:38px !important; } }\
   ';
 
-  // helpers
   function q(sel){ return document.querySelector(sel); }
   function qa(sel){ return Array.from(document.querySelectorAll(sel)); }
-  function log(){ try{ console.debug.apply(console, ['[FloatingControlsV12]'].concat(Array.from(arguments))); }catch(e){} }
+  function log(){ try{ console.debug.apply(console, ['[FloatingControlsV13]'].concat(Array.from(arguments))); }catch(e){} }
 
   function injCSS(){
     if(document.getElementById(STYLE_ID)) return;
@@ -66,7 +69,6 @@
           } catch(e){}
         });
       });
-      // dedupe clones by key
       qa('[data-frc-clone-for]').forEach(function(node){
         try {
           var key = node.getAttribute('data-frc-clone-for') || '__unknown';
@@ -78,10 +80,10 @@
           }
         } catch(e){}
       });
-    } catch(e){ console.warn('[FloatingControlsV12] removeLegacyContainers error', e); }
+    } catch(e){ console.warn('[FloatingControlsV13] removeLegacyContainers error', e); }
   }
 
-  // phrase extraction (same robust heuristics)
+  // phrase extraction helpers
   function isInteractiveAncestor(n){
     while(n && n !== document.body){
       try { if(n.matches && n.matches('button,a,[role="button"],input,textarea,select')) return true; } catch(e){}
@@ -124,14 +126,14 @@
     return '';
   }
 
-  // TTS override window
+  // TTS override
   function markForceRead(durationMs){
     window._frc_force_read_visible = Date.now() + (durationMs || 1600);
     setTimeout(function(){ if(Date.now() > window._frc_force_read_visible) window._frc_force_read_visible = 0; }, (durationMs||1600)+400);
   }
   function installSpeakOverride(){
     if(!('speechSynthesis' in window)) return;
-    if(window._frc_speak_patched_v12) return;
+    if(window._frc_speak_patched_v13) return;
     var originalSpeak = window.speechSynthesis.speak.bind(window.speechSynthesis);
     window.speechSynthesis.speak = function(utter){
       try {
@@ -142,7 +144,7 @@
       } catch(e){}
       return originalSpeak(utter);
     };
-    window._frc_speak_patched_v12 = true;
+    window._frc_speak_patched_v13 = true;
   }
 
   function pickIconFor(orig, id){
@@ -154,7 +156,7 @@
     return ICON_MAP[id] || txt.slice(0,1) || '';
   }
 
-  // download PNG
+  // download PNG helper
   function sanitizeFilename(s){ return (s||'frase').replace(/[^\w\- ]+/g,'').trim().slice(0,40).replace(/\s+/g,'-').toLowerCase() || 'frase'; }
   function downloadCardPNG(phrase){
     var card = document.querySelector('.frase-card');
@@ -213,7 +215,7 @@
     }
   }
 
-  // Ensure container (inline styles to force vertical)
+  // ensure container inside card and inline styles
   function ensureContainer(){
     try {
       removeLegacyContainers();
@@ -230,7 +232,6 @@
         c.style.transform = 'translateY(-50%)';
         c.style.display = 'flex';
         c.style.flexDirection = 'column';
-        c.style.flexFlow = 'column nowrap';
         c.style.gap = '12px';
         c.style.alignItems = 'center';
         c.style.justifyContent = 'center';
@@ -239,14 +240,12 @@
         card.appendChild(c);
       } else {
         c.setAttribute(MANAGED_FLAG, '1');
-        // re-apply inline forcing if needed
         c.style.position = 'absolute';
         c.style.right = '12px';
         c.style.top = '50%';
         c.style.transform = 'translateY(-50%)';
         c.style.display = 'flex';
         c.style.flexDirection = 'column';
-        c.style.flexFlow = 'column nowrap';
         c.style.gap = '12px';
         c.style.alignItems = 'center';
         c.style.justifyContent = 'center';
@@ -254,86 +253,116 @@
         if(c.parentElement !== card){ c.parentNode && c.parentNode.removeChild(c); card.appendChild(c); }
       }
       return c;
-    } catch(e){ console.warn('[FloatingControlsV12] ensureContainer error', e); return null; }
+    } catch(e){ console.warn('[FloatingControlsV13] ensureContainer error', e); return null; }
   }
 
-  // --- FAVORITES SYNC HELPERS (NEW) ---
-  function snapshotFavoritesSources(){
-    var windowsArrays = {};
+  // --- FAVORITES: only target likely favorite sources (NEW improved) ---
+  var FAVOR_KEY_RE = /(fav|favorite|favorit|favor)/i;
+
+  function snapshotFavoriteCandidates(){
+    var winArrays = {}; // name -> length
     try {
       Object.keys(window).forEach(function(k){
         try {
+          if(!FAVOR_KEY_RE.test(k)) return; // only names that look like favs
           var v = window[k];
-          if(Array.isArray(v) && v.length > 0 && typeof v[0] === 'string' && v[0].length > 6){
-            windowsArrays[k] = v.length;
+          if(Array.isArray(v) && v.length >= 0 && v.every(it => typeof it === 'string' || typeof it === 'object')) {
+            winArrays[k] = v.length;
           }
         } catch(e){}
       });
     } catch(e){}
-    var localKeys = {};
+    var localKeys = {}; // key -> length
     try {
       for(var i=0;i<localStorage.length;i++){
         var key = localStorage.key(i);
+        if(!FAVOR_KEY_RE.test(key)) continue;
         try {
           var parsed = JSON.parse(localStorage.getItem(key));
-          if(Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === 'string'){
-            localKeys[key] = parsed.length;
-          }
+          if(Array.isArray(parsed)) localKeys[key] = parsed.length;
         } catch(e){}
       }
     } catch(e){}
-    return { windowsArrays: windowsArrays, localKeys: localKeys };
+    // DOM lists that look like favorites (class/attr contains fav/favorite)
+    var domLists = {};
+    try {
+      var candidates = qa('.favorites-list, .favorite-list, .favoritos, .fav-list, .favorites, [data-fav-list], [data-favorites]');
+      candidates.forEach(function(n, idx){
+        try { domLists['dom_'+idx] = n.childElementCount; } catch(e){}
+      });
+    } catch(e){}
+    return { winArrays: winArrays, localKeys: localKeys, domLists: domLists };
   }
 
-  function repairFavoritesWithVisibleText(visible){
-    // 1) look for window arrays that grew and replace new entries
+  function patchNewFavoritesWithVisible(snapBefore, visible){
+    // patch window arrays that grew
     try {
-      Object.keys(window).forEach(function(k){
+      Object.keys(snapBefore.winArrays || {}).forEach(function(name){
         try {
-          var v = window[k];
-          if(Array.isArray(v) && v.length > 0 && typeof v[0] === 'string'){
-            // if last entry doesn't match visible but there's some overlap, try to patch last entry
-            var last = v[v.length-1];
-            if(last && last.length > 0 && last !== visible){
-              // if lengths changed recently, assume new push; replace last entry
-              v[v.length-1] = visible;
-              log('Patched window array', k, 'last entry -> visible phrase');
+          var arr = window[name];
+          if(!Array.isArray(arr)) return;
+          var beforeLen = snapBefore.winArrays[name] || 0;
+          if(arr.length > beforeLen){
+            // replace only the newly added items
+            for(var i=beforeLen;i<arr.length;i++){
+              arr[i] = visible;
             }
+            log('Patched window favorites array', name, 'replaced indexes', beforeLen, '->', arr.length-1);
           }
         } catch(e){}
       });
     } catch(e){}
 
-    // 2) localStorage arrays: find arrays with last entry and try patching
+    // patch localStorage arrays that grew
     try {
-      for(var i=0;i<localStorage.length;i++){
-        var key = localStorage.key(i);
+      Object.keys(snapBefore.localKeys || {}).forEach(function(key){
         try {
-          var parsed = JSON.parse(localStorage.getItem(key));
-          if(Array.isArray(parsed) && parsed.length > 0 && typeof parsed[parsed.length-1] === 'string'){
-            var last = parsed[parsed.length-1];
-            if(last && last !== visible){
-              parsed[parsed.length-1] = visible;
-              localStorage.setItem(key, JSON.stringify(parsed));
-              log('Patched localStorage key', key, 'last entry -> visible phrase');
-            }
+          var parsed = JSON.parse(localStorage.getItem(key) || '[]');
+          if(!Array.isArray(parsed)) return;
+          var beforeLen = snapBefore.localKeys[key] || 0;
+          if(parsed.length > beforeLen){
+            for(var j=beforeLen;j<parsed.length;j++) parsed[j] = visible;
+            localStorage.setItem(key, JSON.stringify(parsed));
+            log('Patched localStorage favorites key', key, 'updated last entries');
           }
         } catch(e){}
-      }
+      });
+    } catch(e){}
+
+    // patch DOM lists that grew
+    try {
+      var domCandidates = qa('.favorites-list, .favorite-list, .favoritos, .fav-list, .favorites, [data-fav-list], [data-favorites]');
+      domCandidates.forEach(function(n, idx){
+        try {
+          var id = 'dom_'+idx;
+          var before = snapBefore.domLists && snapBefore.domLists[id] || 0;
+          var after = n.childElementCount;
+          if(after > before){
+            // update new children text to visible
+            for(var c = before; c < after; c++){
+              var child = n.children[c];
+              if(child) {
+                // find textual node inside
+                var textTarget = child.querySelector && (child.querySelector('p') || child.querySelector('div') || child);
+                if(textTarget) textTarget.textContent = visible;
+              }
+            }
+            log('Patched DOM favorites list', n);
+          }
+        } catch(e){}
+      });
     } catch(e){}
   }
 
-  function patchFavoritesModal(visible){
-    // find a dialog/modal whose title contains "Favorit" and replace body text
+  function patchFavoritesModalIfPresent(visible){
     try {
-      var dialogs = qa('[role="dialog"], .modal, .dialog, .favoritos, .favorite-modal');
+      var dialogs = qa('[role="dialog"], .modal, .dialog, .favoritos, .favorite-modal, .favorites-modal');
       for(var i=0;i<dialogs.length;i++){
         var d = dialogs[i];
         try {
-          var header = d.querySelector && d.querySelector('h1,h2,h3,h4,.modal-title,.title');
+          var header = d.querySelector && (d.querySelector('h1,h2,h3,h4,.modal-title,.title') || null);
           if(header && /favorit/i.test(header.textContent || '')){
-            // find body area
-            var body = d.querySelector && (d.querySelector('.modal-body') || d.querySelector('.body') || d.querySelector('p') || d.querySelector('div'));
+            var body = d.querySelector && (d.querySelector('.modal-body') || d.querySelector('.body') || d.querySelector('p') || d.querySelector('div') || d);
             if(body){
               body.textContent = visible;
               log('Patched favorites modal content to visible phrase');
@@ -342,18 +371,11 @@
           }
         } catch(e){}
       }
-      // fallback: try to find any element that currently displays a favorite and overwrite if short
-      var possible = qa('p,div,span').find(function(n){ return /favorit/i.test(n.textContent || '') || (n.className && /favorit/i.test(n.className)); });
-      if(possible && possible.parentElement){
-        // try to set nearest textual sibling
-        var sib = possible.parentElement.querySelector('p,div,span');
-        if(sib) { sib.textContent = visible; log('Patched generic favorite display'); return true; }
-      }
     } catch(e){}
     return false;
   }
 
-  // create clones idempotent; enhanced fav handling
+  // create clones idempotent with improved fav handler
   function createCloneFor(orig, id, container){
     if(!container) return null;
     var existing = container.querySelector('[data-frc-clone-for="'+id+'"]');
@@ -372,36 +394,43 @@
     } else if(id === 'favBtn'){
       clone.addEventListener('click', function(){
         var visible = getBestVisibleText() || '';
-        // snapshot sources BEFORE click
-        var snap = snapshotFavoritesSources();
+        // snapshot only likely favorites containers (by name/key/selector)
+        var snap = snapshotFavoriteCandidates();
         // call original favorite logic
         try { if(orig && typeof orig.click === 'function') orig.click(); } catch(e){ log('orig.click() for fav failed', e); }
-        // After click, attempt to detect where the app stored the favorite and correct it
-        var attempts = 0;
-        var maxAttempts = 12;
+        // poll for changes limited times and patch only new entries
+        var attempts = 0, maxAttempts = 14;
         var poll = setInterval(function(){
           attempts++;
-          // 1) repair window/localStorage arrays heuristically
-          repairFavoritesWithVisibleText(visible);
-          // 2) patch modal if present
-          var patched = patchFavoritesModal(visible);
-          // stop early if patched or attempts exhausted
-          if(patched || attempts >= maxAttempts) {
-            clearInterval(poll);
-            // final additional attempt to patch any displayed favorite list item
-            try { // if app appended an element with favorites, replace last textual item
-              var favItems = qa('.favorites-list li, .favorite-item, .fav-item, .favorito li');
-              if(favItems && favItems.length){
-                var last = favItems[favItems.length-1];
-                if(last && (last.textContent||'').trim().length>0){
-                  last.textContent = visible || last.textContent;
+          try {
+            // attempt to patch arrays/localStorage/dom that show growth
+            patchNewFavoritesWithVisible(snap, visible);
+            // try modal patching too
+            var modalPatched = patchFavoritesModalIfPresent(visible);
+            // detect if any candidate grew — if yes, stop early
+            var newSnap = snapshotFavoriteCandidates();
+            var changed = false;
+            Object.keys(snap.winArrays || {}).forEach(function(k){ if((newSnap.winArrays[k]||0) > (snap.winArrays[k]||0)) changed = true; });
+            Object.keys(snap.localKeys || {}).forEach(function(k){ if((newSnap.localKeys[k]||0) > (snap.localKeys[k]||0)) changed = true; });
+            Object.keys(snap.domLists || {}).forEach(function(k){ if((newSnap.domLists[k]||0) > (snap.domLists[k]||0)) changed = true; });
+            if(modalPatched || changed || attempts >= maxAttempts){
+              clearInterval(poll);
+              // final attempt: if favorites UI contains list items, replace last textual item to visible
+              try {
+                var favItems = qa('.favorites-list li, .favorite-item, .fav-item, .favorito li, .favorite-list li');
+                if(favItems && favItems.length){
+                  var last = favItems[favItems.length-1];
+                  if(last && (last.textContent||'').trim().length>0){
+                    last.textContent = visible || last.textContent;
+                  }
                 }
-              }
-            } catch(e){}
+              } catch(e){}
+            }
+          } catch(e){
+            if(attempts >= maxAttempts) clearInterval(poll);
           }
-        }, 160);
+        }, 180);
       }, { passive:true });
-      // initial sync attempt
       setTimeout(function(){ try { if(orig) syncFav(container.querySelector('[data-frc-clone-for="favBtn"]'), orig); } catch(e){} }, 60);
     } else if(id === 'ttsBtn'){
       clone.addEventListener('click', function(){ markForceRead(1800); try { if(orig && typeof orig.click === 'function') orig.click(); } catch(e){} setTimeout(function(){ if(isAnyAudioPlaying()) return; var p=getBestVisibleText(); if(p){ try{ var u=new SpeechSynthesisUtterance(p); u.lang='es-ES'; u.rate=0.95; u.pitch=1.02; window.speechSynthesis.cancel(); window.speechSynthesis.speak(u);}catch(e){} } }, 300); }, { passive:true });
@@ -416,7 +445,7 @@
     return clone;
   }
 
-  // sync fav helpers
+  // fav sync
   var favObserver = null;
   function syncFav(clone, orig){
     if(!clone || !orig) return;
@@ -432,6 +461,52 @@
     try { favObserver.observe(orig, { attributes:true, attributeFilter:['aria-pressed','class'] }); } catch(e) {}
   }
 
+  // create clone wrapper (idempotent)
+  function createCloneForWrapper(orig, id, container){
+    try { return createCloneFor(orig, id, container); } catch(e){ console.warn('[FloatingControlsV13] createCloneFor error', e); return null; }
+  }
+
+  // ensure container
+  function ensureContainer(){
+    try {
+      removeLegacyContainers();
+      injCSS();
+      var card = document.querySelector('.frase-card');
+      if(!card) return null;
+      var c = document.getElementById(CONTAINER_ID);
+      if(!c){
+        c = document.createElement('div'); c.id = CONTAINER_ID;
+        c.setAttribute(MANAGED_FLAG, '1');
+        c.style.position = 'absolute';
+        c.style.right = '12px';
+        c.style.top = '50%';
+        c.style.transform = 'translateY(-50%)';
+        c.style.display = 'flex';
+        c.style.flexDirection = 'column';
+        c.style.gap = '12px';
+        c.style.alignItems = 'center';
+        c.style.justifyContent = 'center';
+        c.style.zIndex = '2147483000';
+        try { var cs = window.getComputedStyle(card); if(cs.position === 'static') card.style.position = 'relative'; } catch(e){}
+        card.appendChild(c);
+      } else {
+        c.setAttribute(MANAGED_FLAG, '1');
+        c.style.position = 'absolute';
+        c.style.right = '12px';
+        c.style.top = '50%';
+        c.style.transform = 'translateY(-50%)';
+        c.style.display = 'flex';
+        c.style.flexDirection = 'column';
+        c.style.gap = '12px';
+        c.style.alignItems = 'center';
+        c.style.justifyContent = 'center';
+        c.style.zIndex = '2147483000';
+        if(c.parentElement !== card){ c.parentNode && c.parentNode.removeChild(c); card.appendChild(c); }
+      }
+      return c;
+    } catch(e){ console.warn('[FloatingControlsV13] ensureContainer error', e); return null; }
+  }
+
   // apply / restore / safeApply
   function apply(){
     try {
@@ -444,15 +519,15 @@
         var orig = findOriginal(id);
         if(!orig && id !== 'downloadBtn'){ log('original missing for', id, '- skipping'); return; }
         try {
-          var clone = createCloneFor(orig, id, container);
+          var clone = createCloneForWrapper(orig, id, container);
           if(clone) created.push(id);
           if(id === 'favBtn' && clone && orig){ syncFav(clone, orig); observeFav(orig, clone); }
           if(id === 'ttsBtn' && orig && !orig._frc_marker_attached){ try{ orig.addEventListener('click', function(){ markForceRead(1800); }, { passive:true }); orig._frc_marker_attached = true; } catch(e){} }
-        } catch(e){ console.warn('[FloatingControlsV12] create clone error', id, e); }
+        } catch(e){ console.warn('[FloatingControlsV13] create clone error', id, e); }
       });
       log('apply created', created);
       return { ok:true, created: created };
-    } catch(e){ console.error('[FloatingControlsV12] apply error', e); return { ok:false, error: String(e) }; }
+    } catch(e){ console.error('[FloatingControlsV13] apply error', e); return { ok:false, error: String(e) }; }
   }
 
   function restore(){
@@ -478,10 +553,10 @@
   window.FloatingControlsFinal.apply = apply;
   window.FloatingControlsFinal.restore = restore;
   window.FloatingControlsFinal.safeApply = safeApply;
-  window.FloatingControlsFinal.__debug = { getBestVisibleText: getBestVisibleText, removeLegacyContainers: removeLegacyContainers };
+  window.FloatingControlsFinal.__debug = { getBestVisibleText: getBestVisibleText, removeLegacyContainers: removeLegacyContainers, snapshotFavoriteCandidates: snapshotFavoriteCandidates };
 
   // auto apply short delay
-  setTimeout(function(){ try { var r = safeApply(); console.log('[FloatingControlsV12] auto safeApply ->', r); } catch(e){ console.warn('[FloatingControlsV12] auto apply failed', e); } }, 120);
+  setTimeout(function(){ try { var r = safeApply(); console.log('[FloatingControlsV13] auto safeApply ->', r); } catch(e){ console.warn('[FloatingControlsV13] auto apply failed', e); } }, 120);
 
-  log('FloatingControlsV12 loaded');
+  log('FloatingControlsV13 loaded');
 })();
