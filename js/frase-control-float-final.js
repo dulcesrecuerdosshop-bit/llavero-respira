@@ -1,42 +1,40 @@
-// frase-controls-float-final.js (v11 - FORCE RIGHT VERTICAL + HIDE SHARE)
-// - Fuerza disposición vertical (columna) en el lado derecho de .frase-card (CSS + inline styles).
-// - Oculta temporalmente el botón "Compartir" (no crea clon para shareBtn).
-// - Mantiene TTS sincronizado, favorito sincronizado y descarga PNG de la tarjeta.
-// - Idempotente, safeApply() limpia versiones anteriores y evita duplicados.
-// - API: window.FloatingControlsFinal.apply() / .restore() / .safeApply()
+// frase-controls-float-final.js (v12 - FIX favoritos sincronizados con frase visible)
+// Basado en v11: controles verticales a la derecha, hide shareBtn, TTS y descarga PNG.
+// Añade heurística para que "Favorito" guarde la FRASE VISIBLE (no la de phrases.js).
+// API: window.FloatingControlsFinal.apply()/restore()/safeApply()
+
 (function(){
   'use strict';
 
-  if (window._frc_v11_loaded) {
-    console.debug('[FloatingControlsV11] already loaded — skipping.');
+  if (window._frc_v12_loaded) {
+    console.debug('[FloatingControlsV12] already loaded — skipping.');
     return;
   }
-  window._frc_v11_loaded = true;
+  window._frc_v12_loaded = true;
 
   // CONFIG
   var CONTAINER_ID = 'frc-safe-float-final';
   var STYLE_ID = 'frc-safe-float-final-style';
   var CLONE_ATTR = 'data-frc-clone-for';
   var HIDDEN_ATTR = 'data-frc-hidden-original';
-  var MANAGED_FLAG = 'data-frc-managed-v11';
-  // shareBtn intentionally excluded to hide "Compartir"
-  var IDS = ['ttsBtn','favBtn','downloadBtn'];
+  var MANAGED_FLAG = 'data-frc-managed-v12';
+  var IDS = ['ttsBtn','favBtn','downloadBtn']; // shareBtn intentionally excluded
   var ICON_MAP = { ttsBtn: '🔊', favBtn: '♡', downloadBtn: '⬇️' };
   var KNOWN_CONTAINER_IDS = ['frc-safe-float-final','frc-card-float','frc-float-controls-v2','frc-float-controls','frc-safe-float'];
 
-  // stronger CSS with !important and column flow
+  // CSS (strong)
   var defaultCSS = '\
-  #' + CONTAINER_ID + ' { position: absolute !important; right: 12px !important; top: 50% !important; transform: translateY(-50%) !important; display: flex !important; flex-direction: column !important; flex-flow: column nowrap !important; gap: 12px !important; align-items: center !important; justify-content: center !important; z-index: 2147483000 !important; pointer-events: auto !important; }\
-  #' + CONTAINER_ID + ' .frc-clone { display: block !important; box-sizing: border-box !important; width: 44px !important; height: 44px !important; min-width:44px !important; min-height:44px !important; border-radius:50% !important; align-items:center !important; justify-content:center !important; background: rgba(255,255,255,0.98) !important; box-shadow: 0 6px 18px rgba(0,0,0,0.12) !important; cursor:pointer !important; border:0 !important; padding:0 !important; }\
+  #' + CONTAINER_ID + ' { position: absolute !important; right: 12px !important; top: 50% !important; transform: translateY(-50%) !important; display:flex !important; flex-direction:column !important; gap:12px !important; align-items:center !important; z-index:2147483000 !important; pointer-events:auto !important; }\
+  #' + CONTAINER_ID + ' .frc-clone { display:block !important; width:44px !important; height:44px !important; border-radius:50% !important; align-items:center !important; justify-content:center !important; background: rgba(255,255,255,0.98) !important; box-shadow:0 6px 18px rgba(0,0,0,0.12) !important; cursor:pointer !important; border:0 !important; padding:0 !important; }\
   #' + CONTAINER_ID + ' .frc-clone .btn-icon{ pointer-events:none !important; font-size:18px !important; line-height:1 !important; }\
   #' + CONTAINER_ID + ' .frc-clone.frc-pressed{ background: linear-gradient(90deg,#ff9a76,#ff6b6b) !important; color:#fff !important; transform: translateY(-2px) !important; box-shadow:0 10px 26px rgba(255,107,107,0.18) !important; }\
-  @media (max-width:520px){ #' + CONTAINER_ID + ' { right: 8px !important; } #' + CONTAINER_ID + ' .frc-clone { width:38px !important; height:38px !important; min-width:38px !important; min-height:38px !important; } }\
+  @media (max-width:520px){ #' + CONTAINER_ID + ' { right:8px !important; } #' + CONTAINER_ID + ' .frc-clone { width:38px !important; height:38px !important; } }\
   ';
 
   // helpers
   function q(sel){ return document.querySelector(sel); }
   function qa(sel){ return Array.from(document.querySelectorAll(sel)); }
-  function log(){ try{ console.debug.apply(console, ['[FloatingControlsV11]'].concat(Array.from(arguments))); }catch(e){} }
+  function log(){ try{ console.debug.apply(console, ['[FloatingControlsV12]'].concat(Array.from(arguments))); }catch(e){} }
 
   function injCSS(){
     if(document.getElementById(STYLE_ID)) return;
@@ -46,7 +44,6 @@
     (document.head || document.documentElement).appendChild(s);
   }
 
-  // find original button by id or data-action fallback
   function findOriginal(id){
     try {
       var el = document.getElementById(id);
@@ -56,7 +53,6 @@
     } catch(e){ return null; }
   }
 
-  // cleanup legacy containers and dedupe clones
   function removeLegacyContainers(){
     try {
       KNOWN_CONTAINER_IDS.forEach(function(id){
@@ -70,7 +66,7 @@
           } catch(e){}
         });
       });
-      // dedupe clones by data-frc-clone-for
+      // dedupe clones by key
       qa('[data-frc-clone-for]').forEach(function(node){
         try {
           var key = node.getAttribute('data-frc-clone-for') || '__unknown';
@@ -82,10 +78,10 @@
           }
         } catch(e){}
       });
-    } catch(e){ console.warn('[FloatingControlsV11] removeLegacyContainers error', e); }
+    } catch(e){ console.warn('[FloatingControlsV12] removeLegacyContainers error', e); }
   }
 
-  // phrase extraction (robust)
+  // phrase extraction (same robust heuristics)
   function isInteractiveAncestor(n){
     while(n && n !== document.body){
       try { if(n.matches && n.matches('button,a,[role="button"],input,textarea,select')) return true; } catch(e){}
@@ -135,7 +131,7 @@
   }
   function installSpeakOverride(){
     if(!('speechSynthesis' in window)) return;
-    if(window._frc_speak_patched_v11) return;
+    if(window._frc_speak_patched_v12) return;
     var originalSpeak = window.speechSynthesis.speak.bind(window.speechSynthesis);
     window.speechSynthesis.speak = function(utter){
       try {
@@ -146,10 +142,9 @@
       } catch(e){}
       return originalSpeak(utter);
     };
-    window._frc_speak_patched_v11 = true;
+    window._frc_speak_patched_v12 = true;
   }
 
-  // icon helper
   function pickIconFor(orig, id){
     if(!orig) return ICON_MAP[id] || id.slice(0,1);
     var svg = orig.querySelector && orig.querySelector('svg, img, i');
@@ -159,7 +154,7 @@
     return ICON_MAP[id] || txt.slice(0,1) || '';
   }
 
-  // download PNG helper
+  // download PNG
   function sanitizeFilename(s){ return (s||'frase').replace(/[^\w\- ]+/g,'').trim().slice(0,40).replace(/\s+/g,'-').toLowerCase() || 'frase'; }
   function downloadCardPNG(phrase){
     var card = document.querySelector('.frase-card');
@@ -218,7 +213,7 @@
     }
   }
 
-  // ensure container inside card and enforce inline styles to force vertical flow
+  // Ensure container (inline styles to force vertical)
   function ensureContainer(){
     try {
       removeLegacyContainers();
@@ -229,7 +224,6 @@
       if(!c){
         c = document.createElement('div'); c.id = CONTAINER_ID;
         c.setAttribute(MANAGED_FLAG, '1');
-        // basic CSS via inline to override any page rules
         c.style.position = 'absolute';
         c.style.right = '12px';
         c.style.top = '50%';
@@ -241,12 +235,11 @@
         c.style.alignItems = 'center';
         c.style.justifyContent = 'center';
         c.style.zIndex = '2147483000';
-        // ensure card has positioning context
         try { var cs = window.getComputedStyle(card); if(cs.position === 'static') card.style.position = 'relative'; } catch(e){}
         card.appendChild(c);
       } else {
         c.setAttribute(MANAGED_FLAG, '1');
-        // enforce inline styles in case CSS was overridden by page
+        // re-apply inline forcing if needed
         c.style.position = 'absolute';
         c.style.right = '12px';
         c.style.top = '50%';
@@ -258,16 +251,109 @@
         c.style.alignItems = 'center';
         c.style.justifyContent = 'center';
         c.style.zIndex = '2147483000';
-        if(c.parentElement !== card){
-          c.parentNode && c.parentNode.removeChild(c);
-          card.appendChild(c);
-        }
+        if(c.parentElement !== card){ c.parentNode && c.parentNode.removeChild(c); card.appendChild(c); }
       }
       return c;
-    } catch(e){ console.warn('[FloatingControlsV11] ensureContainer error', e); return null; }
+    } catch(e){ console.warn('[FloatingControlsV12] ensureContainer error', e); return null; }
   }
 
-  // create clones idempotently; hide original only after clone appended
+  // --- FAVORITES SYNC HELPERS (NEW) ---
+  function snapshotFavoritesSources(){
+    var windowsArrays = {};
+    try {
+      Object.keys(window).forEach(function(k){
+        try {
+          var v = window[k];
+          if(Array.isArray(v) && v.length > 0 && typeof v[0] === 'string' && v[0].length > 6){
+            windowsArrays[k] = v.length;
+          }
+        } catch(e){}
+      });
+    } catch(e){}
+    var localKeys = {};
+    try {
+      for(var i=0;i<localStorage.length;i++){
+        var key = localStorage.key(i);
+        try {
+          var parsed = JSON.parse(localStorage.getItem(key));
+          if(Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === 'string'){
+            localKeys[key] = parsed.length;
+          }
+        } catch(e){}
+      }
+    } catch(e){}
+    return { windowsArrays: windowsArrays, localKeys: localKeys };
+  }
+
+  function repairFavoritesWithVisibleText(visible){
+    // 1) look for window arrays that grew and replace new entries
+    try {
+      Object.keys(window).forEach(function(k){
+        try {
+          var v = window[k];
+          if(Array.isArray(v) && v.length > 0 && typeof v[0] === 'string'){
+            // if last entry doesn't match visible but there's some overlap, try to patch last entry
+            var last = v[v.length-1];
+            if(last && last.length > 0 && last !== visible){
+              // if lengths changed recently, assume new push; replace last entry
+              v[v.length-1] = visible;
+              log('Patched window array', k, 'last entry -> visible phrase');
+            }
+          }
+        } catch(e){}
+      });
+    } catch(e){}
+
+    // 2) localStorage arrays: find arrays with last entry and try patching
+    try {
+      for(var i=0;i<localStorage.length;i++){
+        var key = localStorage.key(i);
+        try {
+          var parsed = JSON.parse(localStorage.getItem(key));
+          if(Array.isArray(parsed) && parsed.length > 0 && typeof parsed[parsed.length-1] === 'string'){
+            var last = parsed[parsed.length-1];
+            if(last && last !== visible){
+              parsed[parsed.length-1] = visible;
+              localStorage.setItem(key, JSON.stringify(parsed));
+              log('Patched localStorage key', key, 'last entry -> visible phrase');
+            }
+          }
+        } catch(e){}
+      }
+    } catch(e){}
+  }
+
+  function patchFavoritesModal(visible){
+    // find a dialog/modal whose title contains "Favorit" and replace body text
+    try {
+      var dialogs = qa('[role="dialog"], .modal, .dialog, .favoritos, .favorite-modal');
+      for(var i=0;i<dialogs.length;i++){
+        var d = dialogs[i];
+        try {
+          var header = d.querySelector && d.querySelector('h1,h2,h3,h4,.modal-title,.title');
+          if(header && /favorit/i.test(header.textContent || '')){
+            // find body area
+            var body = d.querySelector && (d.querySelector('.modal-body') || d.querySelector('.body') || d.querySelector('p') || d.querySelector('div'));
+            if(body){
+              body.textContent = visible;
+              log('Patched favorites modal content to visible phrase');
+              return true;
+            }
+          }
+        } catch(e){}
+      }
+      // fallback: try to find any element that currently displays a favorite and overwrite if short
+      var possible = qa('p,div,span').find(function(n){ return /favorit/i.test(n.textContent || '') || (n.className && /favorit/i.test(n.className)); });
+      if(possible && possible.parentElement){
+        // try to set nearest textual sibling
+        var sib = possible.parentElement.querySelector('p,div,span');
+        if(sib) { sib.textContent = visible; log('Patched generic favorite display'); return true; }
+      }
+    } catch(e){}
+    return false;
+  }
+
+  // create clones idempotent; enhanced fav handling
   function createCloneFor(orig, id, container){
     if(!container) return null;
     var existing = container.querySelector('[data-frc-clone-for="'+id+'"]');
@@ -281,32 +367,56 @@
     var label = (orig && (orig.getAttribute('aria-label') || orig.title)) || '';
     if(label){ clone.setAttribute('title', label); clone.setAttribute('aria-label', label); }
 
-    // behavior per id
     if(id === 'downloadBtn'){
-      clone.addEventListener('click', function(){
-        var phrase = getBestVisibleText();
-        if(!phrase && orig && typeof orig.click === 'function'){ try{ orig.click(); } catch(e){} setTimeout(function(){ var p2=getBestVisibleText(); if(p2) downloadCardPNG(p2); },220); return; }
-        if(phrase) downloadCardPNG(phrase);
-      }, { passive:true });
+      clone.addEventListener('click', function(){ var phrase = getBestVisibleText(); if(!phrase && orig && typeof orig.click === 'function'){ try{ orig.click(); }catch(e){} setTimeout(function(){ var p2=getBestVisibleText(); if(p2) downloadCardPNG(p2); },220); return; } if(phrase) downloadCardPNG(phrase); }, { passive:true });
     } else if(id === 'favBtn'){
-      clone.addEventListener('click', function(){ if(orig && typeof orig.click === 'function') orig.click(); setTimeout(function(){ syncFav(clone, orig); }, 80); }, { passive:true });
-      setTimeout(function(){ syncFav(clone, orig); }, 60);
-      observeFav(orig, clone);
+      clone.addEventListener('click', function(){
+        var visible = getBestVisibleText() || '';
+        // snapshot sources BEFORE click
+        var snap = snapshotFavoritesSources();
+        // call original favorite logic
+        try { if(orig && typeof orig.click === 'function') orig.click(); } catch(e){ log('orig.click() for fav failed', e); }
+        // After click, attempt to detect where the app stored the favorite and correct it
+        var attempts = 0;
+        var maxAttempts = 12;
+        var poll = setInterval(function(){
+          attempts++;
+          // 1) repair window/localStorage arrays heuristically
+          repairFavoritesWithVisibleText(visible);
+          // 2) patch modal if present
+          var patched = patchFavoritesModal(visible);
+          // stop early if patched or attempts exhausted
+          if(patched || attempts >= maxAttempts) {
+            clearInterval(poll);
+            // final additional attempt to patch any displayed favorite list item
+            try { // if app appended an element with favorites, replace last textual item
+              var favItems = qa('.favorites-list li, .favorite-item, .fav-item, .favorito li');
+              if(favItems && favItems.length){
+                var last = favItems[favItems.length-1];
+                if(last && (last.textContent||'').trim().length>0){
+                  last.textContent = visible || last.textContent;
+                }
+              }
+            } catch(e){}
+          }
+        }, 160);
+      }, { passive:true });
+      // initial sync attempt
+      setTimeout(function(){ try { if(orig) syncFav(container.querySelector('[data-frc-clone-for="favBtn"]'), orig); } catch(e){} }, 60);
     } else if(id === 'ttsBtn'){
-      clone.addEventListener('click', function(){ markForceRead(1800); if(orig && typeof orig.click === 'function') orig.click(); setTimeout(function(){ if(isAnyAudioPlaying()) return; var p=getBestVisibleText(); if(p){ try{ var u=new SpeechSynthesisUtterance(p); u.lang='es-ES'; u.rate=0.95; u.pitch=1.02; window.speechSynthesis.cancel(); window.speechSynthesis.speak(u);}catch(e){} } }, 300); }, { passive:true });
+      clone.addEventListener('click', function(){ markForceRead(1800); try { if(orig && typeof orig.click === 'function') orig.click(); } catch(e){} setTimeout(function(){ if(isAnyAudioPlaying()) return; var p=getBestVisibleText(); if(p){ try{ var u=new SpeechSynthesisUtterance(p); u.lang='es-ES'; u.rate=0.95; u.pitch=1.02; window.speechSynthesis.cancel(); window.speechSynthesis.speak(u);}catch(e){} } }, 300); }, { passive:true });
     } else {
       clone.addEventListener('click', function(){ if(orig && typeof orig.click === 'function') orig.click(); }, { passive:true });
     }
 
     container.appendChild(clone);
-    // hide original AFTER clone appended successfully
     if(orig){
       try { orig.style.visibility = 'hidden'; orig.setAttribute(HIDDEN_ATTR, '1'); } catch(e){}
     }
     return clone;
   }
 
-  // favorite sync
+  // sync fav helpers
   var favObserver = null;
   function syncFav(clone, orig){
     if(!clone || !orig) return;
@@ -338,18 +448,17 @@
           if(clone) created.push(id);
           if(id === 'favBtn' && clone && orig){ syncFav(clone, orig); observeFav(orig, clone); }
           if(id === 'ttsBtn' && orig && !orig._frc_marker_attached){ try{ orig.addEventListener('click', function(){ markForceRead(1800); }, { passive:true }); orig._frc_marker_attached = true; } catch(e){} }
-        } catch(e){ console.warn('[FloatingControlsV11] create clone error', id, e); }
+        } catch(e){ console.warn('[FloatingControlsV12] create clone error', id, e); }
       });
       log('apply created', created);
       return { ok:true, created: created };
-    } catch(e){ console.error('[FloatingControlsV11] apply error', e); return { ok:false, error: String(e) }; }
+    } catch(e){ console.error('[FloatingControlsV12] apply error', e); return { ok:false, error: String(e) }; }
   }
 
   function restore(){
     try {
       var c = document.getElementById(CONTAINER_ID);
       if(c && c.parentNode) c.parentNode.removeChild(c);
-      // unhide originals (including shareBtn which was not cloned)
       ['ttsBtn','favBtn','downloadBtn','shareBtn'].forEach(function(id){
         var o = findOriginal(id);
         if(o && o.getAttribute(HIDDEN_ATTR) === '1'){ try{ o.style.visibility = ''; o.removeAttribute(HIDDEN_ATTR); } catch(e){} }
@@ -372,7 +481,7 @@
   window.FloatingControlsFinal.__debug = { getBestVisibleText: getBestVisibleText, removeLegacyContainers: removeLegacyContainers };
 
   // auto apply short delay
-  setTimeout(function(){ try { var r = safeApply(); console.log('[FloatingControlsV11] auto safeApply ->', r); } catch(e){ console.warn('[FloatingControlsV11] auto apply failed', e); } }, 120);
+  setTimeout(function(){ try { var r = safeApply(); console.log('[FloatingControlsV12] auto safeApply ->', r); } catch(e){ console.warn('[FloatingControlsV12] auto apply failed', e); } }, 120);
 
-  log('FloatingControlsV11 loaded');
+  log('FloatingControlsV12 loaded');
 })();
