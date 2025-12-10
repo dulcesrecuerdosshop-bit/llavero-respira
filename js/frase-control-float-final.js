@@ -1,60 +1,49 @@
-// frase-controls-float-final-v7.js
-// v7: robust positioning (container appended to document.body), retries until .frase-card exists,
-// updates container position on scroll/resize, ensures clones are visible, keeps TTS/fav/download logic.
-// Replace your current js/frase-controls-float-final.js with this file or paste into console to test.
-//
-// Changes vs v6:
-// - Waits for .frase-card (with retries) before creating controls
-// - Appends floating container to document.body and positions it so it visually aligns to the card center
-// - Updates position on scroll/resize and when the card's bounding rect changes
-// - Stronger CSS to avoid being clipped by parent overflow / z-index
-// - More defensive clone creation and logging to diagnose why buttons could be missing
-//
-// API: window.FloatingControlsFinal.apply() / .restore()
-
+// frase-controls-float-final.js (v11 - FORCE RIGHT VERTICAL + HIDE SHARE)
+// - Fuerza disposición vertical (columna) en el lado derecho de .frase-card (CSS + inline styles).
+// - Oculta temporalmente el botón "Compartir" (no crea clon para shareBtn).
+// - Mantiene TTS sincronizado, favorito sincronizado y descarga PNG de la tarjeta.
+// - Idempotente, safeApply() limpia versiones anteriores y evita duplicados.
+// - API: window.FloatingControlsFinal.apply() / .restore() / .safeApply()
 (function(){
   'use strict';
 
+  if (window._frc_v11_loaded) {
+    console.debug('[FloatingControlsV11] already loaded — skipping.');
+    return;
+  }
+  window._frc_v11_loaded = true;
+
+  // CONFIG
   var CONTAINER_ID = 'frc-safe-float-final';
   var STYLE_ID = 'frc-safe-float-final-style';
   var CLONE_ATTR = 'data-frc-clone-for';
   var HIDDEN_ATTR = 'data-frc-hidden-original';
-  var IDS = ['ttsBtn','favBtn','downloadBtn','shareBtn'];
-  var ICON_MAP = { ttsBtn: '🔊', favBtn: '♡', downloadBtn: '⬇️', shareBtn: '🔗' };
-  var VOICE_PREFERENCES = ['Google', 'Microsoft', 'Castilian', 'Spanish', 'Español', 'es-ES', 'es-419', 'es'];
+  var MANAGED_FLAG = 'data-frc-managed-v11';
+  // shareBtn intentionally excluded to hide "Compartir"
+  var IDS = ['ttsBtn','favBtn','downloadBtn'];
+  var ICON_MAP = { ttsBtn: '🔊', favBtn: '♡', downloadBtn: '⬇️' };
+  var KNOWN_CONTAINER_IDS = ['frc-safe-float-final','frc-card-float','frc-float-controls-v2','frc-float-controls','frc-safe-float'];
 
-  // internal state
-  var container = null;
-  var cardEl = null;
-  var resizeObserver = null;
-  var scrollHandler = null;
-  var lastCardRect = null;
-  var favObserver = null;
-
-  // simple logger
-  function log(){ try { console.debug.apply(console, ['[FloatingControlsV7]'].concat(Array.from(arguments))); } catch(e){} }
-
-  // CSS (stronger: fixed z-index, pointer-events safe, box-sizing)
+  // stronger CSS with !important and column flow
   var defaultCSS = '\
-  #' + CONTAINER_ID + ' { position: absolute !important; z-index:2147483000 !important; pointer-events:auto !important; box-sizing: border-box !important; }\
-  #' + CONTAINER_ID + ' .frc-clone { width:40px !important; height:40px !important; min-width:40px !important; min-height:40px !important; border-radius:50% !important; display:inline-flex !important; align-items:center !important; justify-content:center !important; background: rgba(255,255,255,0.96) !important; box-shadow: 0 6px 20px rgba(6,10,9,0.14) !important; cursor:pointer !important; font-size:18px !important; color:#072b2a !important; border:0 !important; margin:8px 0 !important; }\
-  #' + CONTAINER_ID + ' .frc-clone .btn-icon{ pointer-events:none !important; z-index:2 !important; }\
+  #' + CONTAINER_ID + ' { position: absolute !important; right: 12px !important; top: 50% !important; transform: translateY(-50%) !important; display: flex !important; flex-direction: column !important; flex-flow: column nowrap !important; gap: 12px !important; align-items: center !important; justify-content: center !important; z-index: 2147483000 !important; pointer-events: auto !important; }\
+  #' + CONTAINER_ID + ' .frc-clone { display: block !important; box-sizing: border-box !important; width: 44px !important; height: 44px !important; min-width:44px !important; min-height:44px !important; border-radius:50% !important; align-items:center !important; justify-content:center !important; background: rgba(255,255,255,0.98) !important; box-shadow: 0 6px 18px rgba(0,0,0,0.12) !important; cursor:pointer !important; border:0 !important; padding:0 !important; }\
+  #' + CONTAINER_ID + ' .frc-clone .btn-icon{ pointer-events:none !important; font-size:18px !important; line-height:1 !important; }\
   #' + CONTAINER_ID + ' .frc-clone.frc-pressed{ background: linear-gradient(90deg,#ff9a76,#ff6b6b) !important; color:#fff !important; transform: translateY(-2px) !important; box-shadow:0 10px 26px rgba(255,107,107,0.18) !important; }\
-  @media (max-width:520px){ #' + CONTAINER_ID + ' { right: 8px !important; } #' + CONTAINER_ID + ' .frc-clone { width:36px !important; height:36px !important; } }\
+  @media (max-width:520px){ #' + CONTAINER_ID + ' { right: 8px !important; } #' + CONTAINER_ID + ' .frc-clone { width:38px !important; height:38px !important; min-width:38px !important; min-height:38px !important; } }\
   ';
 
-  // ---- utilities ----
+  // helpers
   function q(sel){ return document.querySelector(sel); }
   function qa(sel){ return Array.from(document.querySelectorAll(sel)); }
+  function log(){ try{ console.debug.apply(console, ['[FloatingControlsV11]'].concat(Array.from(arguments))); }catch(e){} }
 
-  function injCSS(css){
-    try {
-      if(document.getElementById(STYLE_ID)) return;
-      var s = document.createElement('style');
-      s.id = STYLE_ID;
-      s.textContent = css;
-      (document.head||document.documentElement).appendChild(s);
-    } catch(e){ console.warn('[FloatingControlsV7] injCSS failed', e); }
+  function injCSS(){
+    if(document.getElementById(STYLE_ID)) return;
+    var s = document.createElement('style');
+    s.id = STYLE_ID;
+    s.textContent = defaultCSS;
+    (document.head || document.documentElement).appendChild(s);
   }
 
   // find original button by id or data-action fallback
@@ -67,462 +56,323 @@
     } catch(e){ return null; }
   }
 
-  // pick icon helper
-  function pickIconFor(orig, id){
-    if(!orig) return ICON_MAP[id] || id.slice(0,1);
-    var svg = orig.querySelector && orig.querySelector('svg, img, i');
-    if(svg) {
-      try { return svg.cloneNode(true); } catch(e){/*fallthrough*/ }
-    }
-    var txt = (orig.textContent || '').trim();
-    var tok = txt.split(/\s+/)[0] || '';
-    if(/[^A-Za-z0-9\s]/.test(tok) || tok.length <= 2) return tok;
-    return ICON_MAP[id] || txt.slice(0,1) || '';
-  }
-
-  // text extraction helpers (same cleaning as v6 but defensive)
-  function isInsideControlsOrInteractive(node){
-    if(!node) return false;
+  // cleanup legacy containers and dedupe clones
+  function removeLegacyContainers(){
     try {
-      if(node.closest && node.closest('.frase-controls, .frc-clone, .frc-clone *')) return true;
-      var anc = node;
-      while(anc && anc !== document.body){
-        if(anc.tagName && /^(BUTTON|A|INPUT|TEXTAREA|SELECT|LABEL)$/.test(anc.tagName)) return true;
-        if(anc.getAttribute && (anc.getAttribute('role') === 'button' || anc.getAttribute('role') === 'menuitem')) return true;
-        anc = anc.parentElement;
-      }
-    } catch(e){}
-    return false;
-  }
-
-  function getCleanTextFromElement(el){
-    if(!el) return '';
-    try {
-      if(isInsideControlsOrInteractive(el)) return '';
-      var clone = el.cloneNode(true);
-      var selectorsToRemove = ['.frase-controls','button','a','[role="button"]','[data-frc-clone-for]','svg','img','input','textarea','select','[aria-hidden="true"]'];
-      selectorsToRemove.forEach(function(sel){
-        Array.from(clone.querySelectorAll(sel)).forEach(function(n){ if(n && n.parentNode) n.parentNode.removeChild(n); });
+      KNOWN_CONTAINER_IDS.forEach(function(id){
+        var els = document.querySelectorAll('#' + id);
+        Array.from(els).forEach(function(el){
+          try {
+            if ((el.querySelector && el.querySelector('[data-frc-clone-for]')) || el.hasAttribute(MANAGED_FLAG) || id === CONTAINER_ID) {
+              el.parentNode && el.parentNode.removeChild(el);
+              log('Removed legacy container', id);
+            }
+          } catch(e){}
+        });
       });
-      Array.from(clone.querySelectorAll('span')).forEach(function(s){
+      // dedupe clones by data-frc-clone-for
+      qa('[data-frc-clone-for]').forEach(function(node){
         try {
-          var cs = window.getComputedStyle(s);
-          if(cs && (parseFloat(cs.fontSize) < 12 || cs.display === 'none' || cs.opacity === '0')) {
-            if(s.parentNode) s.parentNode.removeChild(s);
+          var key = node.getAttribute('data-frc-clone-for') || '__unknown';
+          var all = qa('[data-frc-clone-for="'+key+'"]');
+          if(all.length > 1){
+            var keep = all.find(n => n.hasAttribute(MANAGED_FLAG)) || all[0];
+            all.forEach(function(n){ if(n !== keep){ try{ n.parentNode && n.parentNode.removeChild(n); }catch(e){} } });
+            log('Deduped clones for', key);
           }
         } catch(e){}
       });
-      var text = (clone.textContent || '').replace(/\s+/g,' ').trim();
-      var forbiddenWords = ['Escuchar','Respirar','Descargar','Compartir','Favorito','Favoritos','♡','♥','🔊','⬇️','🔗'];
-      for(var i=0;i<forbiddenWords.length;i++){
-        if(text.indexOf(forbiddenWords[i]) !== -1 && text.length < 30 && /^\W*\w*\W*$/.test(text)) return '';
-      }
-      if(text.length < 6) return '';
-      return text;
-    } catch(e){ return ''; }
+    } catch(e){ console.warn('[FloatingControlsV11] removeLegacyContainers error', e); }
   }
 
-  function getBestCenterText(){
-    var card = document.querySelector('.frase-card');
-    var cx, cy;
-    if(card) {
-      var r = card.getBoundingClientRect();
-      cx = Math.round((r.left + r.right)/2);
-      cy = Math.round((r.top + r.bottom)/2);
-    } else {
-      cx = Math.round(window.innerWidth/2);
-      cy = Math.round(window.innerHeight/2);
+  // phrase extraction (robust)
+  function isInteractiveAncestor(n){
+    while(n && n !== document.body){
+      try { if(n.matches && n.matches('button,a,[role="button"],input,textarea,select')) return true; } catch(e){}
+      n = n.parentElement;
     }
-    var el = null;
-    try { el = document.elementFromPoint(cx, cy); } catch(e){ el = null; }
-    if(!el) return '';
-    var preferTags = ['P','H1','H2','H3','H4','H5','H6','BLOCKQUOTE','LI','DIV','SPAN'];
-    var node = el;
-    while(node && node !== document.body){
-      if(isInsideControlsOrInteractive(node)) return '';
-      var tag = node.tagName;
-      if(preferTags.indexOf(tag) !== -1){
-        var text = getCleanTextFromElement(node);
-        if(text) return text;
-      }
-      node = node.parentElement;
-    }
-    var cardRoot = card || document.body;
-    var candidates = Array.from(cardRoot.querySelectorAll('p, h1, h2, h3, div, span, blockquote')).filter(function(n){
-      if(isInsideControlsOrInteractive(n)) return false;
-      var cs = window.getComputedStyle(n);
-      if(!cs || cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') return false;
-      return (n.textContent || '').trim().length > 8;
-    });
-    if(candidates.length === 0) return '';
-    var cardRect = (cardRoot.getBoundingClientRect && cardRoot.getBoundingClientRect()) || {left:0, top:0, width: window.innerWidth, height: window.innerHeight};
-    var cx2 = Math.round((cardRect.left + (cardRect.left + cardRect.width))/2);
-    var cy2 = Math.round((cardRect.top + (cardRect.top + cardRect.height))/2);
-    candidates.sort(function(a,b){
-      var ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
-      var areaA = ra.width * ra.height, areaB = rb.width * rb.height;
-      var distA = Math.hypot((ra.left+ra.width/2)-cx2, (ra.top+ra.height/2)-cy2);
-      var distB = Math.hypot((rb.left+rb.width/2)-cx2, (rb.top+rb.height/2)-cy2);
-      return (areaB - areaA) || (distA - distB);
-    });
-    for(var i=0;i<candidates.length;i++){
-      var t = getCleanTextFromElement(candidates[i]);
-      if(t) return t;
-    }
-    return '';
-  }
-
-  function getBestVisibleText(){
-    var t = getBestCenterText();
-    if(t) return t;
-    var card = document.querySelector('.frase-card') || document.body;
-    var nodes = Array.from(card.querySelectorAll('p, h1, h2, h3, div, span, blockquote')).filter(function(n){
-      return !isInsideControlsOrInteractive(n) && (n.textContent||'').trim().length > 8;
-    });
-    if(nodes.length === 0) return '';
-    nodes.sort(function(a,b){
-      var ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
-      return (rb.width*rb.height) - (ra.width*ra.height);
-    });
-    for(var i=0;i<nodes.length;i++){
-      var s = getCleanTextFromElement(nodes[i]);
-      if(s) return s;
-    }
-    return '';
-  }
-
-  function isAnyAudioPlaying(){
-    try {
-      if(window.speechSynthesis && window.speechSynthesis.speaking) return true;
-      var medias = Array.from(document.querySelectorAll('audio,video'));
-      for(var i=0;i<medias.length;i++){
-        if(!medias[i].paused && !medias[i].ended) return true;
-      }
-    } catch(e){}
     return false;
   }
-
-  // VOICE selection (same as before)
-  var selectedVoice = null;
-  function loadVoicesAndPick(){
-    return new Promise(function(resolve){
-      function pick(voices){
-        if(!voices || voices.length===0) return null;
-        var esVoices = voices.filter(v => v.lang && v.lang.toLowerCase().indexOf('es') === 0);
-        for(var i=0;i<VOICE_PREFERENCES.length;i++){
-          var pref = VOICE_PREFERENCES[i].toLowerCase();
-          var found = voices.find(function(v){ return ((v.name || '').toLowerCase().indexOf(pref) !== -1) && (v.lang || '').toLowerCase().indexOf('es') !== -1; });
-          if(found) return found;
+  function cleanTextFromNode(el){
+    if(!el || isInteractiveAncestor(el)) return '';
+    try {
+      var clone = el.cloneNode(true);
+      Array.from(clone.querySelectorAll('button,a,[role="button"],svg,img,input,textarea,select')).forEach(function(x){ x.parentNode && x.parentNode.removeChild(x); });
+      var txt = (clone.textContent||'').replace(/\s+/g,' ').trim();
+      return (txt && txt.length >= 6) ? txt : '';
+    } catch(e){ return ''; }
+  }
+  function getBestVisibleText(){
+    var card = document.querySelector('.frase-card') || document.body;
+    try {
+      var r = card.getBoundingClientRect();
+      var cx = Math.round((r.left + r.right)/2);
+      var cy = Math.round((r.top + r.bottom)/2);
+      var el = document.elementFromPoint(cx, cy);
+      if(el){
+        var node = el;
+        while(node && node !== document.body){
+          if(/^(P|DIV|SPAN|H1|H2|H3|BLOCKQUOTE|LI)$/.test(node.tagName)){
+            var t = cleanTextFromNode(node);
+            if(t) return t;
+          }
+          node = node.parentElement;
         }
-        if(esVoices.length) return esVoices[0];
-        var any = voices.find(v => /(spanish|espa)/i.test(v.name || ''));
-        return any || voices[0];
       }
-      var voices = window.speechSynthesis && window.speechSynthesis.getVoices && window.speechSynthesis.getVoices();
-      var pickResult = pick(voices || []);
-      if(pickResult){ selectedVoice = pickResult; return resolve(selectedVoice); }
-      var onVoices = function(){
-        try {
-          var vs = window.speechSynthesis.getVoices();
-          var p = pick(vs || []);
-          if(p) selectedVoice = p;
-          window.speechSynthesis.removeEventListener('voiceschanged', onVoices);
-          resolve(selectedVoice);
-        } catch(e){ window.speechSynthesis.removeEventListener('voiceschanged', onVoices); resolve(null); }
-      };
-      if(window.speechSynthesis && window.speechSynthesis.addEventListener){
-        window.speechSynthesis.addEventListener('voiceschanged', onVoices);
-      }
-      setTimeout(function(){ try { var vs2 = window.speechSynthesis.getVoices(); selectedVoice = pick(vs2 || []); } catch(e){} resolve(selectedVoice); }, 1200);
-    });
+    } catch(e){}
+    var candidates = Array.from(card.querySelectorAll('p,div,span,blockquote')).filter(function(n){ return !isInteractiveAncestor(n) && (n.textContent||'').trim().length>8; });
+    if(candidates.length){
+      candidates.sort(function(a,b){ var ra=a.getBoundingClientRect(), rb=b.getBoundingClientRect(); return (rb.width*rb.height)-(ra.width*ra.height); });
+      for(var i=0;i<candidates.length;i++){ var s = cleanTextFromNode(candidates[i]); if(s) return s; }
+    }
+    return '';
   }
 
-  function speakFallbackWithVoice(text){
-    if(!text) return Promise.resolve(false);
-    if(!('speechSynthesis' in window)) return Promise.resolve(false);
-    return loadVoicesAndPick().then(function(){
-      try {
-        window.speechSynthesis.cancel();
-        var utter = new SpeechSynthesisUtterance(text);
-        if(selectedVoice) utter.voice = selectedVoice;
-        utter.rate = 0.95;
-        utter.pitch = 1.02;
-        utter.lang = (selectedVoice && selectedVoice.lang) ? selectedVoice.lang : 'es-ES';
-        window.speechSynthesis.speak(utter);
-        return true;
-      } catch(e){ console.warn('[FloatingControlsV7] speak error', e); return false; }
-    }).catch(function(){ return false; });
-  }
-
-  // speak override (same technique)
+  // TTS override window
   function markForceRead(durationMs){
-    window._frc_force_read_visible = Date.now() + (durationMs || 1800);
-    setTimeout(function(){ if(Date.now() > window._frc_force_read_visible) window._frc_force_read_visible = 0; }, (durationMs||1800)+400);
+    window._frc_force_read_visible = Date.now() + (durationMs || 1600);
+    setTimeout(function(){ if(Date.now() > window._frc_force_read_visible) window._frc_force_read_visible = 0; }, (durationMs||1600)+400);
   }
   function installSpeakOverride(){
     if(!('speechSynthesis' in window)) return;
-    if(window._frc_speak_patched_v7) return;
+    if(window._frc_speak_patched_v11) return;
     var originalSpeak = window.speechSynthesis.speak.bind(window.speechSynthesis);
     window.speechSynthesis.speak = function(utter){
       try {
         if(window._frc_force_read_visible && Date.now() < window._frc_force_read_visible){
           var visible = getBestVisibleText();
-          if(visible && visible.length > 6 && visible.length < 1000){
-            try { utter.text = visible; } catch(e){}
-          }
+          if(visible && visible.length > 4) utter.text = visible;
         }
-      } catch(e){ console.warn('[FloatingControlsV7] speak override error', e); }
+      } catch(e){}
       return originalSpeak(utter);
     };
-    window._frc_speak_patched_v7 = true;
+    window._frc_speak_patched_v11 = true;
   }
 
-  // download helper (same)
-  function sanitizeFilename(s){
-    return (s || 'frase').replace(/[^\w\- ]+/g,'').trim().slice(0,40).replace(/\s+/g,'-').toLowerCase() || 'frase';
-  }
-  function downloadTextAsFile(text){
-    try {
-      var filename = sanitizeFilename(text.split(/\s+/).slice(0,6).join('-')) + '-' + (new Date()).toISOString().slice(0,19).replace(/[:T]/g,'-') + '.txt';
-      var blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-      var url = URL.createObjectURL(blob);
-      var a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(function(){ try { a.parentNode && a.parentNode.removeChild(a); URL.revokeObjectURL(url); } catch(e){} }, 500);
-      return true;
-    } catch(e){ console.warn('[FloatingControlsV7] download failed', e); return false; }
+  // icon helper
+  function pickIconFor(orig, id){
+    if(!orig) return ICON_MAP[id] || id.slice(0,1);
+    var svg = orig.querySelector && orig.querySelector('svg, img, i');
+    if(svg){ try{ return svg.cloneNode(true); } catch(e){} }
+    var txt = (orig.textContent||'').trim(), tok = txt.split(/\s+/)[0]||'';
+    if(/[^A-Za-z0-9\s]/.test(tok) || tok.length<=2) return tok;
+    return ICON_MAP[id] || txt.slice(0,1) || '';
   }
 
-  // create clone (robust)
-  function createCloneFor(orig, id){
-    if(!container) return null;
-    var clone = document.createElement('button');
-    clone.type = 'button';
-    clone.className = 'frc-clone';
-    clone.setAttribute(CLONE_ATTR, id);
-    // icon
-    var iconNode = orig ? pickIconFor(orig, id) : ICON_MAP[id] || id.slice(0,1);
-    if(typeof iconNode === 'string'){
-      var s = document.createElement('span'); s.className = 'btn-icon'; s.textContent = iconNode; clone.appendChild(s);
-    } else {
-      var wrapper = document.createElement('span'); wrapper.className = 'btn-icon';
-      try { wrapper.appendChild(iconNode); } catch(e){ wrapper.textContent = ICON_MAP[id] || ''; }
-      clone.appendChild(wrapper);
+  // download PNG helper
+  function sanitizeFilename(s){ return (s||'frase').replace(/[^\w\- ]+/g,'').trim().slice(0,40).replace(/\s+/g,'-').toLowerCase() || 'frase'; }
+  function downloadCardPNG(phrase){
+    var card = document.querySelector('.frase-card');
+    var r = card && card.getBoundingClientRect() || { width:800, height:800 };
+    var w = Math.max(600, Math.round(r.width||800)), h = Math.max(600, Math.round(r.height||800));
+    var canvas = document.createElement('canvas'); canvas.width=w; canvas.height=h;
+    var ctx = canvas.getContext('2d');
+    var bgUrl = null;
+    try { var cs = card && window.getComputedStyle(card); var m = cs && cs.backgroundImage && cs.backgroundImage.match(/url\(["']?(.*?)["']?\)/); bgUrl = m && m[1]; } catch(e){ bgUrl=null; }
+
+    function drawTextAndFinish(){
+      ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.fillRect(0,0,w,h);
+      var fontSize = Math.round(w * 0.055);
+      ctx.font = '700 ' + fontSize + 'px "Montserrat", Arial, sans-serif';
+      ctx.fillStyle = '#072b2a'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      var maxWidth = Math.round(w * 0.72);
+      var words = phrase.split(/\s+/), lines = [], line = '';
+      for(var i=0;i<words.length;i++){ var test = (line?line+' ':'') + words[i]; if(ctx.measureText(test).width > maxWidth && line){ lines.push(line); line = words[i]; } else line = test; }
+      if(line) lines.push(line);
+      var blockHeight = lines.length * (fontSize + 8);
+      var startY = h/2 - blockHeight/2 + fontSize/2;
+      for(var li=0; li<lines.length; li++){
+        var y = startY + li * (fontSize + 8);
+        ctx.fillStyle = 'rgba(255,255,255,0.95)'; ctx.fillText(lines[li], w/2, y+2);
+        ctx.fillStyle = '#072b2a'; ctx.fillText(lines[li], w/2, y);
+      }
+      canvas.toBlob(function(blob){
+        if(!blob) return;
+        var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = sanitizeFilename(phrase) + '.png';
+        document.body.appendChild(a); a.click();
+        setTimeout(function(){ a.remove(); URL.revokeObjectURL(a.href); }, 700);
+      }, 'image/png');
     }
-    // label/title
-    var label = (orig && (orig.getAttribute('aria-label') || orig.title)) || '';
-    if(label) { clone.setAttribute('title', label); clone.setAttribute('aria-label', label); }
 
-    // behavior
+    if(bgUrl){
+      var img = new Image(); img.crossOrigin = 'anonymous';
+      img.onload = function(){
+        try {
+          var scale = Math.max(w/img.width, h/img.height);
+          var dw = img.width * scale, dh = img.height * scale;
+          var dx = (w - dw)/2, dy = (h - dh)/2;
+          ctx.drawImage(img, dx, dy, dw, dh);
+        } catch(e){
+          ctx.fillStyle = '#f6c4d3'; ctx.fillRect(0,0,w,h);
+        }
+        drawTextAndFinish();
+      };
+      img.onerror = function(){
+        ctx.fillStyle = '#f6c4d3'; ctx.fillRect(0,0,w,h);
+        drawTextAndFinish();
+      };
+      img.src = bgUrl;
+    } else {
+      ctx.fillStyle = '#f6c4d3'; ctx.fillRect(0,0,w,h);
+      drawTextAndFinish();
+    }
+  }
+
+  // ensure container inside card and enforce inline styles to force vertical flow
+  function ensureContainer(){
+    try {
+      removeLegacyContainers();
+      injCSS();
+      var card = document.querySelector('.frase-card');
+      if(!card) return null;
+      var c = document.getElementById(CONTAINER_ID);
+      if(!c){
+        c = document.createElement('div'); c.id = CONTAINER_ID;
+        c.setAttribute(MANAGED_FLAG, '1');
+        // basic CSS via inline to override any page rules
+        c.style.position = 'absolute';
+        c.style.right = '12px';
+        c.style.top = '50%';
+        c.style.transform = 'translateY(-50%)';
+        c.style.display = 'flex';
+        c.style.flexDirection = 'column';
+        c.style.flexFlow = 'column nowrap';
+        c.style.gap = '12px';
+        c.style.alignItems = 'center';
+        c.style.justifyContent = 'center';
+        c.style.zIndex = '2147483000';
+        // ensure card has positioning context
+        try { var cs = window.getComputedStyle(card); if(cs.position === 'static') card.style.position = 'relative'; } catch(e){}
+        card.appendChild(c);
+      } else {
+        c.setAttribute(MANAGED_FLAG, '1');
+        // enforce inline styles in case CSS was overridden by page
+        c.style.position = 'absolute';
+        c.style.right = '12px';
+        c.style.top = '50%';
+        c.style.transform = 'translateY(-50%)';
+        c.style.display = 'flex';
+        c.style.flexDirection = 'column';
+        c.style.flexFlow = 'column nowrap';
+        c.style.gap = '12px';
+        c.style.alignItems = 'center';
+        c.style.justifyContent = 'center';
+        c.style.zIndex = '2147483000';
+        if(c.parentElement !== card){
+          c.parentNode && c.parentNode.removeChild(c);
+          card.appendChild(c);
+        }
+      }
+      return c;
+    } catch(e){ console.warn('[FloatingControlsV11] ensureContainer error', e); return null; }
+  }
+
+  // create clones idempotently; hide original only after clone appended
+  function createCloneFor(orig, id, container){
+    if(!container) return null;
+    var existing = container.querySelector('[data-frc-clone-for="'+id+'"]');
+    if(existing) return existing;
+    var clone = document.createElement('button');
+    clone.type = 'button'; clone.className = 'frc-clone';
+    clone.setAttribute(CLONE_ATTR, id); clone.setAttribute(MANAGED_FLAG, '1');
+    var iconNode = orig ? pickIconFor(orig, id) : ICON_MAP[id] || id.slice(0,1);
+    if(typeof iconNode === 'string'){ var s = document.createElement('span'); s.className='btn-icon'; s.textContent = iconNode; clone.appendChild(s); }
+    else { var wrap = document.createElement('span'); wrap.className='btn-icon'; try{ wrap.appendChild(iconNode); } catch(e){ wrap.textContent = ICON_MAP[id] || ''; } clone.appendChild(wrap); }
+    var label = (orig && (orig.getAttribute('aria-label') || orig.title)) || '';
+    if(label){ clone.setAttribute('title', label); clone.setAttribute('aria-label', label); }
+
+    // behavior per id
     if(id === 'downloadBtn'){
       clone.addEventListener('click', function(){
         var phrase = getBestVisibleText();
-        if(!phrase && orig && typeof orig.click === 'function'){
-          try { orig.click(); } catch(e){}
-          setTimeout(function(){ var p2 = getBestVisibleText(); if(p2) downloadTextAsFile(p2); }, 220);
-          return;
-        }
-        if(phrase) downloadTextAsFile(phrase);
+        if(!phrase && orig && typeof orig.click === 'function'){ try{ orig.click(); } catch(e){} setTimeout(function(){ var p2=getBestVisibleText(); if(p2) downloadCardPNG(p2); },220); return; }
+        if(phrase) downloadCardPNG(phrase);
       }, { passive:true });
+    } else if(id === 'favBtn'){
+      clone.addEventListener('click', function(){ if(orig && typeof orig.click === 'function') orig.click(); setTimeout(function(){ syncFav(clone, orig); }, 80); }, { passive:true });
+      setTimeout(function(){ syncFav(clone, orig); }, 60);
+      observeFav(orig, clone);
+    } else if(id === 'ttsBtn'){
+      clone.addEventListener('click', function(){ markForceRead(1800); if(orig && typeof orig.click === 'function') orig.click(); setTimeout(function(){ if(isAnyAudioPlaying()) return; var p=getBestVisibleText(); if(p){ try{ var u=new SpeechSynthesisUtterance(p); u.lang='es-ES'; u.rate=0.95; u.pitch=1.02; window.speechSynthesis.cancel(); window.speechSynthesis.speak(u);}catch(e){} } }, 300); }, { passive:true });
     } else {
-      clone.addEventListener('click', function(){
-        if(id === 'ttsBtn') markForceRead(1800);
-        try {
-          if(orig && typeof orig.click === 'function') orig.click();
-          else if(orig) orig.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,view:window}));
-        } catch(e){ log('orig click error', e); }
-        if(id === 'ttsBtn'){
-          setTimeout(function(){
-            if(isAnyAudioPlaying()) return;
-            var p = getBestVisibleText();
-            if(p) speakFallbackWithVoice(p);
-          }, 300);
-        }
-      }, { passive:true });
+      clone.addEventListener('click', function(){ if(orig && typeof orig.click === 'function') orig.click(); }, { passive:true });
     }
 
     container.appendChild(clone);
+    // hide original AFTER clone appended successfully
     if(orig){
       try { orig.style.visibility = 'hidden'; orig.setAttribute(HIDDEN_ATTR, '1'); } catch(e){}
     }
     return clone;
   }
 
-  // position container relative to card center on the right side of viewport
-  function updateContainerPosition(){
-    if(!container) return;
-    cardEl = cardEl || document.querySelector('.frase-card') || document.getElementById('frase-card');
-    if(!cardEl) return;
-    try {
-      var r = cardEl.getBoundingClientRect();
-      lastCardRect = r;
-      var centerY = window.scrollY + r.top + (r.height/2);
-      // position container such that its center aligns with card center, anchored to right viewport
-      container.style.top = Math.round(centerY - (container.offsetHeight/2)) + 'px';
-      container.style.right = '14px';
-      container.style.left = 'auto';
-    } catch(e){ log('position update error', e); }
+  // favorite sync
+  var favObserver = null;
+  function syncFav(clone, orig){
+    if(!clone || !orig) return;
+    var pressed = orig.getAttribute && orig.getAttribute('aria-pressed') === 'true';
+    var span = clone.querySelector('.btn-icon');
+    if(span) span.textContent = pressed ? '♥' : '♡';
+    if(pressed) clone.classList.add('frc-pressed'); else clone.classList.remove('frc-pressed');
+  }
+  function observeFav(orig, clone){
+    if(!orig || !clone) return;
+    if(favObserver){ try{ favObserver.disconnect(); } catch(e){} favObserver = null; }
+    favObserver = new MutationObserver(function(){ syncFav(clone, orig); });
+    try { favObserver.observe(orig, { attributes:true, attributeFilter:['aria-pressed','class'] }); } catch(e) {}
   }
 
-  function addScrollAndResizeHandlers(){
-    scrollHandler = function(){ updateContainerPosition(); };
-    window.addEventListener('scroll', scrollHandler, { passive:true });
-    window.addEventListener('resize', scrollHandler, { passive:true });
-    // observe card resize (if supported)
+  // apply / restore / safeApply
+  function apply(){
     try {
-      if(window.ResizeObserver){
-        resizeObserver = new ResizeObserver(function(){ updateContainerPosition(); });
-        cardEl && resizeObserver.observe(cardEl);
-      }
-    } catch(e){}
-  }
-
-  function removeScrollAndResizeHandlers(){
-    try { window.removeEventListener('scroll', scrollHandler); window.removeEventListener('resize', scrollHandler); } catch(e){}
-    try { if(resizeObserver){ resizeObserver.disconnect(); resizeObserver = null; } } catch(e){}
-  }
-
-  // apply/restore
-  function applyOnce(){
-    try {
-      injCSS(defaultCSS);
+      var container = ensureContainer();
+      if(!container) return { ok:false, reason:'no-card' };
+      injCSS();
       installSpeakOverride();
-      // ensure container appended to body
-      if(document.getElementById(CONTAINER_ID)){
-        container = document.getElementById(CONTAINER_ID);
-        container.innerHTML = '';
-      } else {
-        container = document.createElement('div');
-        container.id = CONTAINER_ID;
-        // basic layout: column flex
-        container.style.display = 'flex';
-        container.style.flexDirection = 'column';
-        container.style.alignItems = 'center';
-        container.style.gap = '10px';
-        document.body.appendChild(container);
-      }
-
-      // ensure card exists
-      cardEl = document.querySelector('.frase-card') || document.getElementById('frase-card');
-      if(!cardEl){
-        log('no .frase-card found at apply time — will retry');
-        return { ok:false, reason:'no-card' };
-      }
-
-      // create clones
       var created = [];
       IDS.forEach(function(id){
         var orig = findOriginal(id);
-        // allow download clone even if orig missing
-        if(!orig && id !== 'downloadBtn') {
-          log('original missing for', id, ' — skipping clone');
-          return;
-        }
-        var clone = createCloneFor(orig, id);
-        if(clone) created.push({ id:id, clone:clone, orig:orig });
-        if(id === 'favBtn' && clone){
-          syncFavForId('favBtn', clone, orig);
-          observeFavorite(orig, clone);
-        }
-        if(id === 'ttsBtn' && orig){
-          try {
-            if(!orig._frc_marker_attached){
-              orig.addEventListener('click', function(){ markForceRead(1800); }, { passive:true });
-              orig._frc_marker_attached = true;
-            }
-          } catch(e){}
-        }
+        if(!orig && id !== 'downloadBtn'){ log('original missing for', id, '- skipping'); return; }
+        try {
+          var clone = createCloneFor(orig, id, container);
+          if(clone) created.push(id);
+          if(id === 'favBtn' && clone && orig){ syncFav(clone, orig); observeFav(orig, clone); }
+          if(id === 'ttsBtn' && orig && !orig._frc_marker_attached){ try{ orig.addEventListener('click', function(){ markForceRead(1800); }, { passive:true }); orig._frc_marker_attached = true; } catch(e){} }
+        } catch(e){ console.warn('[FloatingControlsV11] create clone error', id, e); }
       });
-
-      // position and handlers
-      updateContainerPosition();
-      addScrollAndResizeHandlers();
-
-      log('applied; created clones:', created.map(c=>c.id));
-      return { ok:true, created: created.map(c=>c.id) };
-    } catch(e){
-      console.error('[FloatingControlsV7] apply error', e);
-      return { ok:false, error: String(e) };
-    }
+      log('apply created', created);
+      return { ok:true, created: created };
+    } catch(e){ console.error('[FloatingControlsV11] apply error', e); return { ok:false, error: String(e) }; }
   }
 
-  // favorite sync functions (same)
-  function syncFavForId(id, clone, orig){
-    if(id !== 'favBtn' || !clone || !orig) return;
-    var pressed = orig.getAttribute('aria-pressed') === 'true';
-    var span = clone.querySelector('.btn-icon');
-    if(span){ if(span.children.length === 0) span.textContent = pressed ? '♥' : '♡'; }
-    if(pressed) clone.classList.add('frc-pressed'); else clone.classList.remove('frc-pressed');
-  }
-  function observeFavorite(orig, clone){
-    if(!orig || !clone) return;
-    if(favObserver){ try{ favObserver.disconnect(); } catch(e){} favObserver = null; }
-    favObserver = new MutationObserver(function(){ syncFavForId('favBtn', clone, orig); });
-    try { favObserver.observe(orig, { attributes: true, attributeFilter: ['aria-pressed','class'] }); } catch(e){}
-  }
-
-  function cleanupAll(){
+  function restore(){
     try {
-      removeScrollAndResizeHandlers();
-      if(container && container.parentNode) container.parentNode.removeChild(container);
-      container = null;
-      if(favObserver){ try{ favObserver.disconnect(); } catch(e){} favObserver = null; }
-      // unhide originals
-      IDS.forEach(function(id){
-        var orig = findOriginal(id);
-        if(orig && orig.getAttribute(HIDDEN_ATTR) === '1'){
-          try { orig.style.visibility = ''; orig.removeAttribute(HIDDEN_ATTR); } catch(e){}
-        }
+      var c = document.getElementById(CONTAINER_ID);
+      if(c && c.parentNode) c.parentNode.removeChild(c);
+      // unhide originals (including shareBtn which was not cloned)
+      ['ttsBtn','favBtn','downloadBtn','shareBtn'].forEach(function(id){
+        var o = findOriginal(id);
+        if(o && o.getAttribute(HIDDEN_ATTR) === '1'){ try{ o.style.visibility = ''; o.removeAttribute(HIDDEN_ATTR); } catch(e){} }
       });
       window._frc_force_read_visible = 0;
-      log('cleanupAll done');
-    } catch(e){ console.warn('[FloatingControlsV7] cleanupAll error', e); }
+      log('restore done');
+      return { ok:true };
+    } catch(e){ return { ok:false, error: String(e) }; }
   }
 
-  // retry helper: wait for .frase-card and then apply
-  function waitForAndApply(retries, interval){
-    retries = typeof retries === 'number' ? retries : 10;
-    interval = typeof interval === 'number' ? interval : 300;
-    var attempts = 0;
-    return new Promise(function(resolve){
-      function attempt(){
-        attempts++;
-        var card = document.querySelector('.frase-card') || document.getElementById('frase-card');
-        if(card){
-          cardEl = card;
-          var res = applyOnce();
-          resolve(res);
-          return;
-        }
-        if(attempts >= retries){
-          resolve({ ok:false, reason:'no-card-after-retries' });
-          return;
-        }
-        setTimeout(attempt, interval);
-      }
-      attempt();
-    });
+  function safeApply(){
+    try { removeLegacyContainers(); return apply(); } catch(e){ return { ok:false, error: String(e) }; }
   }
 
-  // Public API
+  // expose API
   window.FloatingControlsFinal = window.FloatingControlsFinal || {};
-  window.FloatingControlsFinal.apply = function(){ return waitForAndApply(12, 300); };
-  window.FloatingControlsFinal.restore = function(){ cleanupAll(); return { ok:true }; };
+  window.FloatingControlsFinal.apply = apply;
+  window.FloatingControlsFinal.restore = restore;
+  window.FloatingControlsFinal.safeApply = safeApply;
+  window.FloatingControlsFinal.__debug = { getBestVisibleText: getBestVisibleText, removeLegacyContainers: removeLegacyContainers };
 
-  // auto-run
-  setTimeout(function(){
-    waitForAndApply(12,300).then(function(r){ console.log('[FloatingControlsV7] auto apply ->', r); });
-  }, 120);
+  // auto apply short delay
+  setTimeout(function(){ try { var r = safeApply(); console.log('[FloatingControlsV11] auto safeApply ->', r); } catch(e){ console.warn('[FloatingControlsV11] auto apply failed', e); } }, 120);
 
-  // expose some debug helpers
-  window.FloatingControlsFinal.__debug = {
-    getContainer: function(){ return document.getElementById(CONTAINER_ID); },
-    getBestVisibleText: getBestVisibleText,
-    lastCardRect: function(){ return lastCardRect; }
-  };
-
-  console.debug('[FloatingControlsV7] loaded - call FloatingControlsFinal.apply() / .restore()');
+  log('FloatingControlsV11 loaded');
 })();
