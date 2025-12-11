@@ -1,8 +1,9 @@
 // favorites-interceptor-ui-v4-fix-storage-protect.js
-// v4.1 - Restauración: override toggleFavorite + robust modal UI + storage-protect wrapper
-// - Forza que lo que se guarda sea la frase que realmente se muestra en pantalla
-// - Evita modal duplicado (override showFavoritesModal + remover modal original si se crea)
-// - Idempotente y tolerante a re-renders SPA
+// v4.2 - Fix: restore styling injection, ensure sort by recency (desc), robust override + debug helpers
+// - Ensures style injection updates existing style (avoids truncated CSS staying active)
+// - Moves history/sort helpers before use; enforces descending order by timestamp
+// - Adds optional debug logging (window.FavoritesInterceptorV4.debug = true)
+// - Defensive to re-renders and tolerant to other scripts
 (function(){
   'use strict';
 
@@ -22,20 +23,23 @@
   const LOAD_MORE_TEXT = 'Cargar más';
   const ORIGINAL_MODAL_ID = '_lr_fav_modal';
 
-  // --- CSS (completo y seguro) ---
+  // CSS (complete)
   const CSS = `
+  /* Favorites Interceptor v4 styles (unique id: ${STYLE_ID}) */
   #${MODAL_ID} { position: fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(2,8,12,0.45); z-index:19999; padding:12px; }
   #${BOX_ID} { width: min(680px,94%); max-height: 70vh; overflow:auto; background: linear-gradient(180deg,#ffffff,#fbfbfc); border-radius:12px; padding:16px; box-shadow:0 20px 60px rgba(2,10,18,0.16); border:1px solid rgba(6,20,20,0.04); color:#072b2a; }
   #${BOX_ID} .fi-header{ display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:12px; }
   #${BOX_ID} .fi-title{ font-weight:800; font-size:1.05rem; }
   #${BOX_ID} .fi-close{ background:transparent; border:1px solid rgba(2,10,12,0.06); padding:6px 8px; border-radius:8px; cursor:pointer; }
-  #${BOX_ID} .fi-list{ display:flex; flex-direction:column; gap:12px; }
+  #${BOX_ID} hr{ border:0; border-top:1px solid rgba(2,10,12,0.06); margin:8px 0; }
+  #${BOX_ID} .fi-list{ display:flex; flex-direction:column; gap:12px; padding:6px 0 12px 0; }
   #${BOX_ID} .fi-item{ background:#fff; border-radius:10px; padding:12px; box-shadow:0 8px 20px rgba(2,10,18,0.04); border:1px solid rgba(6,20,20,0.03); }
   #${BOX_ID} .fi-text{ font-weight:700; line-height:1.45; white-space:pre-wrap; word-break:break-word; color:#072b2a; font-size:1rem; }
   #${BOX_ID} .fi-meta{ display:flex; justify-content:space-between; align-items:center; margin-top:8px; gap:8px; }
   #${BOX_ID} .fi-actions{ display:flex; gap:8px; }
   #${BOX_ID} .fi-copy{ padding:8px 12px; border-radius:10px; border:0; cursor:pointer; font-weight:800; color:#072b2a; background: linear-gradient(90deg,#ffb88c,#ff6b6b); box-shadow:0 10px 26px rgba(2,10,18,0.06); }
   #${BOX_ID} .fi-del{ padding:8px 12px; border-radius:10px; border:1px solid rgba(2,10,12,0.06); background:transparent; cursor:pointer; }
+  #${BOX_ID} .fi-load-area{ text-align:center; margin-top:10px; }
   #${BOX_ID} .fi-loadmore{ margin:8px auto 0 auto; display:inline-block; padding:8px 14px; border-radius:10px; border:0; background:#fff; color:#072b2a; cursor:pointer; box-shadow:0 6px 18px rgba(2,10,18,0.04); }
   @media(max-width:520px){ #${BOX_ID} { width:96%; padding:12px } #${BOX_ID} .fi-text{ font-size:0.98rem } }
   `;
@@ -46,14 +50,22 @@
   let _modal = null;
   let _loadBtn = null;
   let _modalScrollHandler = null;
-  let _origToggleSaved = null;
-  let _origShowFavSaved = null;
   let _origModalObserver = null;
 
+  // debug flag
+  window.FavoritesInterceptorV4 = window.FavoritesInterceptorV4 || {};
+  window.FavoritesInterceptorV4.debug = window.FavoritesInterceptorV4.debug || false;
+
   // util
+  function logDebug(...args){ if(window.FavoritesInterceptorV4 && window.FavoritesInterceptorV4.debug) console.debug('[FavoritesInterceptorV4]', ...args); }
   function injectStyle(){
     try {
-      if (document.getElementById(STYLE_ID)) return;
+      const existing = document.getElementById(STYLE_ID);
+      if(existing){
+        // update content if changed (avoids stale/truncated CSS)
+        if(existing.textContent !== CSS) existing.textContent = CSS;
+        return;
+      }
       const s = document.createElement('style');
       s.id = STYLE_ID;
       s.textContent = CSS;
@@ -62,20 +74,25 @@
   }
   function safeParse(s){ try { return JSON.parse(s); } catch(e){ return null; } }
 
-  // storage helpers
+  // STORAGE HANDLERS
   function readFavorites(){
     try {
       const raw = localStorage.getItem(STORAGE_KEY_FAVS);
       if(!raw) return [];
       const arr = safeParse(raw);
-      return Array.isArray(arr) ? arr.map(x => typeof x === 'string' ? x.trim() : (x && x.text ? String(x.text).trim() : String(x).trim())) : [];
+      if(!Array.isArray(arr)) return [];
+      return arr.map(x => typeof x === 'string' ? x.trim() : (x && x.text ? String(x.text).trim() : String(x).trim()));
     } catch(e){ return []; }
   }
   function writeFavorites(arr){
-    try { if(!Array.isArray(arr)) return; localStorage.setItem(STORAGE_KEY_FAVS, JSON.stringify(arr.slice(0,200))); } catch(e){ console.warn('[FavoritesInterceptorV4] writeFavorites failed', e); }
+    try {
+      if(!Array.isArray(arr)) return;
+      localStorage.setItem(STORAGE_KEY_FAVS, JSON.stringify(arr.slice(0,200)));
+    } catch(e){ console.warn('[FavoritesInterceptorV4] writeFavorites failed', e); }
   }
   function readBackup(){ try { const raw = localStorage.getItem(STORAGE_KEY_BACKUP); return safeParse(raw); } catch(e){ return null; } }
-  // install backup wrapper once
+
+  // Install backup wrapper for setItem (lightweight and safe)
   (function installBackupWrapper(){
     if(window._lr_storage_backup_installed) return;
     window._lr_storage_backup_installed = true;
@@ -86,88 +103,78 @@
           try {
             const prev = this.getItem && this.getItem(key);
             if(prev !== null && prev !== undefined){
+              // write backup using original method to avoid recursion issues
               origSet.call(this, STORAGE_KEY_BACKUP, String(prev));
             }
-          } catch(e){}
+          } catch(e){ /* ignore backup errors */ }
         }
       } catch(e){}
       return origSet.call(this, key, value);
     };
   })();
 
-  // ----- Visible phrase extraction (robusta) -----
-  function getVisiblePhraseTextSync(){
+  // HISTORY MAP + SORT (moved earlier to ensure availability)
+  function readHistoryMap(){
+    const map = new Map();
     try {
-      var ni = document.querySelector('[data-name-injector-applied], [data-name-injector-name]');
-      if(ni){
-        var attr = ni.getAttribute && (ni.getAttribute('data-name-injector-name') || ni.getAttribute('data-name-injector-original') || ni.getAttribute('data-name-injector-applied'));
-        if(attr && String(attr).trim()) return String(attr).trim();
-        var txt = (ni.textContent || '').trim();
-        if(txt) return txt;
-      }
-      var el = document.getElementById('frase-text') || document.querySelector('.frase-text') || document.querySelector('.frase');
-      if(el && (el.textContent||'').trim()) return el.textContent.trim();
-      if(window._phrases_current && typeof window._phrases_current === 'string' && window._phrases_current.trim()) return window._phrases_current.trim();
-      if(window._phrases_current && typeof window._phrases_current === 'object' && window._phrases_current.phrase) return String(window._phrases_current.phrase).trim();
-      // fallback: largest text in .frase-card
-      var card = document.querySelector('.frase-card') || document.getElementById('frase-card');
-      if(card){
-        var cand = Array.from(card.querySelectorAll('p,div,span,h1,h2,h3')).filter(function(n){ try { if(n.closest && n.closest('.frase-controls')) return false; return (n.textContent||'').trim().length>3; } catch(e){ return false; } });
-        if(cand.length){
-          cand.sort(function(a,b){ try { var ra=a.getBoundingClientRect(), rb=b.getBoundingClientRect(); return (rb.width*rb.height)-(ra.width*ra.height);}catch(e){return 0;} });
-          return (cand[0].textContent||'').trim();
-        }
-      }
-      return '';
+      const raw = localStorage.getItem(STORAGE_KEY_HISTORY);
+      if(!raw) return map;
+      const arr = safeParse(raw);
+      if(!Array.isArray(arr)) return map;
+      arr.forEach(item => {
+        try {
+          const text = (item && (item.text || item.t || item.phrase)) || '';
+          const at = (item && (item.at || item.time || item.timestamp)) || item && item.at || 0;
+          if(!text) return;
+          const ts = Number(at) || (at ? new Date(at).getTime() : 0) || 0;
+          if(!map.has(text) || (ts && ts > map.get(text))) map.set(text, ts);
+        } catch(e){}
+      });
+    } catch(e){}
+    return map;
+  }
+
+  function sortFavoritesByRecency(favs){
+    try {
+      if(!Array.isArray(favs)) return [];
+      const map = readHistoryMap();
+      // Build indexed list with ts (default 0)
+      const indexed = favs.map((t,i) => ({ t, i, ts: map.has(t) ? map.get(t) : 0 }));
+      // Sort: descending by ts, then original index
+      indexed.sort((a,b) => {
+        if(a.ts === b.ts) return a.i - b.i; // stable by original order
+        return b.ts - a.ts; // most recent first
+      });
+      return indexed.map(x => x.t);
     } catch(e){
-      return '';
+      return Array.isArray(favs) ? favs.slice(0) : [];
     }
   }
-  function getVisiblePhraseText(cb, timeoutMs){
-    timeoutMs = typeof timeoutMs === 'number' ? timeoutMs : 80;
+
+  // clipboard
+  async function copyToClipboard(text){
     try {
-      var t = getVisiblePhraseTextSync();
-      if(t && t.length) { if(cb) cb(t); return t; }
-      if(cb){
-        setTimeout(function(){ try { cb(getVisiblePhraseTextSync() || ''); } catch(e){ cb(''); } }, timeoutMs);
-      }
-      return '';
-    } catch(e){ if(cb) cb(''); return ''; }
+      if(navigator.clipboard && navigator.clipboard.writeText){ await navigator.clipboard.writeText(text); return true; }
+      const ta = document.createElement('textarea'); ta.value = text; ta.style.position='fixed'; ta.style.left='-9999px'; document.body.appendChild(ta); ta.select();
+      let ok = false;
+      try{ ok = document.execCommand('copy'); }catch(e){ ok = false; }
+      document.body.removeChild(ta);
+      return !!ok;
+    } catch(e){ return false; }
+  }
+  function uiFeedback(btn, msg){
+    try {
+      if(typeof window.showToast === 'function'){ window.showToast(msg); return; }
+      if(!btn){ try{ alert(msg); }catch(e){} return; }
+      const prev = btn.innerText; btn.innerText = msg; btn.disabled = true;
+      setTimeout(()=>{ try{ btn.innerText = prev; btn.disabled = false; }catch(e){} }, 900);
+    } catch(e){}
+  }
+  function normalizeForMatch(s){
+    try { return (s||'').toString().trim().replace(/\s+/g,' '); } catch(e){ return String(s||'').trim(); }
   }
 
-  // ----- override toggleFavorite so it always saves visible phrase -----
-  function overrideToggleFavorite(){
-    try {
-      if(window._orig_toggleFavorite_saved) return;
-      if(typeof window.toggleFavorite === 'function'){
-        window._orig_toggleFavorite_saved = window.toggleFavorite;
-        window.toggleFavorite = function(text){
-          try {
-            var actual = getVisiblePhraseTextSync();
-            if(actual && actual.length) return window._orig_toggleFavorite_saved(actual);
-            // fallback: async read and call original if possible
-            getVisiblePhraseText(function(res){
-              try { if(res && res.length) window._orig_toggleFavorite_saved(res); else window._orig_toggleFavorite_saved(text); } catch(e){}
-            }, 120);
-            return true;
-          } catch(e){ try { return window._orig_toggleFavorite_saved(text); } catch(ex){ return false; } }
-        };
-        console.debug('[FavoritesInterceptorV4] toggleFavorite overridden to use visible phrase');
-        return;
-      }
-      // if not present yet, poll a few times
-      var tries = 0;
-      var iid = setInterval(function(){
-        tries++;
-        if(typeof window.toggleFavorite === 'function'){
-          clearInterval(iid);
-          overrideToggleFavorite();
-        } else if(tries > 25) clearInterval(iid);
-      }, 120);
-    } catch(e){ console.warn('[FavoritesInterceptorV4] overrideToggleFavorite error', e); }
-  }
-
-  // ----- modal build / render (keeps previous design) -----
+  // build fragment for page
   function buildPageFragment(page){
     const start = page * PAGE_SIZE, end = start + PAGE_SIZE;
     const slice = _sortedFavs.slice(start, end);
@@ -199,7 +206,7 @@
         }
         if(idx !== -1){
           favsCurrent.splice(idx,1);
-          writeFavorites(favsCurrent);
+          writeFavorites(favsCurrent); // explicit write on delete
           _sortedFavs = _sortedFavs.filter(f => normalizeForMatch(f) !== normalizeForMatch(text));
           const totalPages = Math.ceil(_sortedFavs.length / PAGE_SIZE);
           if(_currentPage >= totalPages) _currentPage = Math.max(0, totalPages - 1);
@@ -273,27 +280,6 @@
     if(preserveScroll) box.scrollTop = prevScroll;
   }
 
-  // history map
-  function readHistoryMap(){
-    const map = new Map();
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY_HISTORY);
-      if(!raw) return map;
-      const arr = safeParse(raw);
-      if(!Array.isArray(arr)) return map;
-      arr.forEach(item => {
-        try {
-          const text = (item && (item.text || item.t || item.phrase)) || '';
-          const at = (item && (item.at || item.time || item.timestamp)) || item && item.at || 0;
-          if(!text) return;
-          const ts = Number(at) || (at ? new Date(at).getTime() : 0) || 0;
-          if(!map.has(text) || (ts && ts > map.get(text))) map.set(text, ts);
-        } catch(e){}
-      });
-    } catch(e){}
-    return map;
-  }
-
   // restore from backup if favorites empty
   function restoreFromBackupIfNeeded(){
     try {
@@ -310,15 +296,21 @@
 
   // open / close modal
   function openModal(){
-    injectStyle();
-    try { restoreFromBackupIfNeeded(); } catch(e){}
+    try {
+      injectStyle();
+      restoreFromBackupIfNeeded();
+    } catch(e){}
+
     // remove original modal if exists
     try { const orig = document.getElementById(ORIGINAL_MODAL_ID); if(orig) orig.parentNode && orig.parentNode.removeChild(orig); } catch(e){}
+
     closeModal();
 
     const favs = readFavorites();
-    _sortedFavs = sortFavoritesByRecency(favs);
+    _sortedFavs = sortFavoritesByRecency(favs); // ensure descending by recency
     _currentPage = 0;
+
+    logDebug('opening modal: favs count', _sortedFavs.length, 'sample:', _sortedFavs.slice(0,6));
 
     const modal = document.createElement('div'); modal.id = MODAL_ID; Object.assign(modal.style,{ position:'fixed', left:0, right:0, top:0, bottom:0, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(2,8,12,0.45)', zIndex:19999, padding:'12px' });
     const box = document.createElement('div'); box.id = BOX_ID;
@@ -349,7 +341,63 @@
     } catch(e){}
   }
 
-  // menu interceptor: opens our modal and prevents original UI
+  // visible phrase extraction (robust)
+  function getVisiblePhraseTextSync(){
+    try {
+      var ni = document.querySelector('[data-name-injector-applied], [data-name-injector-name]');
+      if(ni){
+        var attr = ni.getAttribute && (ni.getAttribute('data-name-injector-name') || ni.getAttribute('data-name-injector-original') || ni.getAttribute('data-name-injector-applied'));
+        if(attr && String(attr).trim()) return String(attr).trim();
+        var txt = (ni.textContent || '').trim();
+        if(txt) return txt;
+      }
+      var el = document.getElementById('frase-text') || document.querySelector('.frase-text') || document.querySelector('.frase');
+      if(el && (el.textContent||'').trim()) return el.textContent.trim();
+      if(window._phrases_current && typeof window._phrases_current === 'string' && window._phrases_current.trim()) return window._phrases_current.trim();
+      if(window._phrases_current && typeof window._phrases_current === 'object' && window._phrases_current.phrase) return String(window._phrases_current.phrase).trim();
+      // fallback largest block
+      var card = document.querySelector('.frase-card') || document.getElementById('frase-card');
+      if(card){
+        var cand = Array.from(card.querySelectorAll('p,div,span,h1,h2,h3')).filter(function(n){ try { if(n.closest && n.closest('.frase-controls')) return false; return (n.textContent||'').trim().length>3; } catch(e){ return false; } });
+        if(cand.length){
+          cand.sort(function(a,b){ try { var ra=a.getBoundingClientRect(), rb=b.getBoundingClientRect(); return (rb.width*rb.height)-(ra.width*ra.height);}catch(e){return 0;} });
+          return (cand[0].textContent||'').trim();
+        }
+      }
+      return '';
+    } catch(e){ return ''; }
+  }
+
+  // override toggleFavorite to force saving visible phrase
+  function overrideToggleFavorite(){
+    try {
+      if(window._orig_toggleFavorite_saved) return;
+      if(typeof window.toggleFavorite === 'function'){
+        window._orig_toggleFavorite_saved = window.toggleFavorite;
+        window.toggleFavorite = function(text){
+          try {
+            var actual = getVisiblePhraseTextSync();
+            if(actual && actual.length) return window._orig_toggleFavorite_saved(actual);
+            // fallback: call original with provided text
+            return window._orig_toggleFavorite_saved(text);
+          } catch(e){ try { return window._orig_toggleFavorite_saved(text); } catch(ex){ return false; } }
+        };
+        logDebug('toggleFavorite overridden');
+        return;
+      }
+      // poll if not present yet
+      var tries = 0;
+      var iid = setInterval(function(){
+        tries++;
+        if(typeof window.toggleFavorite === 'function'){
+          clearInterval(iid);
+          overrideToggleFavorite();
+        } else if(tries > 25) clearInterval(iid);
+      }, 120);
+    } catch(e){ console.warn('[FavoritesInterceptorV4] overrideToggleFavorite error', e); }
+  }
+
+  // menuInterceptor
   function menuInterceptor(ev){
     try {
       const btn = ev.target && ev.target.closest ? ev.target.closest('button, a, [data-action]') : null;
@@ -371,12 +419,13 @@
   function overrideShowFavoritesModal(){
     try {
       if(window._orig_showFavoritesModal_saved) return;
-      try { _origShowFavSaved = window.showFavoritesModal; } catch(e){}
+      try { window._orig_showFavoritesModal_saved = window.showFavoritesModal; } catch(e){}
       window.showFavoritesModal = function(){ try { openModal(); return true; } catch(e){ return false; } };
+      logDebug('showFavoritesModal overridden');
     } catch(e){ console.warn('[FavoritesInterceptorV4] overrideShowFavoritesModal error', e); }
   }
 
-  // remove original modal if created by app (race safety)
+  // MutationObserver to remove original modal if created
   function startOrigModalRemover(){
     try {
       if(_origModalObserver) return;
@@ -397,7 +446,8 @@
         });
       });
       _origModalObserver.observe(document.body, { childList:true, subtree:true });
-    } catch(e){}
+      logDebug('orig modal remover started');
+    } catch(e){ console.warn('[FavoritesInterceptorV4] startOrigModalRemover error', e); }
   }
 
   function attachInterceptors(){
@@ -407,8 +457,7 @@
     document.addEventListener('pointerup', menuInterceptor, true);
   }
 
-  // expose API
-  window.FavoritesInterceptorV4 = window.FavoritesInterceptorV4 || {};
+  // public API
   window.FavoritesInterceptorV4.open = openModal;
   window.FavoritesInterceptorV4.close = closeModal;
   window.FavoritesInterceptorV4.restore = function(){
@@ -417,7 +466,7 @@
       try{ document.removeEventListener('click', menuInterceptor, true); }catch(e){}
       try{ document.removeEventListener('pointerup', menuInterceptor, true); }catch(e){}
       if(_origModalObserver){ _origModalObserver.disconnect(); _origModalObserver = null; }
-      if(_origShowFavSaved) try { window.showFavoritesModal = _origShowFavSaved; } catch(e){}
+      if(window._orig_showFavoritesModal_saved) try { window.showFavoritesModal = window._orig_showFavoritesModal_saved; } catch(e){}
       if(window._orig_toggleFavorite_saved) try { window.toggleFavorite = window._orig_toggleFavorite_saved; } catch(e){}
       const s = document.getElementById(STYLE_ID); if(s && s.parentNode) s.parentNode.removeChild(s);
       window._favorites_interceptor_v4_loaded = false;
@@ -442,7 +491,8 @@
     overrideShowFavoritesModal();
     overrideToggleFavorite();
     startOrigModalRemover();
-    console.debug('[FavoritesInterceptorV4] loaded: storage-protected, toggle override, UI interceptor ready');
+    console.debug('[FavoritesInterceptorV4] v4.2 loaded');
+    logDebug('debug enabled:', !!window.FavoritesInterceptorV4.debug);
   } catch(e){ console.warn('[FavoritesInterceptorV4] init error', e); }
 
 })();
