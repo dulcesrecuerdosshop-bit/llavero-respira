@@ -1,76 +1,52 @@
-/* fix-phrases-breaks.css (updated)
-   - evita separación por guiones y mejora el wrapping
-   - aumenta el tamaño de la tipografía de la frase (responsive)
-   - exposición de la variable --frase-color para que el JS pueda cambiar color según fondo
-*/
-:root {
+/* fix-phrases-breaks.css (ajuste para evitar solapamiento con iconos laterales) */
+
+:root{
   --frase-max-width: 44ch;
-  --frase-color: #072b2a; /* fallback, será sobrescrito por JS */
+  --frase-color: #072b2a;
   --frase-font-weight: 800;
   --frase-line-height: 1.06;
+  --icon-column-width: 72px; /* valor por defecto, JS lo sobreescribirá si encuentra iconos */
 }
 
-/* target principal */
+/* caja de frase: evita hyphens, aplica tamaño y usa calc() para no ocupar espacio de iconos */
 .frc-fix-no-hyphen,
 #frase-text,
 .frase-text,
 .frase-card .frase-text {
-  /* evitar cortes dentro de palabra */
   word-break: normal !important;
   overflow-wrap: normal !important;
   hyphens: none !important;
   -webkit-hyphens: none !important;
   -ms-hyphens: none !important;
 
-  /* mantener saltos intencionales */
   white-space: pre-wrap !important;
-
-  /* layout y anchura cómoda */
   display: block !important;
   margin-left: auto !important;
   margin-right: auto !important;
-  max-width: var(--frase-max-width) !important;
+
+  /* No ocupar la columna de iconos: el ancho máximo será el menor entre --frase-max-width y
+     el espacio disponible menos la columna de iconos + margen */
+  max-width: min(var(--frase-max-width), calc(100% - (var(--icon-column-width) + 48px))) !important;
+  padding-right: calc(var(--icon-column-width) + 16px) !important; /* evita que texto se oculte debajo */
   text-align: center !important;
 
-  /* tipografía: responsive y mayor tamaño */
   font-weight: var(--frase-font-weight) !important;
   line-height: var(--frase-line-height) !important;
-  font-size: clamp(22px, 4.8vw, 56px) !important; /* ajusta si hace falta */
+  font-size: clamp(22px, 4.8vw, 56px) !important;
   color: var(--frase-color) !important;
   transition: color 240ms ease, text-shadow 240ms ease;
-  /* ligera sombra para contraste suave */
   text-shadow: 0 2px 0 rgba(0,0,0,0.06);
 }
 
-/* ajuste para frases muy largas: mantener buen interlineado */
-.frc-fix-no-hyphen p,
-.frc-fix-no-hyphen span {
-  line-height: var(--frase-line-height) !important;
-}
-
-/* pequeños ajustes en pantallas móviles */
-@media (max-width: 520px) {
+/* ajustes móviles */
+@media (max-width: 520px){
   .frc-fix-no-hyphen,
   #frase-text,
   .frase-text {
-    max-width: 36ch !important;
+    max-width: min(36ch, calc(100% - (var(--icon-column-width) + 36px))) !important;
     padding-left: 12px !important;
-    padding-right: 12px !important;
+    padding-right: calc(var(--icon-column-width) + 12px) !important;
     font-size: clamp(18px, 6.5vw, 36px) !important;
     line-height: 1.08 !important;
   }
-}
-
-/* estado 'dark' (si quieres forzar color claro) */
-.frc-frc-contrast-light .frc-fix-no-hyphen,
-.frc-contrast-light .frc-fix-no-hyphen {
-  --frase-color: #ffffff;
-  text-shadow: 0 6px 18px rgba(0,0,0,0.22);
-}
-
-/* estado 'light' (forzar color oscuro) */
-.frc-contrast-dark .frc-fix-no-hyphen,
-.frc-frc-contrast-dark .frc-fix-no-hyphen {
-  --frase-color: #072b2a;
-  text-shadow: 0 2px 0 rgba(255,255,255,0.02);
 }
