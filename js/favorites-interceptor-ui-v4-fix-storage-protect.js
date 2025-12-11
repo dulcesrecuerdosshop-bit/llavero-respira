@@ -246,7 +246,7 @@
     if(document.getElementById(MODAL_ID)) return;
     var favs = readFavorites();
     // <-- Only change here: ensure UI shows newest first by reversing the sorted array
-    _sortedFavs = sortFavoritesByRecency(favs).slice().reverse();
+   _sortedFavs = sortFavoritesByRecency(favs).slice();
     _currentPage = 0;
     var modal = document.createElement('div'); modal.id = MODAL_ID;
     Object.assign(modal.style, { position:'fixed', left:0, right:0, top:0, bottom:0, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(2,8,12,0.45)', zIndex:19999, padding[...]
